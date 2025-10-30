@@ -2,6 +2,11 @@
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 FROM ${PYTHON_IMAGE}
 
+# BuildKit platform arguments
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
+
 LABEL maintainer="alpanez.alcalde@gmail.com"
 LABEL description="Shared Python base layer for infrastructure devcontainers"
 
@@ -11,8 +16,8 @@ ENV UV_LINK_MODE=copy
 ARG UV_VERSION=0.4.21
 
 # Common system packages used across Python-based stacks.
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \

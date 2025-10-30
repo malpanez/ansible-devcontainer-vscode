@@ -5,6 +5,11 @@ ARG LATEX_DISTRO=miktex
 
 FROM ${LATEX_IMAGE}
 
+# BuildKit platform arguments
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
+
 LABEL maintainer="malpanez"
 LABEL description="LaTeX Development Container (MiKTeX or TeX Live)"
 
