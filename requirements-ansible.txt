@@ -4,9 +4,9 @@ ansible==9.13.0 \
     --hash=sha256:b389a97d1e85c2b2ad6ace9e94f410111f69cc5aa3845c930c873b34c0ddd6e2 \
     --hash=sha256:b64c6e8cad0171576e0ed4b1fd48a5dc551128580dbb979d0e8b4cd85b969074
     # via ansible-devcontainer
-ansible-builder==3.1.0 \
-    --hash=sha256:d2dc573e26a7bd5095e98aeb37ee9b00bc9f5005abea7147d74229c0f3426fcb \
-    --hash=sha256:ed4a6717dd466c2fc2cbdd7c9a9b5323260275a13fcf20cf6fe9a807f8c8ad3f
+ansible-builder==3.1.1 \
+    --hash=sha256:9d88bc15acc7d31056d0c51914a6102dac8e5ad73f9f2d35ba98378c89714ed2 \
+    --hash=sha256:a8246022edb92ca27ea95e87c7af30bcb2752f108dcc75fbf96e77196dff1072
     # via ansible-navigator
 ansible-compat==25.8.2 \
     --hash=sha256:c35fd18f3a8320123f881ad6a23c4125e323e7e559ae09b6279568690a583b8f \
