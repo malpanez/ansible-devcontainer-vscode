@@ -36,3 +36,6 @@ jobs:
 
       - name: Run ansible-lint
         uses: ansible/ansible-lint@main
+        with:
+          override-deps: |
+            ansible-core>=2.20.0

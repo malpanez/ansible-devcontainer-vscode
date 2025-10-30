@@ -35,7 +35,7 @@
     - name: Capture current uv lock checksum
       ansible.builtin.stat:
         path: "{{ dependency_uv_lock_path }}"
-        checksum: true
+        checksum_algorithm: sha256
       register: dependency_uv_lock_before
 
     - name: Run uv lock
@@ -110,7 +110,7 @@
         - name: Capture updated requirements checksum
           ansible.builtin.stat:
             path: "{{ dependency_requirements_path }}"
-            checksum: true
+            checksum_algorithm: sha256
           register: dependency_requirements_after
 
       always:
