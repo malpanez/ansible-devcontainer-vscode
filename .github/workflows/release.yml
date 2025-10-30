@@ -112,7 +112,7 @@ jobs:
 
       - name: Build and push base image
         id: build_base
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: devcontainers/base/Dockerfile
@@ -124,7 +124,7 @@ jobs:
 
       - name: Build and push Ansible image
         id: build_ansible
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: devcontainers/ansible/Dockerfile
@@ -138,7 +138,7 @@ jobs:
 
       - name: Build and push Terraform image
         id: build_terraform
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: devcontainers/terraform/Dockerfile
@@ -152,7 +152,7 @@ jobs:
 
       - name: Build and push Golang image
         id: build_golang
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: devcontainers/golang/Dockerfile
@@ -164,7 +164,7 @@ jobs:
 
       - name: Build and push LaTeX image
         id: build_latex
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: devcontainers/latex/Dockerfile
