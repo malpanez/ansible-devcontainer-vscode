@@ -1,0 +1,33 @@
+---
+- name: Configure VS Code workspace assets
+  module_defaults:
+    ansible.builtin.file:
+      owner: "{{ vscode_config_devcontainer_user }}"
+      group: "{{ vscode_config_devcontainer_user }}"
+      mode: '0755'
+    ansible.builtin.template:
+      owner: "{{ vscode_config_devcontainer_user }}"
+      group: "{{ vscode_config_devcontainer_user }}"
+      mode: '0644'
+  block:
+    - name: Create VS Code directories  # noqa: risky-file-permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ vscode_config_workspace_dir }}/.vscode"
+
+    - name: Deploy VS Code settings  # noqa: risky-file-permissions
+      ansible.builtin.template:
+        src: settings.json.j2
+        dest: "{{ vscode_config_workspace_dir }}/.vscode/settings.json"
+
+    - name: Deploy VS Code extensions list  # noqa: risky-file-permissions
+      ansible.builtin.template:
+        src: extensions.json.j2
+        dest: "{{ vscode_config_workspace_dir }}/.vscode/extensions.json"
+
+    - name: Deploy VS Code tasks  # noqa: risky-file-permissions
+      ansible.builtin.template:
+        src: tasks.json.j2
+        dest: "{{ vscode_config_workspace_dir }}/.vscode/tasks.json"

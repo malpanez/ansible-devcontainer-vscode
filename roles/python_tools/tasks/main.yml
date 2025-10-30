@@ -1,0 +1,23 @@
+---
+- name: Configure python tooling helpers
+  module_defaults:
+    ansible.builtin.lineinfile:
+      owner: "{{ python_tools_devcontainer_user }}"
+      group: "{{ python_tools_devcontainer_user }}"
+      mode: '0644'
+    ansible.builtin.template:
+      owner: "{{ python_tools_devcontainer_user }}"
+      group: "{{ python_tools_devcontainer_user }}"
+      mode: '0644'
+  block:
+    - name: Ensure uv is in PATH  # noqa: risky-file-permissions
+      ansible.builtin.lineinfile:
+        path: "/home/{{ python_tools_devcontainer_user }}/.bashrc"
+        regexp: '^export PATH="\$HOME/.local/bin:\$PATH"'
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        create: true
+
+    - name: Deploy pytest configuration  # noqa: risky-file-permissions
+      ansible.builtin.template:
+        src: pytest.ini.j2
+        dest: "{{ python_tools_pytest_config_path }}"

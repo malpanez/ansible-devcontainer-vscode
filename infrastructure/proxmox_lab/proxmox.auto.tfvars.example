@@ -1,0 +1,47 @@
+# Copy this file to `proxmox.auto.tfvars` (ignored by git) and adjust values to match
+# your lab. Secrets (token secret, etc.) should be stored via environment variables
+# or secret management tooling; avoid committing real values.
+
+pm_api_url      = "https://proxmox.example.local:8006/api2/json"
+pm_user         = "svc-terraform@pam"
+pm_token_id     = "svc-terraform@pam!terraform"
+pm_token_secret = "REPLACE_ME" # supply via TF_VAR_pm_token_secret or terragrunt instead
+pm_tls_insecure = false
+
+authorized_ssh_keys = <<EOF
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBexamplekey user@example
+EOF
+
+nameservers = ["192.168.10.1", "1.1.1.1"]
+
+virtual_machines = [
+  {
+    name                    = "lab-pihole"
+    description             = "Pi-hole DNS sinkhole"
+    node                    = "pve01"
+    vmid                    = 9001
+    clone                   = "ubuntu-24.04-template"
+    cores                   = 2
+    sockets                 = 1
+    memory_mebibytes        = 2048
+    disk_gib                = 20
+    storage_pool            = "local-lvm"
+    bridge                  = "vmbr0"
+    vlan_tag                = 30
+    provision_user          = "vscode"
+  },
+  {
+    name                    = "lab-sterlingpdf"
+    description             = "Sterling PDF service"
+    node                    = "pve02"
+    vmid                    = 9002
+    clone                   = "ubuntu-24.04-template"
+    cores                   = 4
+    memory_mebibytes        = 4096
+    disk_gib                = 40
+    storage_pool            = "local-lvm"
+    bridge                  = "vmbr0"
+    vlan_tag                = 30
+    provision_user          = "vscode"
+  }
+]

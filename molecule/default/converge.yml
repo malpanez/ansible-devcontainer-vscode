@@ -1,0 +1,96 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    ansible_environment_config_dir: /workspace
+    ansible_environment_devcontainer_user: vscode
+    ansible_environment_python_requirements_file: /workspace/requirements-ansible.txt
+    ansible_environment_collection_requirements_file: /workspace/requirements.yml
+    devcontainer_base_user: vscode
+    devcontainer_base_timezone: Europe/Dublin
+    python_tools_devcontainer_user: vscode
+    python_tools_ansible_config_dir: /workspace
+    vscode_config_workspace_dir: /workspace
+    vscode_config_devcontainer_user: vscode
+    vscode_config_python_interpreter_path: /usr/local/bin/python
+    ansible_config_dir: /workspace
+    devcontainer_user: vscode
+    python_requirements_file: /workspace/requirements-ansible.txt
+    ansible_requirements_file: /workspace/requirements.yml
+  pre_tasks:
+    - name: Copy Ansible Python requirements
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements-ansible.txt"
+        dest: /workspace/requirements-ansible.txt
+        mode: "0644"
+      become: false
+
+    - name: Copy requirements.txt wrapper
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements.txt"
+        dest: /workspace/requirements.txt
+        mode: "0644"
+      become: false
+
+    - name: Copy Ansible collection requirements
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements.yml"
+        dest: /workspace/requirements.yml
+        mode: "0644"
+      become: false
+
+    - name: Copy Dev Container templates
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../devcontainers"
+        dest: /workspace/
+        mode: "0755"
+      become: false
+
+  roles:
+    - role: devcontainer_base
+    - role: ansible_environment
+    - role: python_tools
+    - role: vscode_config
+    - role: devcontainer_template
+      vars:
+        devcontainer_template_root: /workspace/devcontainers
+        devcontainer_template_target: /workspace/.devcontainer
+        devcontainer_template_stack: ansible
+
+  post_tasks:
+    - name: Stat metadata before second run
+      ansible.builtin.stat:
+        path: /workspace/.devcontainer/.template-metadata.json
+      register: devcontainer_metadata_before
+      become: false
+
+    - name: Re-run devcontainer_template to ensure idempotency
+      ansible.builtin.include_role:
+        name: devcontainer_template
+      vars:
+        devcontainer_template_root: /workspace/devcontainers
+        devcontainer_template_target: /workspace/.devcontainer
+        devcontainer_template_stack: ansible
+        devcontainer_template_skip_when_unchanged: true
+      apply:
+        become: true
+
+    - name: Stat metadata after second run
+      ansible.builtin.stat:
+        path: /workspace/.devcontainer/.template-metadata.json
+      register: devcontainer_metadata_after
+      become: false
+
+    - name: Record metadata idempotency status
+      ansible.builtin.copy:
+        dest: /workspace/.devcontainer/.template-idempotent.json
+        content: |
+          {{ {
+            'mtime_before': devcontainer_metadata_before.stat.mtime,
+            'mtime_after': devcontainer_metadata_after.stat.mtime,
+            'checksum_before': devcontainer_metadata_before.stat.checksum,
+            'checksum_after': devcontainer_metadata_after.stat.checksum
+          } | to_json }}
+        mode: "0644"
+      become: false

@@ -1,0 +1,20 @@
+---
+profile: production
+
+exclude_paths:
+  - .cache/
+  - .git/
+  - .venv/
+  - molecule/
+  - tests/
+  - collections/
+
+skip_list:
+  - 'yaml[line-length]'
+  - 'name[casing]'
+
+warn_list:
+  - experimental
+  - jinja[spacing]
+
+use_default_rules: true

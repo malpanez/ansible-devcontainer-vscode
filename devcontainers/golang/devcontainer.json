@@ -1,0 +1,38 @@
+{
+  "name": "Go DevContainer",
+  "image": "ghcr.io/malpanez/devcontainer-golang:latest",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "ms-vscode.makefile-tools",
+        "GitHub.vscode-pull-request-github",
+        "mhutchie.git-graph"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.formatTool": "goimports",
+        "go.lintTool": "golangci-lint",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "go.testFlags": [
+          "-v"
+        ]
+      }
+    }
+  },
+  "mounts": [
+    "source=go-mod-cache,target=/go/pkg/mod,type=volume",
+    "source=go-build-cache,target=/go/build-cache,type=volume"
+  ],
+  "remoteUser": "vscode",
+  "postCreateCommand": "go env -w GOMODCACHE=/go/pkg/mod && go env -w GOCACHE=/go/build-cache",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

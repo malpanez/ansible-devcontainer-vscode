@@ -1,0 +1,57 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Ansible: Lint All",
+      "type": "shell",
+      "command": "ansible-lint",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Ansible: Syntax Check",
+      "type": "shell",
+      "command": "ansible-playbook playbooks/*.yml --syntax-check",
+      "problemMatcher": []
+    },
+    {
+      "label": "YAML: Lint All",
+      "type": "shell",
+      "command": "yamllint .",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Run All",
+      "type": "shell",
+      "command": "ansible-playbook playbooks/test-environment.yml",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Health Check",
+      "type": "shell",
+      "command": "ansible-playbook playbooks/setup-workspace.yml --check",
+      "problemMatcher": []
+    },
+    {
+      "label": "Molecule: Test",
+      "type": "shell",
+      "command": "molecule test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Dependencies: Refresh Lock",
+      "type": "shell",
+      "command": "ansible-playbook playbooks/update-dependencies.yml",
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-commit: Run All",
+      "type": "shell",
+      "command": "pre-commit run --all-files",
+      "problemMatcher": []
+    }
+  ]
+}

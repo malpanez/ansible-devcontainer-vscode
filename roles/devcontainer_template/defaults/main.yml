@@ -1,0 +1,7 @@
+---
+devcontainer_template_stack: ansible
+devcontainer_template_root: "{{ playbook_dir }}/../devcontainers"
+devcontainer_template_target: "{{ playbook_dir }}/../.devcontainer"
+devcontainer_template_clean: true
+devcontainer_template_skip_when_unchanged: false
+devcontainer_template_metadata_file: "{{ devcontainer_template_target }}/.template-metadata.json"

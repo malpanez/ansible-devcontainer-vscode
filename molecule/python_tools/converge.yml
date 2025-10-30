@@ -1,0 +1,27 @@
+---
+- name: Converge python_tools role
+  hosts: all
+  become: true
+  vars:
+    test_devcontainer_user: vscode
+    test_workspace_dir: /workspace
+  pre_tasks:
+    - name: Ensure devcontainer user exists
+      ansible.builtin.user:
+        name: "{{ test_devcontainer_user }}"
+        shell: /bin/bash
+        state: present
+
+    - name: Ensure workspace directory exists
+      ansible.builtin.file:
+        path: "{{ test_workspace_dir }}"
+        state: directory
+        owner: "{{ test_devcontainer_user }}"
+        group: "{{ test_devcontainer_user }}"
+        mode: '0755'
+
+  roles:
+    - role: python_tools
+      vars:
+        python_tools_devcontainer_user: "{{ test_devcontainer_user }}"
+        python_tools_ansible_config_dir: "{{ test_workspace_dir }}"

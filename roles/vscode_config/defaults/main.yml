@@ -1,0 +1,5 @@
+---
+# Role-scoped defaults to avoid collisions when included elsewhere.
+vscode_config_workspace_dir: "{{ workspace_dir | default('/workspace', true) }}"
+vscode_config_devcontainer_user: "{{ devcontainer_user | default('vscode', true) }}"
+vscode_config_python_interpreter_path: "{{ python_interpreter_path | default('/usr/local/bin/python', true) }}"

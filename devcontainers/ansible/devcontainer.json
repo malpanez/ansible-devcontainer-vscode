@@ -1,0 +1,66 @@
+{
+  "name": "Ansible DevOps Environment",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
+  "runArgs": [
+    "--dns=1.1.1.1",
+    "--dns=1.0.0.1"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "samuelcolvin.jinjahtml",
+        "ms-azuretools.vscode-docker",
+        "tamasfe.even-better-toml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        },
+        "[yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2
+        },
+        "editor.rulers": [120],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      }
+    }
+  },
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
+  ],
+  "remoteEnv": {
+    "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible.cfg",
+    "ANSIBLE_FORCE_COLOR": "true",
+    "ANSIBLE_HOST_KEY_CHECKING": "false",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "ANSIBLE_GALAXY_CACHE_DIR": "/home/vscode/.ansible/galaxy_cache",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": "ansible-galaxy collection install -r requirements.yml",
+  "forwardPorts": [8080, 3000],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

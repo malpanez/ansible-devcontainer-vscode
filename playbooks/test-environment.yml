@@ -1,0 +1,163 @@
+---
+- name: Test Ansible Environment
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    requirements_file_path: "{{ playbook_dir ~ '/../requirements-ansible.txt' }}"
+
+  tasks:
+    - name: Check Ansible is installed
+      ansible.builtin.command: ansible --version
+      register: ansible_version_info
+      changed_when: false
+
+    - name: Load pinned dependency versions
+      ansible.builtin.set_fact:
+        requirements_file_contents: "{{ lookup('file', requirements_file_path) }}"
+
+    - name: Parse expected Ansible versions
+      ansible.builtin.set_fact:
+        expected_ansible_version: >-
+          {{
+            requirements_file_contents
+            | regex_search('ansible==(?P<version>[0-9.]+)', '\\g<version>')
+          }}
+        expected_ansible_core_version: >-
+          {{
+            requirements_file_contents
+            | regex_search('ansible-core==(?P<version>[0-9.]+)', '\\g<version>')
+          }}
+
+    - name: Assert expected Ansible versions resolved
+      ansible.builtin.assert:
+        that:
+          - expected_ansible_version is not none
+          - expected_ansible_version | length > 0
+          - expected_ansible_core_version is not none
+          - expected_ansible_core_version | length > 0
+        fail_msg: "Unable to resolve pinned Ansible versions from requirements-ansible.txt"
+
+    - name: Assert Ansible version detected
+      ansible.builtin.assert:
+        that:
+          - ansible_version_info.stdout_lines | length > 0
+          - (ansible_version_info.stdout_lines | first) | regex_search('ansible\\s+\\[core\\s+[0-9]+\\.[0-9]+')
+        fail_msg: >-
+          Unexpected ansible --version output:
+          {{ ansible_version_info.stdout | default(ansible_version_info.stderr) }}
+
+    - name: Display Ansible version
+      ansible.builtin.debug:
+        var: ansible_version_info.stdout_lines
+
+    - name: Determine detected ansible-core version
+      ansible.builtin.set_fact:
+        detected_ansible_core_version: >-
+          {{
+            ansible_version_info.stdout
+            | regex_search('ansible\\s+\\[core\\s+(?P<version>[0-9.]+)\\]', '\\g<version>')
+          }}
+
+    - name: Assert detected ansible-core version
+      ansible.builtin.assert:
+        that:
+          - detected_ansible_core_version is not none
+          - detected_ansible_core_version | length > 0
+        fail_msg: "Unable to determine ansible-core runtime version."
+
+    - name: Check Python Ansible package version
+      ansible.builtin.command:
+        argv:
+          - python
+          - "-c"
+          - "import ansible; print(ansible.__version__)"
+      register: ansible_python_version
+      changed_when: false
+
+    - name: Assert detected Python Ansible version
+      ansible.builtin.assert:
+        that:
+          - ansible_python_version.stdout is not none
+          - ansible_python_version.stdout | trim | length > 0
+        fail_msg: "Unable to determine ansible Python package version."
+
+    - name: Check ansible-lint is installed
+      ansible.builtin.command: ansible-lint --version
+      register: lint_version
+      changed_when: false
+
+    - name: Locate ansible-lint binary
+      ansible.builtin.command: which ansible-lint
+      register: lint_binary_path
+      changed_when: false
+
+    - name: Assert ansible-lint version detected
+      ansible.builtin.assert:
+        that:
+          - lint_version.stdout is not none
+          - lint_version.stdout | regex_search('^ansible-lint\\s+[0-9]+\\.[0-9]+')
+          - lint_binary_path.stdout | length > 0
+        fail_msg: "ansible-lint missing or unexpected output."
+
+    - name: Assert Ansible versions match pinned requirements
+      ansible.builtin.assert:
+        that:
+          - ansible_python_version.stdout | trim == expected_ansible_version
+          - detected_ansible_core_version == expected_ansible_core_version
+        fail_msg: >-
+          Ansible versions do not match pinned requirements.
+          ansible=={{ ansible_python_version.stdout | trim }},
+          ansible-core=={{ detected_ansible_core_version }};
+          expected ansible=={{ expected_ansible_version }},
+          ansible-core=={{ expected_ansible_core_version }}.
+
+    - name: Check uv is installed
+      ansible.builtin.command: uv --version
+      register: uv_version
+      changed_when: false
+
+    - name: Locate uv binary
+      ansible.builtin.command: which uv
+      register: uv_binary_path
+      changed_when: false
+
+    - name: Assert uv version detected
+      ansible.builtin.assert:
+        that:
+          - uv_version.stdout is not none
+          - uv_version.stdout | regex_search('^uv\\s+[0-9]+\\.[0-9]+\\.[0-9]+')
+          - uv_binary_path.stdout | length > 0
+        fail_msg: "uv missing or version output malformed."
+
+    - name: Check pytest is installed
+      ansible.builtin.command: pytest --version
+      register: pytest_version
+      changed_when: false
+
+    - name: Assert pytest version detected
+      ansible.builtin.assert:
+        that:
+          - pytest_version.stdout is not none
+          - pytest_version.stdout | regex_search('^pytest\\s+[0-9]+\\.[0-9]+\\.[0-9]+')
+        fail_msg: "pytest missing or unexpected version output."
+
+    - name: Verify Ansible collections
+      ansible.builtin.command: ansible-galaxy collection list
+      register: collections_list
+      changed_when: false
+
+    - name: Display installed collections
+      ansible.builtin.debug:
+        var: collections_list.stdout_lines
+
+    - name: Assert core collections are installed
+      ansible.builtin.assert:
+        that:
+          - "'ansible.posix' in collections_list.stdout"
+          - "'community.general' in collections_list.stdout"
+        fail_msg: "Required Ansible collections are missing from the environment."
+
+    - name: All checks passed
+      ansible.builtin.debug:
+        msg: "All environment checks passed successfully!"

@@ -1,0 +1,32 @@
+[defaults]
+inventory = {{ ansible_environment_config_dir }}/inventory
+host_key_checking = False
+retry_files_enabled = False
+
+roles_path = {{ ansible_environment_config_dir }}/roles:~/.ansible/roles
+collections_path = {{ ansible_environment_config_dir }}/collections:~/.ansible/collections
+
+stdout_callback = yaml
+bin_ansible_callbacks = True
+nocows = 1
+force_color = True
+
+gathering = smart
+fact_caching = jsonfile
+fact_caching_connection = /tmp/ansible_facts
+fact_caching_timeout = 86400
+forks = 20
+pipelining = True
+
+log_path = {{ ansible_environment_config_dir }}/ansible.log
+
+[privilege_escalation]
+become = True
+become_method = sudo
+become_user = root
+become_ask_pass = False
+
+[ssh_connection]
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o StrictHostKeyChecking=no
+control_path = /tmp/ansible-ssh-%%h-%%p-%%r
+pipelining = True

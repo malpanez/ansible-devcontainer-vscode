@@ -1,0 +1,30 @@
+{
+  "name": "LaTeX DevContainer",
+  "image": "ghcr.io/malpanez/devcontainer-latex:latest",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "James-Yu.latex-workshop",
+        "streetsidesoftware.code-spell-checker",
+        "GitHub.vscode-pull-request-github"
+      ],
+      "settings": {
+        "latex-workshop.latex.outDir": "out",
+        "latex-workshop.latex.autoBuild.run": "onSave",
+        "latex-workshop.synctex.path": "synctex",
+        "latex-workshop.view.pdf.viewer": "tab",
+        "editor.renderWhitespace": "boundary"
+      }
+    }
+  },
+  "mounts": [
+    "source=latex-cache,target=/workspace/.latex-cache,type=volume"
+  ],
+  "remoteUser": "vscode",
+  "postCreateCommand": "bash -lc \"if command -v initexmf >/dev/null 2>&1; then initexmf --report --mkmaps; elif command -v tlmgr >/dev/null 2>&1; then tlmgr path add; fi\"",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

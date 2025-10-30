@@ -1,0 +1,29 @@
+---
+- name: Verify python_tools role
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read bashrc content
+      ansible.builtin.slurp:
+        src: /home/vscode/.bashrc
+      register: bashrc_content
+      ignore_errors: true
+
+    - name: Assert PATH export present
+      ansible.builtin.assert:
+        that:
+          - not bashrc_content.failed
+          - (bashrc_content.content | b64decode | regex_search('export PATH="\\$HOME/.local/bin:\\$PATH"')) is not none
+        fail_msg: "Expected PATH export missing from /home/vscode/.bashrc"
+
+    - name: Check pytest.ini exists
+      ansible.builtin.stat:
+        path: /workspace/pytest.ini
+      register: pytest_ini
+
+    - name: Assert pytest.ini created
+      ansible.builtin.assert:
+        that:
+          - pytest_ini.stat.exists
+        fail_msg: "pytest.ini was not created in the workspace."

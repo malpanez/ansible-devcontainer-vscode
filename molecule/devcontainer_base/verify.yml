@@ -1,0 +1,33 @@
+---
+- name: Verify devcontainer_base role
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ensure devcontainer user exists
+      ansible.builtin.command: getent passwd vscode
+      changed_when: false
+
+    - name: Confirm sudoers file for user
+      ansible.builtin.stat:
+        path: /etc/sudoers.d/vscode
+      register: sudoers_entry
+
+    - name: Assert sudoers entry created
+      ansible.builtin.assert:
+        that:
+          - sudoers_entry.stat.exists
+          - sudoers_entry.stat.mode == '0440'
+        fail_msg: "sudoers entry for vscode missing or misconfigured."
+
+    - name: Validate timezone configuration
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: timezone_result
+      changed_when: false
+      failed_when: false
+
+    - name: Assert timezone is UTC when supported
+      ansible.builtin.assert:
+        that:
+          - timezone_result.rc != 0 or timezone_result.stdout == 'Etc/UTC'
+        fail_msg: "Timezone expected Etc/UTC but got {{ timezone_result.stdout | default('unknown') }}"

@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "redhat.ansible",
+    "redhat.vscode-yaml",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+    "samuelcolvin.jinjahtml",
+    "ms-azuretools.vscode-docker",
+    "eamodio.gitlens",
+    "tamasfe.even-better-toml"
+  ]
+}

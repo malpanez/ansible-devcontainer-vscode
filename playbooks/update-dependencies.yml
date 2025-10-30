@@ -1,0 +1,133 @@
+---
+- name: Refresh dependency locks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    dependency_project_root: "{{ playbook_dir | dirname }}"
+    dependency_uv_lock_path: "{{ dependency_project_root ~ '/uv.lock' }}"
+    dependency_requirements_path: "{{ dependency_project_root ~ '/requirements-ansible.txt' }}"
+    dependency_http_proxy: "{{ uv_http_proxy | default(lookup('env', 'HTTP_PROXY') | default('', true), true) }}"
+    dependency_https_proxy: "{{ uv_https_proxy | default(lookup('env', 'HTTPS_PROXY') | default('', true), true) }}"
+    dependency_no_proxy: "{{ uv_no_proxy | default(lookup('env', 'NO_PROXY') | default('', true), true) }}"
+    dependency_uv_index_url: "{{ uv_index_url | default(lookup('env', 'UV_INDEX_URL') | default('', true), true) }}"
+
+  tasks:
+    - name: Compose dependency command environment
+      ansible.builtin.set_fact:
+        dependency_command_env: >-
+          {{
+            dependency_environment_seed
+            | dict2items
+            | selectattr('value', 'ne', '')
+            | items2dict
+            | default({}, true)
+          }}
+      vars:
+        dependency_environment_seed:
+          HTTP_PROXY: "{{ dependency_http_proxy }}"
+          HTTPS_PROXY: "{{ dependency_https_proxy }}"
+          NO_PROXY: "{{ dependency_no_proxy }}"
+          UV_INDEX_URL: "{{ dependency_uv_index_url }}"
+      changed_when: false
+
+    - name: Capture current uv lock checksum
+      ansible.builtin.stat:
+        path: "{{ dependency_uv_lock_path }}"
+        checksum: true
+      register: dependency_uv_lock_before
+
+    - name: Run uv lock
+      ansible.builtin.command:
+        cmd: uv lock
+        chdir: "{{ dependency_project_root }}"
+      environment: "{{ dependency_command_env }}"
+      register: dependency_uv_lock_command
+      changed_when: false
+
+    - name: Capture updated uv lock checksum
+      ansible.builtin.stat:
+        path: "{{ dependency_uv_lock_path }}"
+        checksum: true
+      register: dependency_uv_lock_after
+
+    - name: Detect uv lock changes
+      ansible.builtin.set_fact:
+        dependency_uv_lock_changed: >-
+          {{
+            (dependency_uv_lock_before.stat.checksum | default(''))
+            != (dependency_uv_lock_after.stat.checksum | default(''))
+          }}
+      changed_when: dependency_uv_lock_changed | bool
+
+    - name: Report uv lock refresh
+      ansible.builtin.debug:
+        msg: >-
+          uv.lock updated
+          (old checksum={{ dependency_uv_lock_before.stat.checksum | default('missing') }},
+          new checksum={{ dependency_uv_lock_after.stat.checksum | default('missing') }})
+      when: dependency_uv_lock_changed | bool
+
+    - name: Capture current requirements checksum
+      ansible.builtin.stat:
+        path: "{{ dependency_requirements_path }}"
+        checksum: true
+      register: dependency_requirements_before
+
+    - name: Export frozen requirements
+      block:
+        - name: Create temporary requirements export
+          ansible.builtin.tempfile:
+            state: file
+            suffix: requirements-ansible.txt
+          register: dependency_requirements_temp
+
+        - name: Run uv export
+          ansible.builtin.command:
+            argv:
+              - uv
+              - export
+              - --format
+              - requirements-txt
+              - --frozen
+              - --output
+              - "{{ dependency_requirements_temp.path }}"
+            chdir: "{{ dependency_project_root }}"
+          environment: "{{ dependency_command_env }}"
+          register: dependency_uv_export_command
+          changed_when: false
+
+        - name: Update requirements-ansible.txt
+          ansible.builtin.copy:
+            src: "{{ dependency_requirements_temp.path }}"
+            dest: "{{ dependency_requirements_path }}"
+            remote_src: true
+            mode: '0644'
+          register: dependency_requirements_update
+          notify: Report requirements export
+
+        - name: Capture updated requirements checksum
+          ansible.builtin.stat:
+            path: "{{ dependency_requirements_path }}"
+            checksum: true
+          register: dependency_requirements_after
+
+      always:
+        - name: Remove temporary requirements export
+          ansible.builtin.file:
+            path: "{{ dependency_requirements_temp.path }}"
+            state: absent
+          when:
+            - dependency_requirements_temp is defined
+            - dependency_requirements_temp.path is defined
+            - dependency_requirements_temp.path | length > 0
+
+  handlers:
+    - name: Report requirements export
+      ansible.builtin.debug:
+        msg: >-
+          requirements-ansible.txt updated
+          (old checksum={{ dependency_requirements_before.stat.checksum | default('missing') }},
+          new checksum={{ dependency_requirements_after.stat.checksum | default('missing') }})
+      when: dependency_requirements_update is changed

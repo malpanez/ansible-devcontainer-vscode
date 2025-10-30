@@ -1,0 +1,73 @@
+---
+# Role-scoped defaults follow the `<role>_*` naming convention to avoid collisions.
+ansible_environment_config_dir: "{{ ansible_config_dir | default('/workspace', true) }}"
+ansible_environment_devcontainer_user: "{{ devcontainer_user | default('vscode', true) }}"
+ansible_environment_devcontainer_user_home: "/home/{{ ansible_environment_devcontainer_user }}"
+ansible_environment_uv_install_dir: "{{ uv_install_dir | default('/usr/local/bin', true) }}"
+ansible_environment_uv_binary_path: "{{ uv_binary_path | default('/usr/local/bin/uv', true) }}"
+ansible_environment_uv_version: "{{ uv_version | default('0.4.12', true) }}"
+ansible_environment_uv_release_arch: "{{ uv_release_arch | default('x86_64', true) }}"
+ansible_environment_uv_release_platform: "{{ uv_release_platform | default('unknown-linux-gnu', true) }}"
+ansible_environment_uv_archive_filename: >-
+  {{
+    uv_archive_filename
+    | default(
+        'uv-'
+        ~ ansible_environment_uv_version
+        ~ '-'
+        ~ ansible_environment_uv_release_arch
+        ~ '-'
+        ~ ansible_environment_uv_release_platform
+        ~ '.tar.xz',
+        true
+      )
+  }}
+ansible_environment_uv_download_url: >-
+  {{
+    uv_download_url
+    | default(
+        'https://github.com/astral-sh/uv/releases/download/v'
+        ~ ansible_environment_uv_version
+        ~ '/'
+        ~ ansible_environment_uv_archive_filename,
+        true
+      )
+  }}
+ansible_environment_uv_checksum: "{{ uv_checksum | default('', true) }}"
+ansible_environment_uv_enforce_checksum: "{{ uv_enforce_checksum | default(false, true) }}"
+ansible_environment_uv_checksums_manifest: >-
+  {{
+    uv_checksums_manifest
+    | default('uv-' ~ ansible_environment_uv_version ~ '-SHA256SUMS', true)
+  }}
+ansible_environment_uv_checksums_url: >-
+  {{
+    uv_checksums_url
+    | default(
+        'https://github.com/astral-sh/uv/releases/download/v'
+        ~ ansible_environment_uv_version
+        ~ '/'
+        ~ ansible_environment_uv_checksums_manifest,
+        true
+      )
+  }}
+ansible_environment_uv_cache_dir: >-
+  {{ uv_cache_dir | default(ansible_environment_devcontainer_user_home ~ '/.cache/uv', true) }}
+ansible_environment_python_requirements_file: >-
+  {{ python_requirements_file | default(ansible_environment_config_dir ~ '/requirements-ansible.txt', true) }}
+ansible_environment_collection_requirements_file: >-
+  {{ ansible_requirements_file | default(ansible_environment_config_dir ~ '/requirements.yml', true) }}
+ansible_environment_state_dir: >-
+  {{ ansible_state_dir | default('/usr/local/share/ansible-devcontainer', true) }}
+ansible_environment_uv_requirements_marker: >-
+  {{ uv_requirements_marker | default(ansible_environment_state_dir ~ '/python-requirements.checksum', true) }}
+ansible_environment_collections_marker: >-
+  {{ ansible_requirements_marker | default(ansible_environment_state_dir ~ '/ansible-collections.checksum', true) }}
+ansible_environment_galaxy_cache_dir: >-
+  {{ ansible_galaxy_cache_dir | default(ansible_environment_devcontainer_user_home ~ '/.ansible/galaxy_cache', true) }}
+ansible_environment_http_proxy: ""
+ansible_environment_https_proxy: ""
+ansible_environment_no_proxy: ""
+ansible_environment_uv_index_url: ""
+ansible_environment_galaxy_server_url: ""
+ansible_environment_galaxy_extra_args: []
