@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ansible: ${{ steps.filter.outputs.ansible }}
-      golang: ${{ steps.filter.outputs.golang }}
+      golang: ${{ steps.golang-check.outputs.enabled }}
       terraform: ${{ steps.filter.outputs.terraform }}
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
       scripts: ${{ steps.filter.outputs.scripts }}
@@ -52,7 +52,7 @@ jobs:
               - 'requirements.yml'
               - 'ansible.cfg'
               - 'devcontainers/ansible/**'
-            golang:
+            golang-files:
               - '**/*.go'
               - 'go.mod'
               - 'go.sum'
@@ -72,6 +72,16 @@ jobs:
               - 'requirements.txt'
               - 'tests/**'
 
+      - name: Check Go module exists
+        id: golang-check
+        run: |
+          if [ -f "go.mod" ] && [ "${{ steps.filter.outputs.golang-files }}" == "true" ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "::notice::Go changes detected but no go.mod found, skipping Go CI"
+          fi
+
   lint:
     name: Lint and Syntax Check
     runs-on: ubuntu-latest
@@ -84,8 +94,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: requirements.txt
+          # Don't use cache: 'pip' when using uv
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -131,8 +140,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: requirements.txt
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -176,12 +183,18 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Verify Go installation
+        run: go version
+
+      - name: Download dependencies
+        run: go mod download
+
       - name: Check gofmt
         run: |
-          fmt_output=$(gofmt -l .)
-          if [[ -n "${fmt_output}" ]]; then
-            echo "::warning::The following files need gofmt:"
-            echo "${fmt_output}"
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::The following files need formatting:"
+            echo "$unformatted"
             gofmt -d .
             exit 1
           fi
@@ -190,7 +203,16 @@ jobs:
         run: go vet ./...
 
       - name: Run go test
-        run: go test -v -race ./...
+        run: go test -v -race -coverprofile=coverage.txt ./...
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.txt
+          flags: golang
+          fail_ci_if_error: false
+        continue-on-error: true
 
   terraform-ci:
     name: Terraform Checks
@@ -274,15 +296,66 @@ jobs:
           done
         continue-on-error: true
 
+  devcontainer-build-base:
+    name: Build Base Devcontainer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    needs: [changes, dockerfile-lint]
+    if: needs.changes.outputs.devcontainer == 'true'
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: devcontainers/base
+          file: devcontainers/base/Dockerfile
+          push: false
+          load: true
+          tags: devcontainer-base:ci
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+          platforms: linux/amd64
+
+      - name: Test base container
+        run: |
+          docker run --rm devcontainer-base:ci sh -c "echo 'Base container is healthy' && which bash"
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: devcontainer-base:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-base.sarif
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-base.sarif') != ''
+        with:
+          sarif_file: trivy-base.sarif
+          category: trivy-base
+
   devcontainer-build:
     name: Build Devcontainer (${{ matrix.stack }})
     runs-on: ubuntu-latest
-    needs: [changes, dockerfile-lint]
+    permissions:
+      contents: read
+      security-events: write
+    needs: [changes, dockerfile-lint, devcontainer-build-base]
     if: needs.changes.outputs.devcontainer == 'true'
     strategy:
       fail-fast: false
       matrix:
-        stack: [ansible, golang, terraform, latex, base]
+        stack: [ansible, golang, terraform, latex]
 
     steps:
       - uses: actions/checkout@v5
@@ -298,8 +371,9 @@ jobs:
           push: false
           load: true
           tags: devcontainer-${{ matrix.stack }}:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+          platforms: linux/amd64
 
       - name: Test ${{ matrix.stack }} container
         run: |
@@ -319,75 +393,10 @@ jobs:
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('trivy-${{ matrix.stack }}.sarif') != ''
         with:
           sarif_file: trivy-${{ matrix.stack }}.sarif
           category: trivy-${{ matrix.stack }}
-
-  publish-containers:
-    name: Publish ${{ matrix.stack }} to GHCR
-    runs-on: ubuntu-latest
-    needs: [changes, devcontainer-build]
-    if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      needs.changes.outputs.devcontainer == 'true'
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    strategy:
-      fail-fast: false
-      matrix:
-        stack: [base, ansible, golang, terraform, latex]
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push ${{ matrix.stack }}
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: devcontainers/${{ matrix.stack }}
-          file: devcontainers/${{ matrix.stack }}/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
-          provenance: true
-          sbom: true
-
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
 
   devcontainer-cli-test:
     name: DevContainer CLI (${{ matrix.stack }})
@@ -417,15 +426,21 @@ jobs:
 
       - name: Verify devcontainer config
         run: |
-          echo "Checking devcontainers/${{ matrix.stack }}/devcontainer.json"
-          cat devcontainers/${{ matrix.stack }}/devcontainer.json | jq .
+          if [ -f "devcontainers/${{ matrix.stack }}/devcontainer.json" ]; then
+            echo "Checking devcontainers/${{ matrix.stack }}/devcontainer.json"
+            cat devcontainers/${{ matrix.stack }}/devcontainer.json | jq .
+          else
+            echo "::warning::No devcontainer.json found for ${{ matrix.stack }}"
+          fi
 
       - name: Test devcontainer up
         run: |
-          cd devcontainers/${{ matrix.stack }}
-          devcontainer up --workspace-folder .
-          devcontainer exec --workspace-folder . -- bash -c "echo '${{ matrix.stack }} container is running'"
-          devcontainer stop --workspace-folder .
+          if [ -f "devcontainers/${{ matrix.stack }}/devcontainer.json" ]; then
+            cd devcontainers/${{ matrix.stack }}
+            devcontainer up --workspace-folder .
+            devcontainer exec --workspace-folder . -- bash -c "echo '${{ matrix.stack }} container is running'"
+            devcontainer stop --workspace-folder .
+          fi
         continue-on-error: true
 
   unit-tests:
@@ -440,8 +455,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: requirements.txt
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -480,7 +493,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -523,7 +535,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -586,7 +597,127 @@ jobs:
           fi
         continue-on-error: true
 
-  # Test published GHCR images
+  publish-base:
+    name: Publish Base to GHCR
+    runs-on: ubuntu-latest
+    needs: [changes, devcontainer-build-base]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.devcontainer == 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/devcontainer-base
+          tags: |
+            type=raw,value=latest
+            type=raw,value=py312
+            type=sha
+
+      - name: Build and push base
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: devcontainers/base
+          file: devcontainers/base/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}/devcontainer-base
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  publish-containers:
+    name: Publish ${{ matrix.stack }} to GHCR
+    runs-on: ubuntu-latest
+    needs: [changes, devcontainer-build, publish-base]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.devcontainer == 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [ansible, golang, terraform, latex]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push ${{ matrix.stack }}
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: devcontainers/${{ matrix.stack }}
+          file: devcontainers/${{ matrix.stack }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
   devcontainer-ghcr-test:
     name: Test GHCR Image (${{ matrix.stack }})
     runs-on: ubuntu-latest
@@ -600,12 +731,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Dev Containers CLI
-        run: |
-          export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-          npm install --global @devcontainers/cli
-          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -615,10 +740,7 @@ jobs:
 
       - name: Test published GHCR image
         run: |
-          # Pull the just-published image
           docker pull ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}:latest
-
-          # Test it works
           docker run --rm ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}:latest \
             sh -c "echo 'GHCR ${{ matrix.stack }} image healthy'"
 
@@ -644,7 +766,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -661,6 +783,7 @@ jobs:
       - terraform-ci
       - script-lint
       - dockerfile-lint
+      - devcontainer-build-base
       - devcontainer-build
       - unit-tests
     if: always()
