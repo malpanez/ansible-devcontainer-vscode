@@ -2,6 +2,11 @@
 
 FROM golang:1.22-bookworm
 
+# BuildKit platform arguments
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
+
 LABEL maintainer="malpanez"
 LABEL description="Golang Development Container"
 

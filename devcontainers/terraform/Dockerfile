@@ -5,13 +5,23 @@ ARG TFLINT_VERSION=0.51.1
 
 FROM --platform=$BUILDPLATFORM hashicorp/terraform:${TERRAFORM_VERSION} AS terraform-cli
 
+# BuildKit platform arguments
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
+
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS terraform-tools
+
+# BuildKit platform arguments
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
 ARG TARGETPLATFORM
 ARG TERRAGRUNT_VERSION
 ARG TFLINT_VERSION
 
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -48,6 +58,11 @@ RUN set -eux; \
 
 ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 FROM ${BASE_IMAGE}
+
+# BuildKit platform arguments
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
 
 LABEL maintainer="alpanez.alcalde@gmail.com"
 LABEL description="Terraform + Ansible Development Environment 2025"
