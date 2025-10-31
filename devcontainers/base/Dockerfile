@@ -45,6 +45,7 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
 # Ensure cache directories exist and are owned by the non-root user.
 RUN install -d -m 755 /home/${USERNAME}/.cache/pre-commit \
     && install -d -m 700 /home/${USERNAME}/.ansible/tmp \
+    && install -d -m 755 /home/${USERNAME}/.ansible/galaxy_cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible
 

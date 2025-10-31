@@ -310,6 +310,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       - name: Build base image
         uses: docker/build-push-action@v6
@@ -362,6 +364,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       - name: Build shared base image for Python stacks
         if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
