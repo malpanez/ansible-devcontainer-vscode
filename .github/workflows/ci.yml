@@ -369,16 +369,12 @@ jobs:
 
       - name: Build shared base image for Python stacks
         if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
-        uses: docker/build-push-action@v6
-        with:
-          context: devcontainers/base
-          file: devcontainers/base/Dockerfile
-          push: false
-          load: true
-          tags: devcontainer-base:ci
-          cache-from: type=gha,scope=base
-          cache-to: type=gha,mode=max,scope=base
-          platforms: linux/amd64
+        run: |
+          docker build \
+            --progress plain \
+            --tag devcontainer-base:ci \
+            -f devcontainers/base/Dockerfile \
+            devcontainers/base
 
       - name: Build ${{ matrix.stack }} image (Python stack)
         if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
