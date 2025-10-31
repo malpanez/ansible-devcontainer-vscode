@@ -10,6 +10,10 @@ Use these scripts when a Dev Container fails to build or behaves differently bet
 
 Runs `devcontainer build` for each stack (`ansible`, `golang`, `latex`, `terraform`). Pass extra arguments to forward build flags, e.g. `--no-cache`.
 
+The helper also normalises BuildKit cache mounts (APT, pip) so repeated runs do not corrupt the Dockerfiles—helpful if a previous manual edit introduced invalid mount syntax.
+
+Python tooling (ansible-lint, Checkov) now installs during the devcontainer `postCreateCommand` via `sudo uv pip install --system ...`. When reproducing issues outside VS Code, run those commands manually inside the container after it starts.
+
 ## 2. Launch an interactive debug session
 
 ```bash

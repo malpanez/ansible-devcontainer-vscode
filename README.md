@@ -112,7 +112,7 @@ All Python dependencies for the Ansible stack live in `requirements-ansible.txt`
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Terraform | `1.7.x` | Terraform Dev Container pins `1.7.5`; CI tracks the latest patch in the 1.7 series. |
+| Terraform | `1.13.x` | Terraform Dev Container pins `1.13.4`; CI tracks the latest patch in the 1.13 series. |
 | Terragrunt | `0.54.x` | Installed globally in the Terraform container for Terragrunt workflows. |
 | TFLint | `0.51.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
 | Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans. |

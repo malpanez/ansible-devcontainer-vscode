@@ -16,12 +16,6 @@ ENV UV_LINK_MODE=copy
 
 USER root
 
-# Copiar definición de dependencias (solo stack Ansible)
-COPY pyproject.toml uv.lock requirements-ansible.txt /tmp/
-
-# Instalar paquetes Python con uv (aplicando el lock específico)
-RUN uv pip install --system --requirement /tmp/requirements-ansible.txt
-
 USER vscode
 
 RUN git config --global init.defaultBranch main

@@ -363,7 +363,36 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build ${{ matrix.stack }} image
+      - name: Build shared base image for Python stacks
+        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
+        uses: docker/build-push-action@v6
+        with:
+          context: devcontainers/base
+          file: devcontainers/base/Dockerfile
+          push: false
+          load: true
+          tags: devcontainer-base:ci
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+          platforms: linux/amd64
+
+      - name: Build ${{ matrix.stack }} image (Python stack)
+        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
+        uses: docker/build-push-action@v6
+        with:
+          context: devcontainers/${{ matrix.stack }}
+          file: devcontainers/${{ matrix.stack }}/Dockerfile
+          push: false
+          load: true
+          tags: devcontainer-${{ matrix.stack }}:ci
+          cache-from: type=gha,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+          platforms: linux/amd64
+          build-args: |
+            BASE_IMAGE=devcontainer-base:ci
+
+      - name: Build ${{ matrix.stack }} image (standalone)
+        if: matrix.stack == 'golang' || matrix.stack == 'latex'
         uses: docker/build-push-action@v6
         with:
           context: devcontainers/${{ matrix.stack }}
