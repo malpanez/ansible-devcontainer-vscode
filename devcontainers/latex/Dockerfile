@@ -85,7 +85,7 @@ RUN TARGET_UID="${USER_UID}" \
     && chmod 0440 "/etc/sudoers.d/${USERNAME}" \
     && chown -R "${USERNAME}:${TARGET_GID}" "${HOME_DIR}"
 
-USER $USERNAME
+USER root
 WORKDIR /workspace
 
 CMD ["/bin/bash"]
