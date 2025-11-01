@@ -6,7 +6,6 @@ ARG LATEX_DISTRO=miktex
 FROM ${LATEX_IMAGE}
 
 ARG LATEX_DISTRO
-ARG LATEX_IMAGE
 
 # BuildKit platform arguments
 ARG TARGETPLATFORM
@@ -57,15 +56,23 @@ RUN if [ "${LATEX_DISTRO}" = "miktex" ]; then \
         tlmgr install latexmk biber; \
     fi
 
-# Create non-root vscode user
+# Create non-root vscode user (reuse existing gid/uid if present)
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME
+RUN if ! getent group "${USER_GID}" >/dev/null; then \
+        groupadd --gid "${USER_GID}" "${USERNAME}"; \
+    fi \
+    && if ! id -u "${USERNAME}" >/dev/null 2>&1; then \
+        useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}"; \
+    else \
+        usermod --gid "${USER_GID}" "${USERNAME}" \
+          && mkdir -p "/home/${USERNAME}"; \
+    fi \
+    && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > "/etc/sudoers.d/${USERNAME}" \
+    && chmod 0440 "/etc/sudoers.d/${USERNAME}" \
+    && chown -R "${USERNAME}:${USER_GID}" "/home/${USERNAME}"
 
 USER $USERNAME
 WORKDIR /workspace
