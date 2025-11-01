@@ -61,22 +61,29 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-RUN EXISTING_USER="$(getent passwd "${USER_UID}" | cut -d: -f1)" || true \
-    && if [ -n "${EXISTING_USER}" ] && [ "${EXISTING_USER}" != "${USERNAME}" ]; then \
-         usermod --uid $((USER_UID+1)) "${EXISTING_USER}"; \
-       fi \
-    && if ! getent group "${USER_GID}" >/dev/null; then \
-         groupadd --gid "${USER_GID}" "${USERNAME}"; \
+RUN TARGET_UID="${USER_UID}" \
+    && TARGET_GID="${USER_GID}" \
+    && while getent passwd "${TARGET_UID}" >/dev/null; do \
+         TARGET_UID=$((TARGET_UID + 1)); \
+       done \
+    && while getent group "${TARGET_GID}" >/dev/null; do \
+         TARGET_GID=$((TARGET_GID + 1)); \
+       done \
+    && if ! getent group "${USERNAME}" >/dev/null; then \
+         groupadd --gid "${TARGET_GID}" "${USERNAME}"; \
+       else \
+         TARGET_GID="$(getent group "${USERNAME}" | cut -d: -f3)"; \
        fi \
     && if ! id -u "${USERNAME}" >/dev/null 2>&1; then \
-         useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}"; \
+         useradd --uid "${TARGET_UID}" --gid "${TARGET_GID}" -m "${USERNAME}"; \
        else \
-         usermod --gid "${USER_GID}" "${USERNAME}" \
-           && mkdir -p "/home/${USERNAME}"; \
+         usermod --gid "${TARGET_GID}" "${USERNAME}" \
+           && mkdir -p "$(getent passwd "${USERNAME}" | cut -d: -f6)"; \
        fi \
+    && HOME_DIR="$(getent passwd "${USERNAME}" | cut -d: -f6 || echo "/home/${USERNAME}")" \
     && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > "/etc/sudoers.d/${USERNAME}" \
     && chmod 0440 "/etc/sudoers.d/${USERNAME}" \
-    && chown -R "${USERNAME}:${USER_GID}" "/home/${USERNAME}"
+    && chown -R "${USERNAME}:${TARGET_GID}" "${HOME_DIR}"
 
 USER $USERNAME
 WORKDIR /workspace
