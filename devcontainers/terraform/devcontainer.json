@@ -66,7 +66,7 @@
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "true",
+  "postCreateCommand": "sudo --preserve-env=CHECKOV_CONSTRAINT uv pip install --system \"${CHECKOV_CONSTRAINT}\"",
   "forwardPorts": [8080, 3000],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

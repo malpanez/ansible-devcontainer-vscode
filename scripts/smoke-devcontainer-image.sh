@@ -134,10 +134,14 @@ run_smoke() {
       docker run --rm "${IMAGE_TAG}" bash -lc "whoami | grep -q vscode && uv --version"
       ;;
     ansible)
-      docker run --rm "${IMAGE_TAG}" bash -lc "ansible --version && ansible-lint --version && uv --version"
+      docker run --rm \
+        --mount type=bind,src="${REPO_ROOT}/requirements-ansible.txt",target=/tmp/requirements-ansible.txt,readonly \
+        "${IMAGE_TAG}" \
+        bash -lc "sudo uv pip install --system --requirement /tmp/requirements-ansible.txt && ansible --version && ansible-lint --version && uv --version"
       ;;
     terraform)
-      docker run --rm "${IMAGE_TAG}" bash -lc "terraform version && terragrunt --version && tflint --version && checkov --version"
+      docker run --rm "${IMAGE_TAG}" \
+        bash -lc "sudo --preserve-env=CHECKOV_CONSTRAINT uv pip install --system \"\${CHECKOV_CONSTRAINT}\" && terraform version && terragrunt --version && tflint --version && checkov --version"
       ;;
     golang)
       docker run --rm "${IMAGE_TAG}" bash -lc "go version && goimports -h >/dev/null && golangci-lint --version"

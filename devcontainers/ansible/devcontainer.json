@@ -59,7 +59,7 @@
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "ansible-galaxy collection install -r requirements.yml",
+  "postCreateCommand": "sudo uv pip install --system --requirement requirements-ansible.txt && ansible-galaxy collection install -r requirements.yml",
   "forwardPorts": [8080, 3000],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

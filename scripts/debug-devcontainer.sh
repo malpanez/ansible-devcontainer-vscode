@@ -116,7 +116,7 @@ main() {
   if [[ ! -d "${workspace_folder}" ]]; then
     echo "Error: stack '${STACK}' not found under ${TEMPLATE_ROOT}." >&2
     exit 1
-  }
+  fi
 
   local prepared_workspace
   prepared_workspace=$(prepare_workspace "${workspace_folder}" "${PREFER_BUILD}")
