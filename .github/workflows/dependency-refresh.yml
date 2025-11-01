@@ -1,0 +1,55 @@
+---
+name: Dependency Refresh
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    name: Update Locks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+
+      - name: Refresh dependency locks
+        run: |
+          uv lock --upgrade
+          uv export --format requirements-txt --frozen > requirements.txt
+
+      - name: Record changes
+        run: |
+          git status --short
+          git diff
+        env:
+          GIT_PAGER: cat
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/dependency-refresh
+          delete-branch: true
+          commit-message: "chore: refresh dependency locks"
+          title: "chore: refresh dependency locks"
+          body: |
+            Automated dependency refresh.
+
+            - `uv lock --upgrade`
+            - `uv export --format requirements-txt --frozen > requirements.txt`

@@ -1,0 +1,48 @@
+{
+  "files.associations": {
+    "*.yml": "ansible",
+    "*.yaml": "ansible",
+    "**/tasks/*.yml": "ansible",
+    "**/handlers/*.yml": "ansible",
+    "**/playbooks/*.yml": "ansible",
+    "**/roles/**/*.yml": "ansible"
+  },
+
+  "ansible.ansible.path": "ansible",
+  "ansible.ansible.reuseTerminal": true,
+  "ansible.python.interpreterPath": "/usr/local/bin/python",
+  "python.defaultInterpreterPath": "/usr/local/bin/python",
+
+  "yaml.format.enable": true,
+  "yaml.validate": true,
+  "yaml.customTags": [
+    "!vault"
+  ],
+
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": true,
+
+  "editor.formatOnSave": true,
+  "editor.rulers": [80, 120],
+  "editor.tabSize": 2,
+
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml",
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  "dev.containers.dockerPath": "podman"
+}

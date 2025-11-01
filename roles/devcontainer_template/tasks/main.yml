@@ -1,0 +1,165 @@
+---
+- name: Initialize copy decision
+  ansible.builtin.set_fact:
+    devcontainer_template_skip_copy: false
+  become: false
+
+- name: Check template root directory
+  ansible.builtin.stat:
+    path: "{{ devcontainer_template_root }}"
+  register: devcontainer_template_root_stat
+  become: false
+
+- name: Ensure template root exists
+  ansible.builtin.fail:
+    msg: >
+      Dev Container template root '{{ devcontainer_template_root }}' was not found.
+      Set 'devcontainer_template_root' to the directory that contains stack templates.
+  when: not devcontainer_template_root_stat.stat.exists or not devcontainer_template_root_stat.stat.isdir
+
+- name: Derive resolved template root path
+  ansible.builtin.set_fact:
+    devcontainer_template_root_resolved: >-
+      {{ devcontainer_template_root_stat.stat.path | default(devcontainer_template_root) }}
+  become: false
+
+- name: Build template source path
+  ansible.builtin.set_fact:
+    devcontainer_template_source_path: "{{ devcontainer_template_root_resolved }}/{{ devcontainer_template_stack }}"
+  become: false
+
+- name: Check for requested template
+  ansible.builtin.stat:
+    path: "{{ devcontainer_template_source_path }}"
+  register: devcontainer_template_source
+  become: false
+
+- name: Fail when template stack is missing
+  ansible.builtin.fail:
+    msg: >
+      Requested Dev Container stack '{{ devcontainer_template_stack }}' does not exist under
+      '{{ devcontainer_template_root_resolved }}'.
+  when:
+    - not devcontainer_template_source.stat.exists
+
+- name: Collect template file checksums
+  ansible.builtin.find:
+    paths: "{{ devcontainer_template_source_path }}"
+    recurse: true
+    file_type: file
+    get_checksum: true
+  register: devcontainer_template_source_files
+  become: false
+
+- name: Compute template signature
+  ansible.builtin.set_fact:
+    devcontainer_template_source_signature: >-
+      {{
+        devcontainer_template_source_files.files
+        | sort(attribute='path')
+        | map(attribute='checksum')
+        | join('')
+        | hash('sha256')
+      }}
+  become: false
+
+- name: Check existing metadata file
+  ansible.builtin.stat:
+    path: "{{ devcontainer_template_metadata_file }}"
+  register: devcontainer_template_metadata_stat
+  when: devcontainer_template_skip_when_unchanged | bool
+  become: false
+
+- name: Read existing metadata
+  ansible.builtin.slurp:
+    src: "{{ devcontainer_template_metadata_file }}"
+  register: devcontainer_template_metadata_raw
+  when:
+    - devcontainer_template_skip_when_unchanged | bool
+    - devcontainer_template_metadata_stat.stat.exists
+  become: false
+
+- name: Parse existing metadata
+  ansible.builtin.set_fact:
+    devcontainer_template_existing_metadata: "{{ devcontainer_template_metadata_raw.content | b64decode | from_json }}"
+  when:
+    - devcontainer_template_skip_when_unchanged | bool
+    - devcontainer_template_metadata_stat.stat.exists
+  become: false
+
+- name: Decide whether to skip template copy
+  ansible.builtin.set_fact:
+    devcontainer_template_skip_copy: true
+  when:
+    - devcontainer_template_skip_when_unchanged | bool
+    - devcontainer_template_metadata_stat is defined
+    - devcontainer_template_metadata_stat.stat.exists
+    - (devcontainer_template_existing_metadata.stack | default('')) == devcontainer_template_stack
+    - (devcontainer_template_existing_metadata.source | default('')) == devcontainer_template_source_path
+    - (devcontainer_template_existing_metadata.signature | default('')) == devcontainer_template_source_signature
+  become: false
+
+- name: Remove existing .devcontainer directory
+  ansible.builtin.file:
+    path: "{{ devcontainer_template_target }}"
+    state: absent
+  when:
+    - devcontainer_template_clean | bool
+    - not devcontainer_template_skip_copy
+  become: false
+
+- name: Re-create target directory
+  ansible.builtin.file:
+    path: "{{ devcontainer_template_target }}"
+    state: directory
+    mode: "0755"
+  when: not devcontainer_template_skip_copy
+  become: false
+
+- name: Detect rsync support
+  ansible.builtin.stat:
+    path: /usr/bin/rsync
+  register: devcontainer_template_rsync
+  become: false
+  when: not devcontainer_template_skip_copy
+
+- name: Copy template with rsync
+  ansible.posix.synchronize:
+    src: "{{ devcontainer_template_source_path }}/"
+    dest: "{{ devcontainer_template_target }}/"
+    delete: true
+    recursive: true
+    compress: false
+  delegate_to: localhost
+  become: false
+  when:
+    - not devcontainer_template_skip_copy
+    - devcontainer_template_rsync.stat.exists
+
+- name: Copy template with cp fallback
+  ansible.builtin.command:
+    argv:
+      - cp
+      - -a
+      - "{{ devcontainer_template_source_path }}/."
+      - "{{ devcontainer_template_target }}/"
+  changed_when: true
+  become: false
+  when:
+    - not devcontainer_template_skip_copy
+    - not devcontainer_template_rsync.stat.exists
+
+- name: Record template metadata
+  ansible.builtin.copy:
+    dest: "{{ devcontainer_template_metadata_file }}"
+    content: >-
+      {{
+        {
+          'stack': devcontainer_template_stack,
+          'source': devcontainer_template_source_path,
+          'signature': devcontainer_template_source_signature
+        }
+        | to_nice_json
+      }}\n
+    mode: "0644"
+  become: false

@@ -1,0 +1,20 @@
+---
+- name: Verify vscode_config role
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Check VS Code configuration files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /workspace/.vscode/settings.json
+        - /workspace/.vscode/extensions.json
+        - /workspace/.vscode/tasks.json
+      register: vscode_assets
+
+    - name: Assert VS Code assets present
+      ansible.builtin.assert:
+        that:
+          - vscode_assets.results | map(attribute='stat.exists') | min
+        fail_msg: "VS Code workspace assets missing from /workspace/.vscode"

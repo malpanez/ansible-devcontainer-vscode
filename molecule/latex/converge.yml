@@ -1,0 +1,89 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    ansible_environment_config_dir: /workspace
+    ansible_environment_devcontainer_user: vscode
+    ansible_environment_python_requirements_file: /workspace/requirements-ansible.txt
+    ansible_environment_collection_requirements_file: /workspace/requirements.yml
+    devcontainer_base_user: vscode
+    devcontainer_base_timezone: Europe/Dublin
+    python_tools_devcontainer_user: vscode
+    python_tools_ansible_config_dir: /workspace
+    vscode_config_workspace_dir: /workspace
+    vscode_config_devcontainer_user: vscode
+    vscode_config_python_interpreter_path: /usr/local/bin/python
+    ansible_config_dir: /workspace
+    devcontainer_user: vscode
+    python_requirements_file: /workspace/requirements-ansible.txt
+    ansible_requirements_file: /workspace/requirements.yml
+    devcontainer_template_root_override: /workspace/devcontainers
+    devcontainer_template_target_override: /workspace/.devcontainer
+
+  pre_tasks:
+    - name: Copy Ansible Python requirements
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements-ansible.txt"
+        dest: /workspace/requirements-ansible.txt
+        mode: "0644"
+      become: false
+
+    - name: Copy requirements.txt wrapper
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements.txt"
+        dest: /workspace/requirements.txt
+        mode: "0644"
+      become: false
+
+    - name: Copy Ansible collection requirements
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements.yml"
+        dest: /workspace/requirements.yml
+        mode: "0644"
+      become: false
+
+    - name: Copy Dev Container templates into workspace
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../devcontainers"
+        dest: /workspace/
+        mode: "0755"
+      become: false
+
+  roles:
+    - role: devcontainer_base
+    - role: ansible_environment
+    - role: python_tools
+    - role: vscode_config
+    - role: devcontainer_template
+      vars:
+        devcontainer_template_root: "{{ devcontainer_template_root_override }}"
+        devcontainer_template_target: "{{ devcontainer_template_target_override }}"
+        devcontainer_template_stack: latex
+        devcontainer_template_skip_when_unchanged: true
+
+  post_tasks:
+    - name: Toggle latex template to TeX Live
+      ansible.builtin.replace:
+        path: /workspace/devcontainers/latex/devcontainer.json
+        regexp: '"LATEX_DISTRO":\s*"miktex"'
+        replace: '"LATEX_DISTRO": "texlive"'
+      become: false
+
+    - name: Update latex image to TeX Live
+      ansible.builtin.replace:
+        path: /workspace/devcontainers/latex/devcontainer.json
+        regexp: '"LATEX_IMAGE":\s*"miktex/miktex:latest"'
+        replace: '"LATEX_IMAGE": "ghcr.io/xu-cheng/texlive-full:latest"'
+      become: false
+
+    - name: Re-run devcontainer_template after toggle
+      ansible.builtin.include_role:
+        name: devcontainer_template
+      vars:
+        devcontainer_template_root: "{{ devcontainer_template_root_override }}"
+        devcontainer_template_target: "{{ devcontainer_template_target_override }}"
+        devcontainer_template_stack: latex
+        devcontainer_template_skip_when_unchanged: true
+      apply:
+        become: true

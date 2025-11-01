@@ -1,0 +1,268 @@
+---
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4.3.1
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+
+  publish-container:
+    name: Publish Devcontainer Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfiles with hadolint
+        run: |
+          set -euo pipefail
+          find devcontainers .devcontainer -name Dockerfile -print0 |
+          while IFS= read -r -d '' file; do
+            echo "Linting ${file}"
+            docker run --rm -i hadolint/hadolint < "${file}"
+          done
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Preflight build and smoke-test images
+        run: |
+          set -euo pipefail
+          stacks=(base ansible terraform golang latex)
+          for stack in "${stacks[@]}"; do
+            args=(--stack "${stack}" --build --image "devcontainer-${stack}:preflight")
+            if [[ "${stack}" == "ansible" || "${stack}" == "terraform" ]]; then
+              args+=(--base-image devcontainer-base:preflight)
+            fi
+            ./scripts/smoke-devcontainer-image.sh "${args[@]}"
+          done
+
+      - name: Trivy scan preflight images
+        run: |
+          set -euo pipefail
+          images=(
+            devcontainer-base:preflight
+            devcontainer-ansible:preflight
+            devcontainer-terraform:preflight
+            devcontainer-golang:preflight
+            devcontainer-latex:preflight
+          )
+          mkdir -p "$HOME/.cache/trivy"
+          for image in "${images[@]}"; do
+            echo "Scanning ${image}"
+            docker run --rm \
+              -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+              aquasec/trivy:0.50.1 \
+              image \
+                --scanners vuln \
+                --severity CRITICAL,HIGH \
+                --ignore-unfixed \
+                --no-progress \
+                --exit-code 1 \
+                "${image}"
+          done
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Install syft
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh |
+            sudo sh -s -- -b /usr/local/bin
+
+      - name: Build and push base image
+        id: build_base
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: devcontainers/base/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312-${{ github.ref_name }}
+
+      - name: Build and push Ansible image
+        id: build_ansible
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: devcontainers/ansible/Dockerfile
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:latest
+            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:${{ github.ref_name }}
+
+      - name: Build and push Terraform image
+        id: build_terraform
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: devcontainers/terraform/Dockerfile
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:latest
+            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:${{ github.ref_name }}
+
+      - name: Build and push Golang image
+        id: build_golang
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: devcontainers/golang/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-golang:latest
+            ghcr.io/${{ github.repository_owner }}/devcontainer-golang:${{ github.ref_name }}
+
+      - name: Build and push LaTeX image
+        id: build_latex
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: devcontainers/latex/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-latex:latest
+            ghcr.io/${{ github.repository_owner }}/devcontainer-latex:${{ github.ref_name }}
+
+      - name: Sign published images
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          set -euo pipefail
+          cosign sign --yes \
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build_base.outputs.digest }}
+          cosign sign --yes \
+            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}
+          cosign sign --yes \
+            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform@${{ steps.build_terraform.outputs.digest }}
+          cosign sign --yes \
+            ghcr.io/${{ github.repository_owner }}/devcontainer-golang@${{ steps.build_golang.outputs.digest }}
+          cosign sign --yes \
+            ghcr.io/${{ github.repository_owner }}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}
+
+      - name: Generate SBOM artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p sbom
+          registry="ghcr.io/${{ github.repository_owner }}"
+          syft "${registry}/devcontainer-base@${{ steps.build_base.outputs.digest }}" \
+            -o spdx-json > sbom/devcontainer-base.spdx.json
+          syft "${registry}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}" \
+            -o spdx-json > sbom/devcontainer-ansible.spdx.json
+          syft "${registry}/devcontainer-terraform@${{ steps.build_terraform.outputs.digest }}" \
+            -o spdx-json > sbom/devcontainer-terraform.spdx.json
+          syft "${registry}/devcontainer-golang@${{ steps.build_golang.outputs.digest }}" \
+            -o spdx-json > sbom/devcontainer-golang.spdx.json
+          syft "${registry}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}" \
+            -o spdx-json > sbom/devcontainer-latex.spdx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: devcontainer-sbom
+          path: sbom/
+
+  smoke-ghcr:
+    name: GHCR Release Smoke Test
+    needs: publish-container
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [ansible, terraform, golang, latex]
+
+    env:
+      DEVCONTAINER_PREFER_LOCAL_BUILD: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Dev Containers CLI
+        run: |
+          set -euo pipefail
+          export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+          npm install --global @devcontainers/cli
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run devcontainer up for ${{ matrix.stack }} @ latest
+        env:
+          WORKSPACE_FOLDER: devcontainers/${{ matrix.stack }}
+          IMAGE_TAG: latest
+        run: |
+          set -euo pipefail
+          devcontainer up --workspace-folder "$WORKSPACE_FOLDER"
+          devcontainer exec \
+            --workspace-folder "$WORKSPACE_FOLDER" \
+            -- bash -lc "echo '${{ matrix.stack }} latest ready'"
+          devcontainer stop --workspace-folder "$WORKSPACE_FOLDER"
+
+      - name: Run devcontainer up for ${{ matrix.stack }} @ release tag
+        env:
+          WORKSPACE_FOLDER: devcontainers/${{ matrix.stack }}
+          IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          devcontainer up --workspace-folder "$WORKSPACE_FOLDER"
+          devcontainer exec \
+            --workspace-folder "$WORKSPACE_FOLDER" \
+            -- bash -lc "echo '${{ matrix.stack }} $IMAGE_TAG ready'"
+          devcontainer stop --workspace-folder "$WORKSPACE_FOLDER"

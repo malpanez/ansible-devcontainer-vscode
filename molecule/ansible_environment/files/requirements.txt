@@ -1,0 +1,2 @@
+# Placeholder wrapper used in Molecule tests to mimic the root-level file.
+-r requirements-ansible.txt

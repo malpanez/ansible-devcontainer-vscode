@@ -1,0 +1,36 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Install system dependencies
+  ansible.builtin.apt:
+    name: "{{ devcontainer_base_packages }}"
+    state: present
+  become: true
+
+- name: Create vscode user
+  ansible.builtin.user:
+    name: "{{ devcontainer_base_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+    uid: "{{ devcontainer_base_uid | default(omit, true) }}"
+  become: true
+
+- name: Configure sudo without password
+  ansible.builtin.lineinfile:
+    path: "/etc/sudoers.d/{{ devcontainer_base_user }}"
+    line: "{{ devcontainer_base_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  become: true
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ devcontainer_base_timezone }}"
+  become: true

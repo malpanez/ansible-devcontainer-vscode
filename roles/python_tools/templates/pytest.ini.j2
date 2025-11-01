@@ -1,0 +1,16 @@
+[pytest]
+{% if python_tools_pytest_testpaths | length > 0 %}
+testpaths = {{ python_tools_pytest_testpaths | join(' ') }}
+{% endif %}
+{% if python_tools_pytest_python_files %}
+python_files = {{ python_tools_pytest_python_files }}
+{% endif %}
+{% if python_tools_pytest_python_classes %}
+python_classes = {{ python_tools_pytest_python_classes }}
+{% endif %}
+{% if python_tools_pytest_python_functions %}
+python_functions = {{ python_tools_pytest_python_functions }}
+{% endif %}
+{% if python_tools_pytest_addopts | length > 0 %}
+addopts = {{ python_tools_pytest_addopts | join(' ') }}
+{% endif %}

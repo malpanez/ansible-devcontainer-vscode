@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Ansible: Lint All",
+      "type": "shell",
+      "command": "ansible-lint --profile production",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Ansible: Syntax Check",
+      "type": "shell",
+      "command": "ansible-playbook playbooks/*.yml --syntax-check",
+      "problemMatcher": []
+    },
+    {
+      "label": "YAML: Lint All",
+      "type": "shell",
+      "command": "yamllint .",
+      "problemMatcher": []
+    },
+    {
+      "label": "Smoke Tests",
+      "type": "shell",
+      "command": "./scripts/run-smoke-tests.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Molecule: Test",
+      "type": "shell",
+      "command": "molecule test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Devcontainer: Build All",
+      "type": "shell",
+      "command": "./scripts/check-devcontainer.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Ansible: ansible-test sanity",
+      "type": "shell",
+      "command": "./scripts/run-ansible-tests.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-commit: Run All",
+      "type": "shell",
+      "command": "pre-commit run --all-files",
+      "problemMatcher": []
+    },
+    {
+      "label": "Terraform: Validate",
+      "type": "shell",
+      "command": "./scripts/run-terraform-tests.sh",
+      "problemMatcher": []
+    }
+  ]
+}

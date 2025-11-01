@@ -1,0 +1,46 @@
+---
+- name: Setup Ansible DevContainer Workspace
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: true
+
+  roles:
+    - role: devcontainer_base
+      tags:
+        - base
+        - system
+
+    - role: ansible_environment
+      tags:
+        - ansible
+        - tools
+
+    - role: python_tools
+      tags:
+        - python
+        - testing
+
+    - role: vscode_config
+      tags:
+        - vscode
+        - editor
+
+    - role: devcontainer_template
+      tags:
+        - devcontainer
+        - template
+      vars:
+        devcontainer_template_stack: "{{ workspace_stack | default('ansible') }}"
+        devcontainer_template_skip_when_unchanged: true
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          Successfully Workspace setup complete!
+
+          Next steps:
+          1. Reopen VS Code in container
+          2. Run: ansible --version
+          3. Start automating!

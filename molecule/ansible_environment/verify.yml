@@ -1,0 +1,43 @@
+---
+- name: Verify ansible_environment role
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Check uv binary is available
+      ansible.builtin.command: uv --version
+      register: uv_version
+      changed_when: false
+
+    - name: Assert uv installed
+      ansible.builtin.assert:
+        that:
+          - uv_version.rc == 0
+          - uv_version.stdout | regex_search('^uv\\s+[0-9]+\\.[0-9]+\\.[0-9]+')
+        fail_msg: "uv binary missing or returned unexpected output."
+
+    - name: Check ansible CLI version
+      ansible.builtin.command: ansible --version
+      register: ansible_cli_version
+      changed_when: false
+
+    - name: Assert ansible CLI installed
+      ansible.builtin.assert:
+        that:
+          - ansible_cli_version.rc == 0
+          - ansible_cli_version.stdout | regex_search('ansible\\s+\\[core')
+        fail_msg: "ansible CLI not installed."
+
+    - name: Validate workspace configuration files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /workspace/ansible.cfg
+        - /workspace/.ansible-lint
+      register: config_files
+
+    - name: Assert configuration files exist
+      ansible.builtin.assert:
+        that:
+          - config_files.results | map(attribute='stat.exists') | min
+        fail_msg: "Expected ansible.cfg and .ansible-lint to be present."

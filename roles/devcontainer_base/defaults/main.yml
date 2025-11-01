@@ -1,0 +1,22 @@
+---
+# Use namespaced defaults to avoid collisions when the role is included multiple times.
+devcontainer_base_user: "{{ devcontainer_user | default('vscode', true) }}"
+devcontainer_base_uid: "{{ devcontainer_uid | default(omit, true) }}"
+devcontainer_base_timezone: "{{ timezone | default('Europe/Dublin', true) }}"
+devcontainer_base_packages:
+  - git
+  - curl
+  - wget
+  - openssh-client
+  - sshpass
+  - vim
+  - nano
+  - sudo
+  - jq
+  - yamllint
+  - build-essential
+  - libssl-dev
+  - libffi-dev
+  - ca-certificates
+  - gnupg
+  - lsb-release

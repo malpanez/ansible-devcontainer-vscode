@@ -1,0 +1,357 @@
+---
+- name: Check for existing uv binary
+  ansible.builtin.stat:
+    path: "{{ ansible_environment_uv_binary_path }}"
+  register: ansible_environment_uv_binary_stat
+
+- name: Read current uv version
+  ansible.builtin.command: "{{ ansible_environment_uv_binary_path }} --version"
+  register: ansible_environment_uv_current_version
+  failed_when: false
+  changed_when: false
+  when: ansible_environment_uv_binary_stat.stat.exists
+
+- name: Determine if uv install is required
+  ansible.builtin.set_fact:
+    ansible_environment_uv_install_required: >-
+      {{
+        (not ansible_environment_uv_binary_stat.stat.exists)
+        or (
+          (
+            (
+              ansible_environment_uv_current_version.stdout
+              if (ansible_environment_uv_current_version is defined)
+              else ''
+            )
+            | trim
+            | regex_search('^uv\\s+' ~ ansible_environment_uv_version ~ '\\b')
+          ) is none
+        )
+      }}
+  changed_when: false
+
+- name: Resolve desired uv checksum
+  ansible.builtin.set_fact:
+    ansible_environment_uv_effective_checksum: "{{ ansible_environment_uv_checksum }}"
+  changed_when: false
+
+- name: Install uv package manager
+  become: true
+  when: ansible_environment_uv_install_required | bool
+  module_defaults:
+    ansible.builtin.copy:
+      owner: root
+      group: root
+      mode: '0755'
+  block:
+    - name: Validate uv checksum requirement
+      ansible.builtin.assert:
+        that:
+          - ansible_environment_uv_effective_checksum | length > 0
+        fail_msg: >-
+          ansible_environment_uv_checksum is empty. Provide the release checksum or set
+          ansible_environment_uv_enforce_checksum=false to bypass enforcement (not recommended).
+      when: ansible_environment_uv_enforce_checksum | bool
+
+    - name: Create temporary directory for uv archive
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: uv
+      register: ansible_environment_uv_tempdir
+
+    - name: Download uv checksum manifest
+      ansible.builtin.get_url:
+        url: "{{ ansible_environment_uv_checksums_url }}"
+        dest: "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}"
+        mode: '0644'
+      when: ansible_environment_uv_effective_checksum | length == 0
+
+    - name: Extract checksum for uv archive from manifest
+      ansible.builtin.shell: |
+        awk '$2 == "{{ ansible_environment_uv_archive_filename }}" {print $1}' \
+          '{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}'
+      register: ansible_environment_uv_checksum_manifest_lookup
+      changed_when: false
+      when: ansible_environment_uv_effective_checksum | length == 0
+
+    - name: Ensure checksum was located in manifest
+      ansible.builtin.assert:
+        that:
+          - ansible_environment_uv_checksum_manifest_lookup.stdout | default('') | trim | length > 0
+        fail_msg: >-
+          Unable to locate {{ ansible_environment_uv_archive_filename }}
+          in {{ ansible_environment_uv_checksums_manifest }}.
+      when: ansible_environment_uv_effective_checksum | length == 0
+
+    - name: Cache manifest-derived checksum
+      ansible.builtin.set_fact:
+        ansible_environment_uv_effective_checksum: "{{ ansible_environment_uv_checksum_manifest_lookup.stdout | trim }}"
+      changed_when: false
+      when: ansible_environment_uv_effective_checksum | length == 0
+
+    - name: Download uv archive
+      ansible.builtin.get_url:
+        url: "{{ ansible_environment_uv_download_url }}"
+        dest: "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_archive_filename }}"
+        mode: '0644'
+        checksum: "{{ ansible_environment_uv_effective_checksum | default(omit, true) }}"
+
+    - name: Extract uv archive
+      ansible.builtin.unarchive:
+        src: "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_archive_filename }}"
+        dest: "{{ ansible_environment_uv_tempdir.path }}"
+        remote_src: true
+
+    - name: Verify uv binary was extracted
+      ansible.builtin.stat:
+        path: "{{ ansible_environment_uv_tempdir.path }}/uv"
+      register: ansible_environment_uv_extracted_binary
+      failed_when: not ansible_environment_uv_extracted_binary.stat.exists
+
+    - name: Install uv binaries  # noqa: risky-file-permissions
+      module_defaults:
+        ansible.builtin.copy:
+          owner: root
+          group: root
+          mode: '0755'
+        ansible.builtin.file:
+          owner: root
+          group: root
+          mode: '0755'
+      block:
+        - name: Ensure uv install directory exists  # noqa: risky-file-permissions
+          ansible.builtin.file:
+            path: "{{ ansible_environment_uv_install_dir }}"
+            state: directory
+
+        - name: Install uv binary  # noqa: risky-file-permissions
+          ansible.builtin.copy:
+            src: "{{ ansible_environment_uv_tempdir.path }}/uv"
+            dest: "{{ ansible_environment_uv_binary_path }}"
+            remote_src: true
+
+        - name: Check if uvx helper is available
+          ansible.builtin.stat:
+            path: "{{ ansible_environment_uv_tempdir.path }}/uvx"
+          register: ansible_environment_uvx_stat
+
+        - name: Install uvx helper  # noqa: risky-file-permissions
+          ansible.builtin.copy:
+            src: "{{ ansible_environment_uv_tempdir.path }}/uvx"
+            dest: "{{ ansible_environment_uv_install_dir }}/uvx"
+            remote_src: true
+          when: ansible_environment_uvx_stat.stat.exists
+  always:
+    - name: Remove uv temporary directory
+      ansible.builtin.file:
+        path: "{{ ansible_environment_uv_tempdir.path }}"
+        state: absent
+      when:
+        - ansible_environment_uv_tempdir is defined
+        - ansible_environment_uv_tempdir.path is defined
+        - ansible_environment_uv_tempdir.path | length > 0
+
+- name: Ensure shared state directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_environment_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Compose uv command environment
+  ansible.builtin.set_fact:
+    ansible_environment_uv_command_env: >-
+      {{
+        {'UV_CACHE_DIR': ansible_environment_uv_cache_dir}
+        | combine(ansible_environment_uv_proxy_overrides | default({}))
+      }}
+  changed_when: false
+  vars:
+    ansible_environment_uv_proxy_overrides: >-
+      {{
+        {
+          'UV_INDEX_URL': ansible_environment_uv_index_url | default(''),
+          'HTTP_PROXY': ansible_environment_http_proxy | default(''),
+          'HTTPS_PROXY': ansible_environment_https_proxy | default(''),
+          'NO_PROXY': ansible_environment_no_proxy | default('')
+        }
+        | dict2items
+        | selectattr('value', 'ne', '')
+        | items2dict
+        | default({})
+      }}
+
+- name: Compose ansible-galaxy environment
+  ansible.builtin.set_fact:
+    ansible_environment_galaxy_command_env: >-
+      {{
+        {
+          'HTTP_PROXY': ansible_environment_http_proxy | default(''),
+          'HTTPS_PROXY': ansible_environment_https_proxy | default(''),
+          'NO_PROXY': ansible_environment_no_proxy | default('')
+        }
+        | dict2items
+        | selectattr('value', 'ne', '')
+        | items2dict
+        | default({})
+      }}
+  changed_when: false
+
+- name: Compose ansible-galaxy arguments
+  ansible.builtin.set_fact:
+    ansible_environment_galaxy_command_args: >-
+      {{
+        ['ansible-galaxy', 'collection', 'install']
+        + (
+          ((ansible_environment_galaxy_server_url | default('')) | length > 0)
+          | ternary(['--server', ansible_environment_galaxy_server_url], [])
+        )
+        + (ansible_environment_galaxy_extra_args | default([]))
+        + ['--requirements-file', ansible_environment_collection_requirements_file]
+      }}
+  changed_when: false
+
+- name: Ensure Python requirements file exists
+  ansible.builtin.stat:
+    path: "{{ ansible_environment_python_requirements_file }}"
+    checksum: true
+  register: ansible_environment_python_requirements_stat
+
+- name: Fail when Python requirements are missing
+  ansible.builtin.fail:
+    msg: "Expected Python requirements at {{ ansible_environment_python_requirements_file }}"
+  when: not ansible_environment_python_requirements_stat.stat.exists
+
+- name: Read Python requirements marker
+  ansible.builtin.slurp:
+    src: "{{ ansible_environment_uv_requirements_marker }}"
+  register: ansible_environment_python_requirements_marker
+  ignore_errors: true
+  become: true
+
+- name: Determine if Python requirements changed
+  ansible.builtin.set_fact:
+    ansible_environment_python_requirements_changed: >
+      {{ (ansible_environment_python_requirements_marker.failed | default(false))
+         or ((ansible_environment_python_requirements_marker.content | default('') | b64decode | trim)
+             != ansible_environment_python_requirements_stat.stat.checksum) }}
+  changed_when: false
+
+- name: Install Ansible tooling with uv
+  ansible.builtin.command:
+    cmd: >-
+      {{ ansible_environment_uv_binary_path }} pip install --system --requirement
+      {{ ansible_environment_python_requirements_file }}
+  become: true
+  environment: "{{ ansible_environment_uv_command_env }}"
+  when: ansible_environment_python_requirements_changed | bool
+  changed_when: true
+
+- name: Ensure Ansible collection requirements file exists
+  ansible.builtin.stat:
+    path: "{{ ansible_environment_collection_requirements_file }}"
+    checksum: true
+  register: ansible_environment_collection_requirements_stat
+
+- name: Fail when Ansible collection requirements are missing
+  ansible.builtin.fail:
+    msg: "Expected Ansible collection requirements at {{ ansible_environment_collection_requirements_file }}"
+  when: not ansible_environment_collection_requirements_stat.stat.exists
+
+- name: Ensure devcontainer directories exist
+  become: true
+  module_defaults:
+    ansible.builtin.file:
+      owner: "{{ ansible_environment_devcontainer_user }}"
+      group: "{{ ansible_environment_devcontainer_user }}"
+      mode: '0755'
+  block:
+    - name: Create Ansible directories  # noqa: risky-file-permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ ansible_environment_config_dir }}"
+        - "{{ ansible_environment_config_dir }}/roles"
+        - "{{ ansible_environment_config_dir }}/collections"
+        - "{{ ansible_environment_config_dir }}/playbooks"
+
+    - name: Ensure uv cache directory exists  # noqa: risky-file-permissions
+      ansible.builtin.file:
+        path: "{{ ansible_environment_uv_cache_dir }}"
+        state: directory
+
+    - name: Ensure Ansible Galaxy cache directory exists  # noqa: risky-file-permissions
+      ansible.builtin.file:
+        path: "{{ ansible_environment_galaxy_cache_dir }}"
+        state: directory
+
+- name: Deploy configuration files
+  module_defaults:
+    ansible.builtin.template:
+      owner: "{{ ansible_environment_devcontainer_user }}"
+      group: "{{ ansible_environment_devcontainer_user }}"
+      mode: '0644'
+  block:
+    - name: Deploy ansible.cfg  # noqa: risky-file-permissions
+      ansible.builtin.template:
+        src: ansible.cfg.j2
+        dest: "{{ ansible_environment_config_dir }}/ansible.cfg"
+
+    - name: Deploy ansible-lint configuration  # noqa: risky-file-permissions
+      ansible.builtin.template:
+        src: ansible-lint.yml.j2
+        dest: "{{ ansible_environment_config_dir }}/.ansible-lint"
+
+- name: Read Ansible collections marker
+  ansible.builtin.slurp:
+    src: "{{ ansible_environment_collections_marker }}"
+  register: ansible_environment_collections_marker_contents
+  ignore_errors: true
+  become: true
+
+- name: Determine if Ansible collections changed
+  ansible.builtin.set_fact:
+    ansible_environment_collections_changed: >
+      {{ (ansible_environment_collections_marker_contents.failed | default(false))
+         or ((ansible_environment_collections_marker_contents.content | default('') | b64decode | trim)
+             != ansible_environment_collection_requirements_stat.stat.checksum) }}
+  changed_when: false
+
+- name: Install Ansible collections from requirements
+  ansible.builtin.command:
+    argv: "{{ ansible_environment_galaxy_command_args }}"
+  become: true
+  become_user: "{{ ansible_environment_devcontainer_user }}"
+  register: ansible_environment_galaxy_install
+  changed_when: "'Skipping' not in ansible_environment_galaxy_install.stdout"
+  when: ansible_environment_collections_changed | bool
+  environment: >-
+    {{
+      {'ANSIBLE_GALAXY_CACHE_DIR': ansible_environment_galaxy_cache_dir}
+      | combine(ansible_environment_galaxy_command_env | default({}))
+    }}
+
+- name: Update dependency markers
+  become: true
+  module_defaults:
+    ansible.builtin.copy:
+      owner: root
+      group: root
+      mode: '0644'
+  block:
+    - name: Update Python requirements marker
+      ansible.builtin.copy:
+        dest: "{{ ansible_environment_uv_requirements_marker }}"
+        content: "{{ ansible_environment_python_requirements_stat.stat.checksum }}\n"
+        mode: '0644'
+      when: ansible_environment_python_requirements_changed | bool
+
+    - name: Update Ansible collections marker
+      ansible.builtin.copy:
+        dest: "{{ ansible_environment_collections_marker }}"
+        content: "{{ ansible_environment_collection_requirements_stat.stat.checksum }}\n"
+        mode: '0644'
+      when: ansible_environment_collections_changed | bool

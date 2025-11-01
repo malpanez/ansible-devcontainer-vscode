@@ -1,0 +1,9 @@
+---
+- name: Converge devcontainer_base role
+  hosts: all
+  become: true
+  vars:
+    devcontainer_base_timezone: Etc/UTC
+    devcontainer_base_user: vscode
+  roles:
+    - role: devcontainer_base

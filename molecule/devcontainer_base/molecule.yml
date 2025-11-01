@@ -1,0 +1,30 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements_file: ../../requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: "{{ lookup('env', 'MOLECULE_DISTRO') | default('debian12', true) }}"
+    image: "{{ lookup('env', 'MOLECULE_IMAGE') | default('geerlingguy/docker-debian12-ansible:latest', true) }}"
+    privileged: true
+    override_command: false
+    environment:
+      ANSIBLE_FORCE_COLOR: "true"
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+
+scenario:
+  test_sequence:
+    - lint
+    - converge
+    - verify
+    - destroy

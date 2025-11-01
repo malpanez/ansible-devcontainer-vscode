@@ -1,0 +1,23 @@
+---
+collections:
+  - name: ansible.posix
+    version: ">=1.5.0"
+
+  - name: community.general
+    version: ">=8.0.0"
+
+  - name: community.docker
+    version: ">=3.4.0"
+
+  - name: kubernetes.core
+    version: ">=3.0.0"
+
+  - name: amazon.aws
+    version: ">=7.0.0"
+
+  # Uncomment as needed
+  # - name: azure.azcollection
+  #   version: ">=2.0.0"
+
+  # - name: google.cloud
+  #   version: ">=1.2.0"

@@ -1,0 +1,32 @@
+[project]
+name = "ansible-devcontainer"
+version = "0.1.0"
+description = "Ansible DevContainer tooling and automation stack."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "ansible>=9.0.0,<10.0.0",
+  "ansible-navigator>=3.5.0",
+  "molecule>=6.0.0,<7.0.0",
+  "molecule-plugins[docker]>=23.5.0,<24.0.0",
+  "pytest>=8.0.0",
+  "pytest-ansible>=24.1.0",
+  "pytest-cov>=4.1.0",
+  "pytest-testinfra>=10.1.0",
+  "yamllint>=1.35.0",
+  "black>=24.0.0",
+  "ruff>=0.3.0",
+  "mypy>=1.8.0",
+  "jmespath>=1.0.1",
+  "netaddr>=1.2.1",
+  "dnspython>=2.6.0",
+  "passlib>=1.7.4",
+  "boto3>=1.34.0",
+  "botocore>=1.34.0",
+  "ipython>=8.20.0",
+  "pre-commit>=3.6.0",
+  "detect-secrets>=1.4.0",
+]
+
+[tool.uv]
+package = false

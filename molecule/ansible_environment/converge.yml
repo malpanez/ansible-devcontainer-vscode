@@ -1,0 +1,56 @@
+---
+- name: Converge ansible_environment role
+  hosts: all
+  become: true
+  vars:
+    test_devcontainer_user: vscode
+    test_workspace_dir: /workspace
+    test_python_requirements_file: /workspace/requirements-ansible.txt
+    test_collection_requirements_file: /workspace/requirements.yml
+  pre_tasks:
+    - name: Ensure devcontainer user exists
+      ansible.builtin.user:
+        name: "{{ test_devcontainer_user }}"
+        shell: /bin/bash
+        state: present
+
+    - name: Ensure workspace directory exists
+      ansible.builtin.file:
+        path: "{{ test_workspace_dir }}"
+        state: directory
+        owner: "{{ test_devcontainer_user }}"
+        group: "{{ test_devcontainer_user }}"
+        mode: '0755'
+
+    - name: Deploy Ansible Python requirements for testing
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../requirements-ansible.txt"
+        dest: "{{ test_workspace_dir }}/requirements-ansible.txt"
+        owner: "{{ test_devcontainer_user }}"
+        group: "{{ test_devcontainer_user }}"
+        mode: '0644'
+
+    - name: Deploy requirements.txt wrapper for testing
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/files/requirements.txt"
+        dest: "{{ test_workspace_dir }}/requirements.txt"
+        owner: "{{ test_devcontainer_user }}"
+        group: "{{ test_devcontainer_user }}"
+        mode: '0644'
+
+    - name: Deploy collection requirements for testing
+      ansible.builtin.copy:
+        src: files/requirements.yml
+        dest: "{{ test_collection_requirements_file }}"
+        owner: "{{ test_devcontainer_user }}"
+        group: "{{ test_devcontainer_user }}"
+        mode: '0644'
+
+  roles:
+    - role: ansible_environment
+      vars:
+        ansible_environment_devcontainer_user: "{{ test_devcontainer_user }}"
+        ansible_environment_config_dir: "{{ test_workspace_dir }}"
+        ansible_environment_python_requirements_file: "{{ test_python_requirements_file }}"
+        ansible_environment_collection_requirements_file: "{{ test_collection_requirements_file }}"
+        ansible_environment_uv_enforce_checksum: false

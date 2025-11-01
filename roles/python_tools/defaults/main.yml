@@ -1,0 +1,14 @@
+---
+# Role-scoped defaults to prevent variable collisions.
+python_tools_devcontainer_user: "{{ devcontainer_user | default('vscode', true) }}"
+python_tools_ansible_config_dir: "{{ ansible_config_dir | default('/workspace', true) }}"
+python_tools_pytest_config_path: "{{ python_tools_ansible_config_dir ~ '/pytest.ini' }}"
+python_tools_pytest_testpaths:
+  - tests
+python_tools_pytest_python_files: "test_*.py"
+python_tools_pytest_python_classes: "Test*"
+python_tools_pytest_python_functions: "test_*"
+python_tools_pytest_addopts:
+  - -v
+  - --cov=roles
+  - --cov-report=html
