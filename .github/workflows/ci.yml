@@ -322,7 +322,6 @@ jobs:
           load: true
           tags: devcontainer-base:ci
           cache-from: type=gha,scope=base
-          cache-to: type=gha,mode=max,scope=base
           platforms: linux/amd64
 
       - name: Test base container
@@ -386,7 +385,6 @@ jobs:
           load: true
           tags: devcontainer-${{ matrix.stack }}:ci
           cache-from: type=gha,scope=${{ matrix.stack }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
           platforms: linux/amd64
           build-args: |
             BASE_IMAGE=devcontainer-base:ci
@@ -401,7 +399,6 @@ jobs:
           load: true
           tags: devcontainer-${{ matrix.stack }}:ci
           cache-from: type=gha,scope=${{ matrix.stack }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
           platforms: linux/amd64
 
       - name: Test ${{ matrix.stack }} container
