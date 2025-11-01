@@ -56,6 +56,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
 
       - name: Preflight build and smoke-test images
         run: |
@@ -119,8 +121,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312-${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/devcontainer-base:py312
+            ghcr.io/${{ github.repository }}/devcontainer-base:py312-${{ github.ref_name }}
 
       - name: Build and push Ansible image
         id: build_ansible
@@ -129,12 +131,12 @@ jobs:
           context: .
           file: devcontainers/ansible/Dockerfile
           build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+            BASE_IMAGE=ghcr.io/${{ github.repository }}/devcontainer-base:py312
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:latest
-            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/devcontainer-ansible:latest
+            ghcr.io/${{ github.repository }}/devcontainer-ansible:${{ github.ref_name }}
 
       - name: Build and push Terraform image
         id: build_terraform
@@ -143,12 +145,12 @@ jobs:
           context: .
           file: devcontainers/terraform/Dockerfile
           build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+            BASE_IMAGE=ghcr.io/${{ github.repository }}/devcontainer-base:py312
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:latest
-            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/devcontainer-terraform:latest
+            ghcr.io/${{ github.repository }}/devcontainer-terraform:${{ github.ref_name }}
 
       - name: Build and push Golang image
         id: build_golang
@@ -159,8 +161,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-golang:latest
-            ghcr.io/${{ github.repository_owner }}/devcontainer-golang:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/devcontainer-golang:latest
+            ghcr.io/${{ github.repository }}/devcontainer-golang:${{ github.ref_name }}
 
       - name: Build and push LaTeX image
         id: build_latex
@@ -171,8 +173,8 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-latex:latest
-            ghcr.io/${{ github.repository_owner }}/devcontainer-latex:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/devcontainer-latex:latest
+            ghcr.io/${{ github.repository }}/devcontainer-latex:${{ github.ref_name }}
 
       - name: Sign published images
         env:
@@ -180,21 +182,22 @@ jobs:
         run: |
           set -euo pipefail
           cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build_base.outputs.digest }}
+            ghcr.io/${{ github.repository }}/devcontainer-base@${{ steps.build_base.outputs.digest }}
           cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}
+            ghcr.io/${{ github.repository }}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}
           cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform@${{ steps.build_terraform.outputs.digest }}
+            ghcr.io/${{ github.repository }}/devcontainer-terraform@${{ steps.build_terraform.outputs.digest }}
           cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-golang@${{ steps.build_golang.outputs.digest }}
+            ghcr.io/${{ github.repository }}/devcontainer-golang@${{ steps.build_golang.outputs.digest }}
           cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}
+            ghcr.io/${{ github.repository }}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}
 
       - name: Generate SBOM artifacts
         run: |
           set -euo pipefail
           mkdir -p sbom
           registry="ghcr.io/${{ github.repository_owner }}"
+          registry="ghcr.io/${{ github.repository }}"
           syft "${registry}/devcontainer-base@${{ steps.build_base.outputs.digest }}" \
             -o spdx-json > sbom/devcontainer-base.spdx.json
           syft "${registry}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}" \

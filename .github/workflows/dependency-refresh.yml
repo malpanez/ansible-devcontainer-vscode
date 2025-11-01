@@ -53,3 +53,4 @@ jobs:
 
             - `uv lock --upgrade`
             - `uv export --format requirements-txt --frozen > requirements.txt`
+          labels: dependencies

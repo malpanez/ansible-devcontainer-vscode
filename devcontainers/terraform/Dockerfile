@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1.7
-ARG TERRAFORM_VERSION=1.7.5
+ARG TERRAFORM_VERSION=1.13.4
 ARG TERRAGRUNT_VERSION=0.54.17
 ARG TFLINT_VERSION=0.51.1
+ARG BASE_IMAGE=ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-base:py312
+ARG CHECKOV_CONSTRAINT="checkov>=3.0.0,<4.0.0"
 
 FROM --platform=$BUILDPLATFORM hashicorp/terraform:${TERRAFORM_VERSION} AS terraform-cli
 
 # BuildKit platform arguments
-ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG TARGETOS
 
@@ -16,7 +17,6 @@ FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS terraform-tools
 ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG TARGETOS
-ARG TARGETPLATFORM
 ARG TERRAGRUNT_VERSION
 ARG TFLINT_VERSION
 
@@ -46,9 +46,11 @@ RUN set -eux; \
     grep "  ${TERRAGRUNT_FILE}$" terragrunt_SHA256SUMS > terragrunt_SHA256SUMS.selected; \
     sha256sum --check terragrunt_SHA256SUMS.selected; \
     install -m 0755 "${TERRAGRUNT_FILE}" /usr/local/bin/terragrunt; \
-    curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_checksums.txt" \
-      -o tflint_checksums.txt; \
-    curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${TFLINT_ARCH}.zip" \
+    TFLINT_BASE_URL="https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}"; \
+    if ! curl -fsSL "${TFLINT_BASE_URL}/tflint_checksums.txt" -o tflint_checksums.txt; then \
+      curl -fsSL "${TFLINT_BASE_URL}/checksums.txt" -o tflint_checksums.txt; \
+    fi; \
+    curl -fsSL "${TFLINT_BASE_URL}/tflint_linux_${TFLINT_ARCH}.zip" \
       -o tflint_linux_${TFLINT_ARCH}.zip; \
     grep "  tflint_linux_${TFLINT_ARCH}.zip$" tflint_checksums.txt > tflint_linux_${TFLINT_ARCH}.zip.sha256; \
     sha256sum --check tflint_linux_${TFLINT_ARCH}.zip.sha256; \
@@ -56,13 +58,13 @@ RUN set -eux; \
     install -m 0755 /tmp/tflint-bin/tflint /usr/local/bin/tflint; \
     rm -rf /tmp/downloads /tmp/tflint-bin
 
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 FROM ${BASE_IMAGE}
 
 # BuildKit platform arguments
 ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG TARGETOS
+ARG CHECKOV_CONSTRAINT
 
 LABEL maintainer="alpanez.alcalde@gmail.com"
 LABEL description="Terraform + Ansible Development Environment 2025"
@@ -70,15 +72,13 @@ LABEL description="Terraform + Ansible Development Environment 2025"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
+ENV CHECKOV_CONSTRAINT=${CHECKOV_CONSTRAINT}
 
 USER root
 
 COPY --from=terraform-cli /bin/terraform /usr/local/bin/terraform
 COPY --from=terraform-tools /usr/local/bin/terragrunt /usr/local/bin/terragrunt
 COPY --from=terraform-tools /usr/local/bin/tflint /usr/local/bin/tflint
-
-ARG CHECKOV_CONSTRAINT="checkov>=3.0.0,<4.0.0"
-RUN uv pip install --system "${CHECKOV_CONSTRAINT}"
 
 USER vscode
 
