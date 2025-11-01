@@ -18,6 +18,23 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install additional tooling required by both distributions
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        libglib2.0-0 \
+        libx11-xcb1 \
+        libxcb1 \
+        libxcb-render0 \
+        libxcb-shape0 \
+        libxcb-xfixes0 \
+        libxcb-randr0 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-icccm4 \
+        libxcb-util1 \
+        libxcb-xkb1 \
+        libxkbcommon-x11-0 \
+        libsm6 \
+        libice6 \
+        libglu1-mesa \
+        libopengl0 \
         git \
         make \
         latexmk \

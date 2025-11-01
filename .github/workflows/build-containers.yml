@@ -43,15 +43,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Configure metadata tags
+        id: meta_tags
+        run: |
+          if [ "${{ github.event.inputs.stack }}" = "base" ]; then
+            {
+              echo "tags<<EOF"
+              echo "type=raw,value=py312"
+              echo "type=sha"
+              echo "type=ref,event=branch"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "tags<<EOF"
+              echo "type=raw,value=latest"
+              echo "type=sha"
+              echo "type=ref,event=branch"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}/devcontainer-${{ github.event.inputs.stack }}
-          tags: |
-            type=raw,value=latest
-            type=sha
-            type=ref,event=branch
+          tags: ${{ steps.meta_tags.outputs.tags }}
 
       - name: Determine target platforms
         run: |
@@ -114,7 +132,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}/devcontainer-base
           tags: |
-            type=raw,value=latest
+            type=raw,value=py312
             type=sha
             type=ref,event=branch
 
