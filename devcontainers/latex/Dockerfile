@@ -5,6 +5,9 @@ ARG LATEX_DISTRO=miktex
 
 FROM ${LATEX_IMAGE}
 
+ARG LATEX_DISTRO
+ARG LATEX_IMAGE
+
 # BuildKit platform arguments
 ARG TARGETPLATFORM
 ARG TARGETARCH
@@ -14,7 +17,8 @@ LABEL maintainer="malpanez"
 LABEL description="LaTeX Development Container (MiKTeX or TeX Live)"
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    LATEX_DISTRO=${LATEX_DISTRO}
+    LATEX_DISTRO=${LATEX_DISTRO} \
+    QT_QPA_PLATFORM=offscreen
 
 # Install additional tooling required by both distributions
 RUN apt-get update && apt-get install -y --no-install-recommends \
