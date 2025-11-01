@@ -30,6 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -50,12 +53,77 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      - name: Determine target platforms
+        run: |
+          if [ "${{ github.event.inputs.stack }}" = "latex" ]; then
+            echo "PLATFORMS=linux/amd64" >> "$GITHUB_ENV"
+          else
+            echo "PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
+          fi
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
         with:
           context: devcontainers/${{ github.event.inputs.stack }}
           file: devcontainers/${{ github.event.inputs.stack }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: ${{ env.PLATFORMS }}
+          provenance: true
+          sbom: true
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ github.event.inputs.stack }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  build-base:
+    if: github.event.inputs.stack == 'all'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/devcontainer-base
+          tags: |
+            type=raw,value=latest
+            type=sha
+            type=ref,event=branch
+
+      - name: Build and push base
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: devcontainers/base
+          file: devcontainers/base/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -68,12 +136,13 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ github.event.inputs.stack }}
+          subject-name: ghcr.io/${{ github.repository }}/devcontainer-base
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
   build-all:
     if: github.event.inputs.stack == 'all'
+    needs: build-base
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -81,11 +150,23 @@ jobs:
       id-token: write
       attestations: write
     strategy:
+      fail-fast: false
       matrix:
-        stack: [base, ansible, golang, terraform, latex]
+        include:
+          - stack: ansible
+            platforms: linux/amd64,linux/arm64
+          - stack: golang
+            platforms: linux/amd64,linux/arm64
+          - stack: terraform
+            platforms: linux/amd64,linux/arm64
+          - stack: latex
+            platforms: linux/amd64
 
     steps:
       - uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -118,7 +199,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
 
