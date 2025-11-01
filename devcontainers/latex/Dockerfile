@@ -61,15 +61,19 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-RUN if ! getent group "${USER_GID}" >/dev/null; then \
-        groupadd --gid "${USER_GID}" "${USERNAME}"; \
-    fi \
+RUN EXISTING_USER="$(getent passwd "${USER_UID}" | cut -d: -f1)" || true \
+    && if [ -n "${EXISTING_USER}" ] && [ "${EXISTING_USER}" != "${USERNAME}" ]; then \
+         usermod --uid $((USER_UID+1)) "${EXISTING_USER}"; \
+       fi \
+    && if ! getent group "${USER_GID}" >/dev/null; then \
+         groupadd --gid "${USER_GID}" "${USERNAME}"; \
+       fi \
     && if ! id -u "${USERNAME}" >/dev/null 2>&1; then \
-        useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}"; \
-    else \
-        usermod --gid "${USER_GID}" "${USERNAME}" \
-          && mkdir -p "/home/${USERNAME}"; \
-    fi \
+         useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}"; \
+       else \
+         usermod --gid "${USER_GID}" "${USERNAME}" \
+           && mkdir -p "/home/${USERNAME}"; \
+       fi \
     && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > "/etc/sudoers.d/${USERNAME}" \
     && chmod 0440 "/etc/sudoers.d/${USERNAME}" \
     && chown -R "${USERNAME}:${USER_GID}" "/home/${USERNAME}"
