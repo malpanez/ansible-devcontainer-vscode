@@ -366,15 +366,6 @@ jobs:
         with:
           driver: docker-container
 
-      - name: Build shared base image for Python stacks
-        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
-        run: |
-          docker build \
-            --progress plain \
-            --tag devcontainer-base:ci \
-            -f devcontainers/base/Dockerfile \
-            devcontainers/base
-
       - name: Build ${{ matrix.stack }} image (Python stack)
         if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
         uses: docker/build-push-action@v6
@@ -384,10 +375,12 @@ jobs:
           push: false
           load: true
           tags: devcontainer-${{ matrix.stack }}:ci
-          cache-from: type=gha,scope=${{ matrix.stack }}
+          cache-from: |
+            type=gha,scope=base
+            type=gha,scope=${{ matrix.stack }}
           platforms: linux/amd64
           build-args: |
-            BASE_IMAGE=devcontainer-base:ci
+            BASE_IMAGE=ghcr.io/${{ github.repository }}/devcontainer-base:py312
 
       - name: Build ${{ matrix.stack }} image (standalone)
         if: matrix.stack == 'golang' || matrix.stack == 'latex'
