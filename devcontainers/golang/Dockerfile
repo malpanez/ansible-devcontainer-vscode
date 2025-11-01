@@ -13,7 +13,9 @@ LABEL description="Golang Development Container"
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install base packages commonly needed for Go development
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+    && apt-get full-upgrade -y \
+    && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         git \
@@ -24,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         pkg-config \
         sudo \
         ripgrep \
+    && apt-get autoremove -y --purge \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user to match VS Code expectations

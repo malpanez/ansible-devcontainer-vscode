@@ -23,10 +23,13 @@ ARG TFLINT_VERSION
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     apt-get update \
+    && apt-get full-upgrade -y \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         unzip \
+    && apt-get autoremove -y --purge \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \

@@ -20,7 +20,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     QT_QPA_PLATFORM=offscreen
 
 # Install additional tooling required by both distributions
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+    && apt-get full-upgrade -y \
+    && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libx11-xcb1 \
         libxcb1 \
@@ -44,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         biber \
         ghostscript \
         sudo \
+    && apt-get autoremove -y --purge \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure distribution-specific behaviour
