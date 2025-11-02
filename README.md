@@ -315,3 +315,28 @@ See `docs/CONTRIBUTING.md` for branching strategy, lint/test expectations, and p
 ## License
 
 Distributed under the MIT License. See `LICENSE` for details.
+
+## 💖 Support This Project
+
+If this project has helped you or your team, please consider:
+
+- ⭐ Starring the repository
+- 🐛 Reporting bugs or suggesting features
+- 💰 [Sponsoring on GitHub](https://github.com/sponsors/malpanez)
+- 💼 [Hiring me for consulting](mailto:alpanez.alcalde@gmail.com)
+
+## 💼 Enterprise Support & Training
+
+Organizations using this in production can get:
+
+- Implementation consulting
+- Custom feature development
+- Team training workshops
+- Priority support with SLA
+
+**Rate:** Competitive day rates for Ireland market
+**Contact:** alpanez.alcalde@gmail.com
+
+---
+
+Built with ❤️ by [Miguel Alpañez](https://github.com/malpanez) | DevOps Consultant | Dublin, Ireland
