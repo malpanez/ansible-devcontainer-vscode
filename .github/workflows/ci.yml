@@ -456,9 +456,10 @@ jobs:
         run: |
           if [ -f "devcontainers/${{ matrix.stack }}/devcontainer.json" ]; then
             cd devcontainers/${{ matrix.stack }}
-            devcontainer up --workspace-folder .
-            devcontainer exec --workspace-folder . -- bash -c "echo '${{ matrix.stack }} container is running'"
-            devcontainer stop --workspace-folder .
+            DEVCONTAINER_ARGS=(--workspace-folder . --config devcontainer.json)
+            devcontainer up "${DEVCONTAINER_ARGS[@]}"
+            devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${{ matrix.stack }} container is running'"
+            devcontainer stop "${DEVCONTAINER_ARGS[@]}"
           fi
         continue-on-error: true
 
