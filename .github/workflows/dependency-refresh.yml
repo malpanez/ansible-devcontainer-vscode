@@ -44,6 +44,7 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.BOT_TOKEN }}
           branch: automation/dependency-refresh
           delete-branch: true
           commit-message: "chore: refresh dependency locks"
