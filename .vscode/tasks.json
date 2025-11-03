@@ -58,6 +58,30 @@
       "type": "shell",
       "command": "./scripts/run-terraform-tests.sh",
       "problemMatcher": []
+    },
+    {
+      "label": "Devcontainer: Rebuild Ansible",
+      "type": "shell",
+      "command": "devcontainer build --workspace-folder devcontainers/ansible --config devcontainer.json",
+      "problemMatcher": []
+    },
+    {
+      "label": "Devcontainer: Rebuild Terraform",
+      "type": "shell",
+      "command": "devcontainer build --workspace-folder devcontainers/terraform --config devcontainer.json",
+      "problemMatcher": []
+    },
+    {
+      "label": "Devcontainer: Rebuild Golang",
+      "type": "shell",
+      "command": "devcontainer build --workspace-folder devcontainers/golang --config devcontainer.json",
+      "problemMatcher": []
+    },
+    {
+      "label": "Devcontainer: Rebuild LaTeX",
+      "type": "shell",
+      "command": "devcontainer build --workspace-folder devcontainers/latex --config devcontainer.json",
+      "problemMatcher": []
     }
   ]
 }
