@@ -6,8 +6,10 @@ The repository currently focuses on Ansible, but the goal is to reuse the same a
 
 - [ ] **Baseline Release** – capture the current Ansible-focused stack, refresh documentation for the new repo, and tag an initial release candidate that is safe to share publicly.
 - [ ] **WSL2 Onboarding Flow** – tighten the Windows bootstrap so a new contributor can run a single PowerShell command, get WSL2 + Docker/Podman configured, and reopen the project in a Dev Container without manual tweaks.
-- [ ] **Terraform Ready Stack** – mirror the Ansible toolchain for Terraform by adding core binaries, linting, and smoke tests so infrastructure authors can switch languages without leaving the workspace.
+- [x] **Terraform Ready Stack** – mirror the Ansible toolchain for Terraform by adding core binaries, linting, and smoke tests so infrastructure authors can switch languages without leaving the workspace. (Devcontainer + CI checks are live.)
 - [ ] **Context Switch Tasks** – ship VS Code tasks (or Make targets) that rebuild `.devcontainer/` for Ansible, Terraform, Python, or Golang in one command to minimise downtime when swapping stacks.
+- [x] **Automated Dependency Refresh** – schedule weekly lockfile bumps via `uv` with a PAT-backed PR workflow to keep Python tooling patched.
+- [x] **Recurring Image Hardening** – run weekly Build & Publish containers with `apt full-upgrade` baked into every stack so Trivy scans trend down over time.
 
 ## Medium Term
 
