@@ -2,7 +2,7 @@
 ARG TERRAFORM_VERSION=1.13.4
 ARG TERRAGRUNT_VERSION=0.54.17
 ARG TFLINT_VERSION=0.51.1
-ARG BASE_IMAGE=ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-base:py312
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 ARG CHECKOV_CONSTRAINT="checkov>=3.0.0,<4.0.0"
 
 FROM --platform=$BUILDPLATFORM hashicorp/terraform:${TERRAFORM_VERSION} AS terraform-cli
