@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG BASE_IMAGE=ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-base:py312
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 FROM ${BASE_IMAGE}
 
 # BuildKit platform arguments

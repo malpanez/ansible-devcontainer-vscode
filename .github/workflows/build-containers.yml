@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-single:
-    if: github.event.inputs.stack != 'all'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stack != 'all'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,7 +72,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-${{ github.event.inputs.stack }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
 
       - name: Determine target platforms
@@ -101,12 +101,12 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ github.event.inputs.stack }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
   build-base:
-    if: github.event.inputs.stack == 'all'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -136,7 +136,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-base
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           tags: |
             type=raw,value=py312
             type=sha
@@ -160,12 +160,12 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-base
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
   build-all:
-    if: github.event.inputs.stack == 'all'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     needs: build-base
     runs-on: ubuntu-latest
     permissions:
@@ -208,7 +208,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
           tags: |
             type=raw,value=latest
             type=sha
@@ -232,6 +232,6 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
