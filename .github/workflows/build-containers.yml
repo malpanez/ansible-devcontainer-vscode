@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-single:
-    if: github.event.inputs.stack != 'all'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stack != 'all'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -106,7 +106,7 @@ jobs:
           push-to-registry: true
 
   build-base:
-    if: github.event.inputs.stack == 'all'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -165,7 +165,7 @@ jobs:
           push-to-registry: true
 
   build-all:
-    if: github.event.inputs.stack == 'all'
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     needs: build-base
     runs-on: ubuntu-latest
     permissions:
