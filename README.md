@@ -70,7 +70,7 @@ This keeps developer experience consistent:
 | Stack | Base image | Approx. size¹ | Included tooling | Cache mounts |
 | --- | --- | --- | --- | --- |
 | `ansible` | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume |
-| `terraform` | `ghcr.io/chainguard-images/terraform:latest` | ~230 MB | Terraform CLI, Terragrunt, TFLint, `uv` launcher | `${workspace}/.terraform.d/plugin-cache` bind |
+| `terraform` | multi-stage Debian (bookworm tools + runtime) | ~240 MB | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher | `${workspace}/.terraform.d/plugin-cache` bind |
 | `golang` | `golang:1.22-alpine` (overrideable via `BASE_IMAGE`) | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
 | `latex` | `debian:bookworm-slim` + Tectonic | ~320 MB | Tectonic CLI, git/perl helpers, `uv` launcher | `${HOME}/.cache/tectonic` bind |
 
@@ -95,7 +95,10 @@ docker build devcontainers/ansible \
   -t ghcr.io/<org>/devcontainer-ansible:local
 
 # Terraform stack (ships without Python, relies on uvx pre-commit)
-docker build devcontainers/terraform -t ghcr.io/<org>/devcontainer-terraform:local
+docker build \
+  --file devcontainers/terraform/Dockerfile \
+  -t ghcr.io/<org>/devcontainer-terraform:local \
+  .
 ```
 
 You can now reference the local tag from `.devcontainer/devcontainer.json` or push it to GHCR with `docker push`.
@@ -135,7 +138,7 @@ All Python dependencies for the Ansible stack live in `requirements-ansible.txt`
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Terraform | `1.13.x` | Terraform Dev Container pins `1.13.4`; CI tracks the latest patch in the 1.13 series. |
+| Terraform | `1.9.x` | Terraform Dev Container pins `1.9.6`; CI tracks the latest patch in the 1.9 series. |
 | Terragrunt | `0.54.x` | Installed globally in the Terraform container for Terragrunt workflows. |
 | TFLint | `0.51.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
 | Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans. |
@@ -294,7 +297,8 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 - `./scripts/run-ansible-tests.sh` – executes `ansible-test sanity` for every role (respects `ANSIBLE_TEST_PYTHON_VERSION`, defaults to the pinned Python).
 - `ansible-playbook playbooks/setup-workspace.yml --check` – dry-run validation of the provisioning playbook.
 - `./scripts/run-smoke-tests.sh` – convenience wrapper around `playbooks/test-environment.yml`; pass extra args to forward flags (e.g. `--check`).
-- `./scripts/run-terraform-tests.sh` – formats (`terraform fmt -check`) and validates every Terraform module under `infrastructure/` (skips gracefully when no configs exist).
+- `./scripts/run-terraform-tests.sh` – formats (`terraform fmt -check`) and validates every Terraform module under `infrastructure/` (skips gracefully when no configs exist). Modules that depend on private providers (for example `infrastructure/proxmox_lab`) are skipped automatically in CI so they can be tested manually when the provider binaries are available.
+- `.trivyignore` documents the temporary CVE allowlist applied to vendor-supplied Terraform tooling (age/sops/terragrunt/tflint). We keep the list short and revisit it whenever upstream ships patched binaries.
 - `ansible-playbook playbooks/update-dependencies.yml` – regenerates `uv.lock` and `requirements-ansible.txt`.
 - `molecule test` – full integration verification.
   Run `molecule test --scenario-name latex` to exercise the MiKTeX ↔ TeX Live toggle specifically.

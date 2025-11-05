@@ -34,6 +34,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unzip \
       tini \
       sudo \
+      build-essential \
+      libffi-dev \
+      libonig-dev \
+      libssl-dev \
+      python3-dev \
+      pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh

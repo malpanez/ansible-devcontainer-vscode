@@ -36,16 +36,22 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
-    case "${TARGETARCH}" in \
-      amd64) TECTONIC_ARCH="x86_64-unknown-linux-gnu" ;; \
-      arm64) TECTONIC_ARCH="aarch64-unknown-linux-gnu" ;; \
-      *) echo "Unsupported architecture ${TARGETARCH}" >&2; exit 1 ;; \
+    ARCH="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    case "${ARCH}" in \
+      amd64|x86_64) TECTONIC_ARCH="x86_64-unknown-linux-gnu" ;; \
+      arm64|aarch64) TECTONIC_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported architecture ${ARCH}" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}.tar.gz" \
       -o /tmp/tectonic.tar.gz; \
-    tar -xzf /tmp/tectonic.tar.gz -C /tmp; \
-    install -m 0755 "/tmp/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}/tectonic" /usr/local/bin/tectonic; \
-    rm -rf /tmp/tectonic*
+    TMP_DIR="$(mktemp -d /tmp/tectonic.XXXXXX)"; \
+    tar -xzf /tmp/tectonic.tar.gz -C "${TMP_DIR}"; \
+    SRC="$(find "${TMP_DIR}" -type f -name tectonic -perm -u+x | head -n1 || true)"; \
+    if [ -z "${SRC}" ] || [ ! -f "${SRC}" ]; then \
+      echo "Unable to locate tectonic binary" >&2; exit 1; \
+    fi; \
+    install -m 0755 "${SRC}" /usr/local/bin/tectonic; \
+    rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 

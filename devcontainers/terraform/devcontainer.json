@@ -5,7 +5,7 @@
     "context": "../.."
   },
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "customizations": {
@@ -29,12 +29,16 @@
     }
   },
   "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
     "source=${localWorkspaceFolder}/.terraform.d/plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=bind"
   ],
   "remoteEnv": {
     "TF_PLUGIN_CACHE_DIR": "/workspaces/.terraform.d/plugin-cache",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
-    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit"
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "TF_IN_AUTOMATION": "1",
+    "SOPS_AGE_KEY_FILE": "/workspace/.secrets/age.key"
   },
   "remoteUser": "vscode",
   "postCreateCommand": [
