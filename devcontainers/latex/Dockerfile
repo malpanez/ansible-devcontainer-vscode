@@ -1,95 +1,77 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
+ARG TECTONIC_VERSION=0.15.0
+FROM debian:bookworm-slim
 
-ARG LATEX_IMAGE=miktex/miktex:latest
-ARG LATEX_DISTRO=miktex
-
-FROM ${LATEX_IMAGE}
-
-ARG LATEX_DISTRO
-
-# BuildKit platform arguments
-ARG TARGETPLATFORM
 ARG TARGETARCH
-ARG TARGETOS
+ARG BUILD_DATE="unknown"
+ARG VCS_REF="unknown"
+ARG IMAGE_VENDOR="malpanez"
 
-LABEL maintainer="malpanez"
-LABEL description="LaTeX Development Container (MiKTeX or TeX Live)"
+LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
+      org.opencontainers.image.description="Lightweight LaTeX devcontainer powered by Tectonic and uv pre-commit tooling" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}"
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    LATEX_DISTRO=${LATEX_DISTRO} \
-    QT_QPA_PLATFORM=offscreen
+    UV_INSTALL_DIR=/usr/local/bin \
+    UV_LINK_MODE=copy \
+    WORKSPACE=/workspace \
+    DEVCONTAINER_STACK=latex \
+    DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel \
+    TECTONIC_CACHE_DIR=/home/vscode/.cache/Tectonic
 
-# Install additional tooling required by both distributions
-RUN apt-get update \
-    && apt-get full-upgrade -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update \
     && apt-get install -y --no-install-recommends \
-        libglib2.0-0 \
-        libx11-xcb1 \
-        libxcb1 \
-        libxcb-render0 \
-        libxcb-shape0 \
-        libxcb-xfixes0 \
-        libxcb-randr0 \
-        libxcb-image0 \
-        libxcb-keysyms1 \
-        libxcb-icccm4 \
-        libxcb-util1 \
-        libxcb-xkb1 \
-        libxkbcommon-x11-0 \
-        libsm6 \
-        libice6 \
-        libglu1-mesa \
-        libopengl0 \
-        git \
-        make \
-        latexmk \
-        biber \
-        ghostscript \
-        sudo \
-    && apt-get autoremove -y --purge \
-    && apt-get clean \
+      ca-certificates \
+      curl \
+      git \
+      perl \
+      sudo \
+      unzip \
+      xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure distribution-specific behaviour
-RUN if [ "${LATEX_DISTRO}" = "miktex" ]; then \
-        miktexsetup --shared=yes --verbose=false finish && \
-        initexmf --set-config-value="[MPM]AutoInstall=1" --admin && \
-        initexmf --update-fndb --admin; \
-    else \
-        tlmgr option repository https://mirrors.ctan.org/systems/texlive/tlnet && \
-        tlmgr install latexmk biber; \
-    fi
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) TECTONIC_ARCH="x86_64-unknown-linux-gnu" ;; \
+      arm64) TECTONIC_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported architecture ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}.tar.gz" \
+      -o /tmp/tectonic.tar.gz; \
+    tar -xzf /tmp/tectonic.tar.gz -C /tmp; \
+    install -m 0755 "/tmp/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}/tectonic" /usr/local/bin/tectonic; \
+    rm -rf /tmp/tectonic*
 
-# Create non-root vscode user (reuse existing gid/uid if present)
+RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+
 ARG USERNAME=vscode
 ARG USER_UID=1000
-ARG USER_GID=$USER_UID
+ARG USER_GID=${USER_UID}
 
-RUN TARGET_UID="${USER_UID}" \
-    && TARGET_GID="${USER_GID}" \
-    && while getent passwd "${TARGET_UID}" >/dev/null; do \
-         TARGET_UID=$((TARGET_UID + 1)); \
-       done \
-    && while getent group "${TARGET_GID}" >/dev/null; do \
-         TARGET_GID=$((TARGET_GID + 1)); \
-       done \
-    && if ! getent group "${USERNAME}" >/dev/null; then \
-         groupadd --gid "${TARGET_GID}" "${USERNAME}"; \
-       else \
-         TARGET_GID="$(getent group "${USERNAME}" | cut -d: -f3)"; \
-       fi \
-    && if ! id -u "${USERNAME}" >/dev/null 2>&1; then \
-         useradd --uid "${TARGET_UID}" --gid "${TARGET_GID}" -m "${USERNAME}"; \
-       else \
-         usermod --gid "${TARGET_GID}" "${USERNAME}" \
-           && mkdir -p "$(getent passwd "${USERNAME}" | cut -d: -f6)"; \
-       fi \
-    && HOME_DIR="$(getent passwd "${USERNAME}" | cut -d: -f6 || echo "/home/${USERNAME}")" \
-    && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > "/etc/sudoers.d/${USERNAME}" \
-    && chmod 0440 "/etc/sudoers.d/${USERNAME}" \
-    && chown -R "${USERNAME}:${TARGET_GID}" "${HOME_DIR}"
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
+    && echo "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/local/bin/uv, /usr/local/bin/uvx" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
 
-USER root
-WORKDIR /workspace
+RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/Tectonic \
+    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/latex
+
+COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/latex/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml
+COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+
+ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
+
+USER ${USERNAME}
+
+RUN git config --global init.defaultBranch main
+
+WORKDIR ${WORKSPACE}
 
 CMD ["/bin/bash"]

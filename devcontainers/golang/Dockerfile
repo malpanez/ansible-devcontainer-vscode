@@ -1,50 +1,56 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
+FROM cgr.dev/chainguard/go:latest
 
-FROM golang:1.22-bookworm
+ARG BUILD_DATE="unknown"
+ARG VCS_REF="unknown"
+ARG IMAGE_VENDOR="malpanez"
 
-# BuildKit platform arguments
-ARG TARGETPLATFORM
-ARG TARGETARCH
-ARG TARGETOS
+LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
+      org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}"
 
-LABEL maintainer="malpanez"
-LABEL description="Golang Development Container"
+ENV UV_INSTALL_DIR=/usr/local/bin \
+    UV_LINK_MODE=copy \
+    WORKSPACE=/workspace \
+    DEVCONTAINER_STACK=golang \
+    DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel \
+    GOPATH=/home/vscode/go
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN apk add --no-cache \
+      bash \
+      curl \
+      git \
+      sudo
 
-# Install base packages commonly needed for Go development
-RUN apt-get update \
-    && apt-get full-upgrade -y \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        git \
-        openssh-client \
-        bash-completion \
-        make \
-        build-essential \
-        pkg-config \
-        sudo \
-        ripgrep \
-    && apt-get autoremove -y --purge \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
-# Create non-root user to match VS Code expectations
 ARG USERNAME=vscode
 ARG USER_UID=1000
-ARG USER_GID=$USER_UID
+ARG USER_GID=${USER_UID}
 
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME
+RUN addgroup -g ${USER_GID} ${USERNAME} \
+    && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
+    && echo "${USERNAME} ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
 
-# Enable Go module proxy caching location
-ENV GOPATH=/go
-ENV PATH="/go/bin:${PATH}"
+RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/go \
+    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/golang
 
-USER $USERNAME
-WORKDIR /workspace
+COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
+COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+
+ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/go/bin:${PATH}"
+
+USER ${USERNAME}
+
+RUN git config --global init.defaultBranch main
+
+WORKDIR ${WORKSPACE}
 
 CMD ["/bin/bash"]
