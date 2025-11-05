@@ -21,7 +21,7 @@ Modern, reproducible infrastructure development environments powered by VS Code 
 - 🪪 **Template-driven pre-commit** – `ensure-precommit` seeds the right hook config per stack and runs `uvx pre-commit` without bloating the images.
 - 🔐 **Security conscious** – runs as non-root, includes Trivy scanning in CI, and keeps secrets out of the repo.
 - 📣 **Responsible disclosure** – see [`SECURITY.md`](SECURITY.md) for reporting guidelines and supply-chain expectations.
-- 🪟 **Windows bootstrap script** – run `scripts/bootstrap-windows.ps1` to enable WSL, configure proxies, and install Docker/VS Code with one command.
+- 🪟 **Windows bootstrap script** – run `scripts/bootstrap-wsl2.ps1` (see [Windows onboarding](docs/ONBOARDING-WINDOWS.md)) to enable WSL, configure Docker or Podman, and install VS Code in one go.
 
 ## Requirements
 
@@ -49,7 +49,17 @@ code .
 # VS Code pulls the published GHCR image for the chosen stack.
 ```
 
-> **New Windows laptop?** Run [`scripts/bootstrap-windows.ps1`](scripts/bootstrap-windows.ps1) from an elevated PowerShell prompt (see [`docs/BOOTSTRAP_WINDOWS.md`](docs/BOOTSTRAP_WINDOWS.md)) to enable WSL, configure proxies, and install Docker Desktop / VS Code automatically.
+> **New Windows laptop?** Run [`scripts/bootstrap-wsl2.ps1`](scripts/bootstrap-wsl2.ps1) from an elevated PowerShell prompt (see [`docs/ONBOARDING-WINDOWS.md`](docs/ONBOARDING-WINDOWS.md)) to enable WSL, configure Docker Desktop or Podman, and install VS Code automatically.
+
+### Handy VS Code Tasks
+
+The workspace ships curated tasks under `.vscode/tasks.json` so you can jump straight into automation:
+
+- **Devcontainer: Rebuild \<stack\>** – runs `devcontainer build --workspace-folder devcontainers/<stack>` to refresh the Ansible, Terraform, Golang, or LaTeX images without leaving VS Code.
+- **Terraform: Validate** and **Ansible: Lint All** – wrap the helper scripts (`run-terraform-tests.sh`, `ansible-lint`) so you can run the usual CI checks from *Terminal → Run Task…*.
+- **Devcontainer: Build All** – executes `scripts/check-devcontainer.sh` to smoke-test every stack before pushing changes.
+
+Use them from the command palette (`Ctrl/Cmd+Shift+P → Run Task`) whenever you switch stacks or need a quick validation pass.
 
 ## Pre-commit Strategy
 
@@ -83,6 +93,8 @@ Dev Containers are interactive workstations: developers expect `bash`, package m
 ## Image Publishing & GHCR
 
 This repository publishes one image per stack (`devcontainer-ansible`, `devcontainer-terraform`, `devcontainer-golang`, `devcontainer-latex`). Tag pushes (via `.github/workflows/release.yml`) build every image for `linux/amd64` and `linux/arm64` (LaTeX ships on `amd64` only), upload build caches, and push both `:latest` and `:<tag>` variants to GHCR. The Ansible image accepts a `BASE_IMAGE` build arg so you can swap between `python:3.12-slim-bookworm` and `cgr.dev/chainguard/python:latest` without touching the Dockerfile.
+
+> **Security hygiene** – `.github/workflows/build-containers.yml` runs on a weekly schedule so GHCR images automatically pick up Debian security fixes (`apt full-upgrade`) and refreshed tooling even when the repository is quiet.
 
 To build or test images locally:
 
@@ -253,7 +265,7 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 
 ### Using Podman for Dev Containers
 
-- On Windows, run `scripts/bootstrap-windows.ps1 -ContainerEngine Podman` to install Podman Desktop instead of Docker Desktop (no commercial licensing fees). Start the Podman machine afterwards: `podman machine init --now` (first run only) and `podman machine start`.
+- On Windows, run `scripts/bootstrap-wsl2.ps1 -UsePodman` to install Podman Desktop instead of Docker Desktop (no commercial licensing fees). Start the Podman machine afterwards: `podman machine init --now` (first run only) and `podman machine start`.
 - In VS Code, set `"dev.containers.dockerPath": "podman"` in `.vscode/settings.json` (or user settings) so Remote Containers calls the Podman CLI. On Linux, ensure the Podman socket is available by enabling the user service (`systemctl --user enable --now podman.socket`).
 - When using CLI workflows, export `DOCKER_HOST` from `podman system service --time=0` (Linux) or rely on Podman Desktop’s Docker API compatibility (Windows). The clean-up flags in `scripts/use-devcontainer.sh`/`.ps1` already work with Podman for removing stopped containers and volumes.
 - To make the VS Code setting easy to adopt across the team, add `.vscode/settings.json` with:
@@ -320,7 +332,7 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 
 ## Windows Bootstrap
 
-- Run `scripts/bootstrap-windows.ps1` from an elevated PowerShell session to install Windows Terminal, Git, VS Code, PowerShell 7, WSL2 + Ubuntu, your chosen container engine (Docker Desktop by default or Podman via `-ContainerEngine Podman`), and the VS Code Remote extensions.
+- Run `scripts/bootstrap-wsl2.ps1` from an elevated PowerShell session to install Windows Terminal, Git, VS Code, PowerShell 7, WSL2 + Ubuntu, your chosen container engine (Docker Desktop by default or Podman via `-UsePodman`), and the VS Code Remote extensions.
 - Optional flags: `-SkipDocker`, `-SkipWSL`, `-ProxyUrl`, `-ProxyBypassList`, and `-PersistProxy` for corporate environments. The script validates winget availability, configures proxies, and reports any reboot requirements. When selecting Podman, use the `-ContainerEngine Podman` switch to avoid Docker Desktop’s commercial licensing requirements.
 - After reboot (if prompted), launch Ubuntu in WSL2, finish the distro bootstrap, clone the repo, and follow the Quick Start.
 

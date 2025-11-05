@@ -64,13 +64,13 @@ black==25.9.0 \
     # via
     #   ansible-devcontainer
     #   ansible-lint
-boto3==1.40.64 \
-    --hash=sha256:35ca3dd80dd90d5f4e8ed032440f28790696fdf50f48c0d16a09a75675f9112f \
-    --hash=sha256:b92d6961c352f2bb8710c9892557d4b0e11258b70967d4e740e1c97375bcd779
+boto3==1.40.66 \
+    --hash=sha256:ee4fe21c5301cc0e11cc11a53e71e5ddd82d5fae42b10fa8e5403f3aa06434e3 \
+    --hash=sha256:f2038d9bac5154da7390c29bfd013546ac96609e7ce5a7f3cb6f99412be3f4c0
     # via ansible-devcontainer
-botocore==1.40.64 \
-    --hash=sha256:6902b3dadfba1fbacc9648171bef3942530d8f823ff2bdb0e585a332323f89fc \
-    --hash=sha256:a13af4009f6912eafe32108f6fa584fb26e24375149836c2bcaaaaec9a7a9e58
+botocore==1.40.66 \
+    --hash=sha256:98d5766e17e72110b1d08ab510a8475a6597c59d9560235e2d28ae1a4b043b92 \
+    --hash=sha256:e49a55ad54426c4ea853a59ff9d8243023a90c935782d4c287e9b3424883c3fa
     # via
     #   ansible-devcontainer
     #   boto3
@@ -590,9 +590,9 @@ pathspec==0.12.1 \
     #   black
     #   mypy
     #   yamllint
-pbr==7.0.2 \
-    --hash=sha256:2a598b3d930f260576888932969b3b7dbcaa1d86505f9317dbd34b4a83eaf7ad \
-    --hash=sha256:d0c48993f54253b2c95d433d3960c95dd56e19a5cf5a545980180e91165ba342
+pbr==7.0.3 \
+    --hash=sha256:b46004ec30a5324672683ec848aed9e8fc500b0d261d40a3229c2d2bbfcedc29 \
+    --hash=sha256:ff223894eb1cd271a98076b13d3badff3bb36c424074d26334cd25aebeecea6b
     # via bindep
 pexpect==4.9.0 \
     --hash=sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523 \

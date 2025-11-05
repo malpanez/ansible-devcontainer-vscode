@@ -1,6 +1,14 @@
 # syntax=docker/dockerfile:1.7
 ARG TERRAGRUNT_VERSION=0.54.17
 ARG TFLINT_VERSION=0.51.1
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
+ARG CHECKOV_CONSTRAINT="checkov>=3.0.0,<4.0.0"
+
+FROM --platform=$BUILDPLATFORM hashicorp/terraform:${TERRAFORM_VERSION} AS terraform-cli
+
+# BuildKit platform arguments
+ARG TARGETARCH
+ARG TARGETOS
 
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS terraform-tools
 
