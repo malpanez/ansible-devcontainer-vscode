@@ -83,50 +83,19 @@ jobs:
           fi
 
   lint:
-    name: Lint and Syntax Check
+    name: Pre-commit
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.ansible == 'true'
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          # Don't use cache: 'pip' when using uv
-
-      - name: Install uv
+      - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
-      - name: Install dependencies
-        run: |
-          uv pip install --system --requirement requirements.txt
-          export PATH="$HOME/.local/bin:$PATH"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Verify Ansible installation
-        run: |
-          which ansible
-          ansible --version
-
-      - name: Run yamllint
-        run: yamllint .
-        continue-on-error: true
-
-      - name: Run ansible-lint
-        run: ansible-lint --profile production
-        continue-on-error: true
-
-      - name: Ansible syntax check
-        run: |
-          shopt -s nullglob
-          for playbook in playbooks/*.yml; do
-            echo "Checking $playbook"
-            ansible-playbook "$playbook" --syntax-check
-          done
+      - name: Run pre-commit
+        run: uvx pre-commit run --all-files
 
   test-playbooks:
     name: Test Playbooks
@@ -286,137 +255,122 @@ jobs:
 
       - name: Run hadolint on each Dockerfile
         run: |
-          for stack in base ansible golang terraform latex; do
-            if [ -f "devcontainers/$stack/Dockerfile" ]; then
-              echo "Linting devcontainers/$stack/Dockerfile"
+          for dockerfile in devcontainers/*/Dockerfile; do
+            if [ -f "$dockerfile" ]; then
+              echo "Linting $dockerfile"
               docker run --rm -i hadolint/hadolint:latest hadolint \
-                --format json \
                 --failure-threshold error \
-                - < "devcontainers/$stack/Dockerfile" > "$stack-hadolint.json" || true
+                - < "$dockerfile"
             fi
           done
-        continue-on-error: true
 
-  devcontainer-build-base:
-    name: Build Base Devcontainer
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-    needs: [changes, dockerfile-lint]
-    if: needs.changes.outputs.devcontainer == 'true'
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker-container
-
-      - name: Build base image
-        uses: docker/build-push-action@v6
-        with:
-          context: devcontainers/base
-          file: devcontainers/base/Dockerfile
-          push: false
-          load: true
-          tags: devcontainer-base:ci
-          cache-from: type=gha,scope=base
-          platforms: linux/amd64
-
-      - name: Test base container
-        run: |
-          docker run --rm devcontainer-base:ci sh -c "echo 'Base container is healthy' && which bash"
-
-      - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          image-ref: devcontainer-base:ci
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          format: sarif
-          output: trivy-base.sarif
-        continue-on-error: true
-
-      - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-base.sarif') != ''
-        with:
-          sarif_file: trivy-base.sarif
-          category: trivy-base
 
   devcontainer-build:
     name: Build Devcontainer (${{ matrix.stack }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
       security-events: write
-    needs: [changes, dockerfile-lint, devcontainer-build-base]
+    needs: [changes, dockerfile-lint]
     if: needs.changes.outputs.devcontainer == 'true'
     strategy:
       fail-fast: false
       matrix:
-        stack: [ansible, golang, terraform, latex]
+        include:
+          - stack: ansible
+            platforms: linux/amd64,linux/arm64
+          - stack: terraform
+            platforms: linux/amd64,linux/arm64
+          - stack: golang
+            platforms: linux/amd64,linux/arm64
+          - stack: latex
+            platforms: linux/amd64
 
     steps:
       - uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver: docker-container
 
-      - name: Build ${{ matrix.stack }} image (Python stack)
-        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
-        uses: docker/build-push-action@v6
-        with:
-          context: devcontainers/${{ matrix.stack }}
-          file: devcontainers/${{ matrix.stack }}/Dockerfile
-          push: false
-          load: true
-          tags: devcontainer-${{ matrix.stack }}:ci
-          cache-from: |
-            type=gha,scope=base
-            type=gha,scope=${{ matrix.stack }}
-          platforms: linux/amd64
-          build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository }}/devcontainer-base:py312
-
-      - name: Build ${{ matrix.stack }} image (standalone)
-        if: matrix.stack == 'golang' || matrix.stack == 'latex'
-        uses: docker/build-push-action@v6
-        with:
-          context: devcontainers/${{ matrix.stack }}
-          file: devcontainers/${{ matrix.stack }}/Dockerfile
-          push: false
-          load: true
-          tags: devcontainer-${{ matrix.stack }}:ci
-          cache-from: type=gha,scope=${{ matrix.stack }}
-          platforms: linux/amd64
-
-      - name: Test ${{ matrix.stack }} container
+      - name: Determine cache strategy
+        id: cache
         run: |
-          echo "Testing ${{ matrix.stack }} container..."
+          if [ "${{ github.event_name }}" = "pull_request" ] \
+            && [ "${{ github.event.pull_request.head.repo.full_name || '' }}" != "${{ github.repository }}" ]; then
+            echo "cache_from=type=gha,scope=${{ matrix.stack }}" >>"$GITHUB_OUTPUT"
+            echo "cache_to=type=gha,scope=${{ matrix.stack }}" >>"$GITHUB_OUTPUT"
+            echo "use_registry=false" >>"$GITHUB_OUTPUT"
+          else
+            CACHE_REF="ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}:buildcache"
+            echo "cache_from=type=registry,ref=${CACHE_REF}" >>"$GITHUB_OUTPUT"
+            echo "cache_to=type=registry,ref=${CACHE_REF},mode=max" >>"$GITHUB_OUTPUT"
+            echo "use_registry=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Login to GHCR
+        if: steps.cache.outputs.use_registry == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          tags: type=raw,value=ci
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Prepare build metadata
+        id: buildmeta
+        run: |
+          echo "created=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+
+      - name: Build ${{ matrix.stack }} image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: devcontainers/${{ matrix.stack }}/Dockerfile
+          push: false
+          tags: devcontainer-${{ matrix.stack }}:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_DATE=${{ steps.buildmeta.outputs.created }}
+            VCS_REF=${{ github.sha }}
+          cache-from: |
+            ${{ steps.cache.outputs.cache_from }}
+          cache-to: |
+            ${{ steps.cache.outputs.cache_to }}
+          platforms: ${{ matrix.platforms }}
+          outputs: type=oci,dest=/tmp/${{ matrix.stack }}.tar
+
+      - name: Load image for validation
+        run: docker load --input /tmp/${{ matrix.stack }}.tar
+
+      - name: Smoke test ${{ matrix.stack }} container
+        run: |
           docker run --rm devcontainer-${{ matrix.stack }}:ci \
-            sh -c "echo 'Container ${{ matrix.stack }} is healthy' && which bash"
+            bash -lc "echo '${{ matrix.stack }} container is healthy' && whoami && which bash"
 
       - name: Scan with Trivy
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: devcontainer-${{ matrix.stack }}:ci
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           ignore-unfixed: true
-          format: sarif
-          output: trivy-${{ matrix.stack }}.sarif
-        continue-on-error: true
-
-      - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('trivy-${{ matrix.stack }}.sarif') != ''
-        with:
-          sarif_file: trivy-${{ matrix.stack }}.sarif
-          category: trivy-${{ matrix.stack }}
+          exit-code: 1
+          scanners: vuln,secret
 
   devcontainer-cli-test:
     name: DevContainer CLI (${{ matrix.stack }})
@@ -623,7 +577,7 @@ jobs:
   publish-base:
     name: Publish Base to GHCR
     runs-on: ubuntu-latest
-    needs: [changes, devcontainer-build-base]
+    needs: [changes, devcontainer-build]
     if: |
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
@@ -727,7 +681,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: devcontainers/${{ matrix.stack }}
+          context: .
           file: devcontainers/${{ matrix.stack }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -810,7 +764,6 @@ jobs:
       - terraform-ci
       - script-lint
       - dockerfile-lint
-      - devcontainer-build-base
       - devcontainer-build
       - unit-tests
     if: always()

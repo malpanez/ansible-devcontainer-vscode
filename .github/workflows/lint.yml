@@ -8,31 +8,26 @@ on:
       - '**.yaml'
       - 'roles/**'
       - 'playbooks/**'
+      - '.pre-commit-config.yaml'
   pull_request:
     paths:
       - '**.yml'
       - '**.yaml'
+      - 'roles/**'
+      - 'playbooks/**'
+      - '.pre-commit-config.yaml'
 
 jobs:
-  yaml-lint:
-    name: YAML Lint
+  pre-commit:
+    name: Pre-commit
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run yamllint
-        uses: ibiqlik/action-yamllint@v3
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          config_file: .yamllint
-          strict: true
+          enable-cache: true
 
-  ansible-lint:
-    name: Ansible Lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Run ansible-lint
-        uses: ansible/ansible-lint@v25.9.2
+      - name: Run pre-commit
+        run: uvx pre-commit run --all-files

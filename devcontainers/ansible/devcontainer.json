@@ -1,7 +1,11 @@
 {
-  "name": "Ansible DevOps Environment",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
+  "name": "Ansible Dev Container",
+  "build": {
+    "dockerfile": "devcontainers/ansible/Dockerfile",
+    "context": "../.."
+  },
   "runArgs": [
+    "--init",
     "--dns=1.1.1.1",
     "--dns=1.0.0.1"
   ],
@@ -59,8 +63,11 @@
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "sudo uv pip install --system --requirement requirements-ansible.txt && ansible-galaxy collection install -r requirements.yml",
-  "forwardPorts": [8080, 3000],
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit && ansible-galaxy collection install -r requirements.yml"
+  ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
