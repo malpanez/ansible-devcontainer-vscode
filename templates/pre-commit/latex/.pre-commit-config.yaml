@@ -1,0 +1,63 @@
+---
+minimum_pre_commit_version: "3.6.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: latexindent
+        name: latexindent (if available)
+        entry: bash
+        args:
+          - -c
+          - |
+            set -euo pipefail
+            if command -v latexindent >/dev/null 2>&1; then
+              for file in "$@"; do
+                latexindent -w "$file"
+              done
+            else
+              echo "latexindent not installed; skipping"
+            fi
+          - --
+        language: system
+        require_serial: true
+        types: [tex]
+
+      - id: chktex
+        name: chktex (if available)
+        entry: bash
+        args:
+          - -c
+          - |
+            set -euo pipefail
+            if command -v chktex >/dev/null 2>&1; then
+              chktex "$@"
+            else
+              echo "chktex not installed; skipping"
+            fi
+          - --
+        language: system
+        types: [tex]
+
+      - id: tectonic-build
+        name: tectonic docs build
+        entry: bash
+        args:
+          - -c
+          - |
+            set -euo pipefail
+            if command -v tectonic >/dev/null 2>&1 && compgen -G "docs/*.tex" >/dev/null; then
+              tectonic --synctex --keep-logs -X compile docs/*.tex
+            else
+              echo "tectonic not available or docs directory missing; skipping"
+            fi
+        language: system
+        pass_filenames: false

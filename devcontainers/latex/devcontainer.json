@@ -1,6 +1,9 @@
 {
-  "name": "LaTeX DevContainer",
-  "image": "ghcr.io/malpanez/devcontainer-latex:latest",
+  "name": "LaTeX Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
@@ -21,10 +24,19 @@
     }
   },
   "mounts": [
-    "source=latex-cache,target=/workspace/.latex-cache,type=volume"
+    "source=${localEnv:HOME}/.cache/tectonic,target=/home/vscode/.cache/Tectonic,type=bind"
   ],
+  "remoteEnv": {
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "TECTONIC_CACHE_DIR": "/home/vscode/.cache/Tectonic"
+  },
   "remoteUser": "vscode",
-  "postCreateCommand": "bash -lc \"if command -v initexmf >/dev/null 2>&1; then initexmf --report --mkmaps; elif command -v tlmgr >/dev/null 2>&1; then tlmgr path add; fi\"",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit"
+  ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }

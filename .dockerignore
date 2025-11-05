@@ -1,0 +1,9 @@
+.git
+**/.molecule
+**/.pytest_cache
+**/__pycache__
+**/.ruff_cache
+**/.uv
+**/.venv
+**/node_modules
+docs/
