@@ -1,6 +1,9 @@
 {
-  "name": "Go DevContainer",
-  "image": "ghcr.io/malpanez/devcontainer-golang:latest",
+  "name": "Go Dev Container",
+  "build": {
+    "dockerfile": "devcontainers/golang/Dockerfile",
+    "context": "../.."
+  },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
@@ -16,7 +19,6 @@
       "settings": {
         "go.toolsManagement.autoUpdate": true,
         "go.formatTool": "goimports",
-        "go.lintTool": "golangci-lint",
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
           "source.organizeImports": "explicit"
@@ -28,11 +30,21 @@
     }
   },
   "mounts": [
-    "source=go-mod-cache,target=/go/pkg/mod,type=volume",
-    "source=go-build-cache,target=/go/build-cache,type=volume"
+    "source=go-mod-cache,target=/home/vscode/go/pkg/mod,type=volume",
+    "source=go-build-cache,target=/home/vscode/.cache/go-build,type=volume"
   ],
+  "remoteEnv": {
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "GOMODCACHE": "/home/vscode/go/pkg/mod",
+    "GOCACHE": "/home/vscode/.cache/go-build"
+  },
   "remoteUser": "vscode",
-  "postCreateCommand": "go env -w GOMODCACHE=/go/pkg/mod && go env -w GOCACHE=/go/build-cache",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit && go env -w GOMODCACHE=$GOMODCACHE && go env -w GOCACHE=$GOCACHE"
+  ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
