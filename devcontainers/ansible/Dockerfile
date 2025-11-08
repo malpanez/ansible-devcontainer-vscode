@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
+ARG BASE_IMAGE=python:3.12-slim-bookworm
 FROM ${BASE_IMAGE}
 
 ARG TARGETPLATFORM
@@ -34,6 +34,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unzip \
       tini \
       sudo \
+      build-essential \
+      libffi-dev \
+      libonig-dev \
+      libssl-dev \
+      python3-dev \
+      pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
@@ -43,7 +49,6 @@ COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     uv pip install --system -r /tmp/requirements-ansible.txt \
     && uv pip install --system pre-commit \
-    && rm -rf /root/.cache/uv \
     && rm -f /tmp/requirements-ansible.txt
 
 ARG USERNAME=vscode

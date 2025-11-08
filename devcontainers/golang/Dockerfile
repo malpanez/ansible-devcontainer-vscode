@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
-FROM cgr.dev/chainguard/go:latest
+ARG BASE_IMAGE=golang:1.22-alpine
+FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"

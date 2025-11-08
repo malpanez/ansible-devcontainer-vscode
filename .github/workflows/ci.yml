@@ -279,11 +279,11 @@ jobs:
       matrix:
         include:
           - stack: ansible
-            platforms: linux/amd64,linux/arm64
+            platforms: linux/amd64
           - stack: terraform
-            platforms: linux/amd64,linux/arm64
+            platforms: linux/amd64
           - stack: golang
-            platforms: linux/amd64,linux/arm64
+            platforms: linux/amd64
           - stack: latex
             platforms: linux/amd64
 
@@ -340,9 +340,10 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: devcontainers/${{ matrix.stack }}
+          context: .
           file: devcontainers/${{ matrix.stack }}/Dockerfile
           push: false
+          load: true
           tags: devcontainer-${{ matrix.stack }}:ci
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -353,10 +354,6 @@ jobs:
           cache-to: |
             ${{ steps.cache.outputs.cache_to }}
           platforms: ${{ matrix.platforms }}
-          outputs: type=oci,dest=/tmp/${{ matrix.stack }}.tar
-
-      - name: Load image for validation
-        run: docker load --input /tmp/${{ matrix.stack }}.tar
 
       - name: Smoke test ${{ matrix.stack }} container
         run: |
@@ -366,6 +363,7 @@ jobs:
       - name: Scan with Trivy
         uses: aquasecurity/trivy-action@0.33.1
         with:
+          version: v0.67.2
           image-ref: devcontainer-${{ matrix.stack }}:ci
           severity: CRITICAL
           ignore-unfixed: true
@@ -681,7 +679,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: devcontainers/${{ matrix.stack }}
+          context: .
           file: devcontainers/${{ matrix.stack }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}

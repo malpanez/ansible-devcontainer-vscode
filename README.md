@@ -21,7 +21,7 @@ Modern, reproducible infrastructure development environments powered by VS Code 
 - 🪪 **Template-driven pre-commit** – `ensure-precommit` seeds the right hook config per stack and runs `uvx pre-commit` without bloating the images.
 - 🔐 **Security conscious** – runs as non-root, includes Trivy scanning in CI, and keeps secrets out of the repo.
 - 📣 **Responsible disclosure** – see [`SECURITY.md`](SECURITY.md) for reporting guidelines and supply-chain expectations.
-- 🪟 **Windows bootstrap script** – run `scripts/bootstrap-wsl2.ps1` (see [Windows onboarding](docs/ONBOARDING-WINDOWS.md)) to enable WSL, configure Docker or Podman, and install VS Code in one go.
+- 🪟 **Windows bootstrap script** – run `scripts/bootstrap-windows.ps1` to enable WSL, configure proxies, and install Docker/VS Code with one command.
 
 ## Requirements
 
@@ -49,17 +49,7 @@ code .
 # VS Code pulls the published GHCR image for the chosen stack.
 ```
 
-> **New Windows laptop?** Run [`scripts/bootstrap-wsl2.ps1`](scripts/bootstrap-wsl2.ps1) from an elevated PowerShell prompt (see [`docs/ONBOARDING-WINDOWS.md`](docs/ONBOARDING-WINDOWS.md)) to enable WSL, configure Docker Desktop or Podman, and install VS Code automatically.
-
-### Handy VS Code Tasks
-
-The workspace ships curated tasks under `.vscode/tasks.json` so you can jump straight into automation:
-
-- **Devcontainer: Rebuild \<stack\>** – runs `devcontainer build --workspace-folder devcontainers/<stack>` to refresh the Ansible, Terraform, Golang, or LaTeX images without leaving VS Code.
-- **Terraform: Validate** and **Ansible: Lint All** – wrap the helper scripts (`run-terraform-tests.sh`, `ansible-lint`) so you can run the usual CI checks from *Terminal → Run Task…*.
-- **Devcontainer: Build All** – executes `scripts/check-devcontainer.sh` to smoke-test every stack before pushing changes.
-
-Use them from the command palette (`Ctrl/Cmd+Shift+P → Run Task`) whenever you switch stacks or need a quick validation pass.
+> **New Windows laptop?** Run [`scripts/bootstrap-windows.ps1`](scripts/bootstrap-windows.ps1) from an elevated PowerShell prompt (see [`docs/BOOTSTRAP_WINDOWS.md`](docs/BOOTSTRAP_WINDOWS.md)) to enable WSL, configure proxies, and install Docker Desktop / VS Code automatically.
 
 ## Pre-commit Strategy
 
@@ -70,7 +60,7 @@ Every stack ships with a ready-to-use `.pre-commit-config.yaml`. The image bakes
 
 This keeps developer experience consistent:
 
-- **Ansible** builds from `python:3.12-slim-bookworm` (or `cgr.dev/chainguard/python:latest` via `BASE_IMAGE`) and installs Ansible + hooks with `uv pip install --system`.
+- **Ansible** builds from `python:3.12-slim-bookworm` (switchable to `ghcr.io/chainguard-images/python:latest` via `BASE_IMAGE`) and installs Ansible + hooks with `uv pip install --system`.
 - **Terraform, Golang, and LaTeX** remain Python-free. They install the `uv` launcher only, so `uvx pre-commit` bootstraps Python on-demand without bloating the image.
 - In VS Code, the `postCreateCommand` simply calls `ensure-precommit`, guaranteeing hooks are installed on day one.
 - CI mirrors the workflow with `uvx pre-commit run --all-files`, so the same hook set gates every PR.
@@ -80,19 +70,19 @@ This keeps developer experience consistent:
 | Stack | Base image | Approx. size¹ | Included tooling | Cache mounts |
 | --- | --- | --- | --- | --- |
 | `ansible` | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume |
-| `terraform` | `cgr.dev/chainguard/terraform:latest` | ~230 MB | Terraform CLI, Terragrunt, TFLint, `uv` launcher | `${workspace}/.terraform.d/plugin-cache` bind |
-| `golang` | `cgr.dev/chainguard/go:latest` | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
+| `terraform` | multi-stage Debian (bookworm tools + runtime) | ~240 MB | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher | `${workspace}/.terraform.d/plugin-cache` bind |
+| `golang` | `golang:1.22-alpine` (overrideable via `BASE_IMAGE`) | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
 | `latex` | `debian:bookworm-slim` + Tectonic | ~320 MB | Tectonic CLI, git/perl helpers, `uv` launcher | `${HOME}/.cache/tectonic` bind |
 
 ¹Sizes are indicative for `linux/amd64` and vary slightly per architecture.
 
 ## Why not distroless or Alpine?
 
-Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Likewise, Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`. Slim Debian and Chainguard’s Wolfi images strike the balance between minimal footprint and glibc compatibility, so installs stay fast without fighting toolchains.
+Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`—so the Python stacks stay on slim Debian / Wolfi bases. The Go stack is the exception because it only needs the Go toolchain and busybox utilities, so `golang:1.22-alpine` keeps it lightweight without impacting DX.
 
 ## Image Publishing & GHCR
 
-This repository publishes one image per stack (`devcontainer-ansible`, `devcontainer-terraform`, `devcontainer-golang`, `devcontainer-latex`). Tag pushes (via `.github/workflows/release.yml`) build every image for `linux/amd64` and `linux/arm64` (LaTeX ships on `amd64` only), upload build caches, and push both `:latest` and `:<tag>` variants to GHCR. The Ansible image accepts a `BASE_IMAGE` build arg so you can swap between `python:3.12-slim-bookworm` and `cgr.dev/chainguard/python:latest` without touching the Dockerfile.
+This repository publishes one image per stack (`devcontainer-ansible`, `devcontainer-terraform`, `devcontainer-golang`, `devcontainer-latex`). Tag pushes (via `.github/workflows/release.yml`) build every image for `linux/amd64` and `linux/arm64` (LaTeX ships on `amd64` only), upload build caches, and push both `:latest` and `:<tag>` variants to GHCR. The Ansible image accepts a `BASE_IMAGE` build arg so you can swap between `python:3.12-slim-bookworm` and `ghcr.io/chainguard-images/python:latest` without touching the Dockerfile.
 
 > **Security hygiene** – `.github/workflows/build-containers.yml` runs on a weekly schedule so GHCR images automatically pick up Debian security fixes (`apt full-upgrade`) and refreshed tooling even when the repository is quiet.
 
@@ -105,7 +95,10 @@ docker build devcontainers/ansible \
   -t ghcr.io/<org>/devcontainer-ansible:local
 
 # Terraform stack (ships without Python, relies on uvx pre-commit)
-docker build devcontainers/terraform -t ghcr.io/<org>/devcontainer-terraform:local
+docker build \
+  --file devcontainers/terraform/Dockerfile \
+  -t ghcr.io/<org>/devcontainer-terraform:local \
+  .
 ```
 
 You can now reference the local tag from `.devcontainer/devcontainer.json` or push it to GHCR with `docker push`.
@@ -145,7 +138,7 @@ All Python dependencies for the Ansible stack live in `requirements-ansible.txt`
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Terraform | `1.13.x` | Terraform Dev Container pins `1.13.4`; CI tracks the latest patch in the 1.13 series. |
+| Terraform | `1.9.x` | Terraform Dev Container pins `1.9.6`; CI tracks the latest patch in the 1.9 series. |
 | Terragrunt | `0.54.x` | Installed globally in the Terraform container for Terragrunt workflows. |
 | TFLint | `0.51.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
 | Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans. |
@@ -265,7 +258,7 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 
 ### Using Podman for Dev Containers
 
-- On Windows, run `scripts/bootstrap-wsl2.ps1 -UsePodman` to install Podman Desktop instead of Docker Desktop (no commercial licensing fees). Start the Podman machine afterwards: `podman machine init --now` (first run only) and `podman machine start`.
+- On Windows, run `scripts/bootstrap-windows.ps1 -ContainerEngine Podman` to install Podman Desktop instead of Docker Desktop (no commercial licensing fees). Start the Podman machine afterwards: `podman machine init --now` (first run only) and `podman machine start`.
 - In VS Code, set `"dev.containers.dockerPath": "podman"` in `.vscode/settings.json` (or user settings) so Remote Containers calls the Podman CLI. On Linux, ensure the Podman socket is available by enabling the user service (`systemctl --user enable --now podman.socket`).
 - When using CLI workflows, export `DOCKER_HOST` from `podman system service --time=0` (Linux) or rely on Podman Desktop’s Docker API compatibility (Windows). The clean-up flags in `scripts/use-devcontainer.sh`/`.ps1` already work with Podman for removing stopped containers and volumes.
 - To make the VS Code setting easy to adopt across the team, add `.vscode/settings.json` with:
@@ -304,7 +297,8 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 - `./scripts/run-ansible-tests.sh` – executes `ansible-test sanity` for every role (respects `ANSIBLE_TEST_PYTHON_VERSION`, defaults to the pinned Python).
 - `ansible-playbook playbooks/setup-workspace.yml --check` – dry-run validation of the provisioning playbook.
 - `./scripts/run-smoke-tests.sh` – convenience wrapper around `playbooks/test-environment.yml`; pass extra args to forward flags (e.g. `--check`).
-- `./scripts/run-terraform-tests.sh` – formats (`terraform fmt -check`) and validates every Terraform module under `infrastructure/` (skips gracefully when no configs exist).
+- `./scripts/run-terraform-tests.sh` – formats (`terraform fmt -check`) and validates every Terraform module under `infrastructure/` (skips gracefully when no configs exist). Modules that depend on private providers (for example `infrastructure/proxmox_lab`) are skipped automatically in CI so they can be tested manually when the provider binaries are available.
+- `.trivyignore` documents the temporary CVE allowlist applied to vendor-supplied Terraform tooling (age/sops/terragrunt/tflint). We keep the list short and revisit it whenever upstream ships patched binaries.
 - `ansible-playbook playbooks/update-dependencies.yml` – regenerates `uv.lock` and `requirements-ansible.txt`.
 - `molecule test` – full integration verification.
   Run `molecule test --scenario-name latex` to exercise the MiKTeX ↔ TeX Live toggle specifically.
@@ -332,7 +326,7 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 
 ## Windows Bootstrap
 
-- Run `scripts/bootstrap-wsl2.ps1` from an elevated PowerShell session to install Windows Terminal, Git, VS Code, PowerShell 7, WSL2 + Ubuntu, your chosen container engine (Docker Desktop by default or Podman via `-UsePodman`), and the VS Code Remote extensions.
+- Run `scripts/bootstrap-windows.ps1` from an elevated PowerShell session to install Windows Terminal, Git, VS Code, PowerShell 7, WSL2 + Ubuntu, your chosen container engine (Docker Desktop by default or Podman via `-ContainerEngine Podman`), and the VS Code Remote extensions.
 - Optional flags: `-SkipDocker`, `-SkipWSL`, `-ProxyUrl`, `-ProxyBypassList`, and `-PersistProxy` for corporate environments. The script validates winget availability, configures proxies, and reports any reboot requirements. When selecting Podman, use the `-ContainerEngine Podman` switch to avoid Docker Desktop’s commercial licensing requirements.
 - After reboot (if prompted), launch Ubuntu in WSL2, finish the distro bootstrap, clone the repo, and follow the Quick Start.
 

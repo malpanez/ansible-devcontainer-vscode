@@ -1,0 +1,5 @@
+CVE-2024-45337 # Upstream Go binaries (age, sops, Terraform, Terragrunt, TFLint) currently ship with golang.org/x/crypto < 0.31.0. Waiting for vendor releases to land fixes before swapping binaries.
+CVE-2023-24538 # HashiCorp/age releases embed Go 1.19.4; CVE mitigated once upstream republishes with Go 1.19.8+.
+CVE-2023-24540 # See above; waiting on vendor rebuilds.
+CVE-2024-24790 # Vendor binaries (age, terragrunt) compiled with Go 1.21.1; upgrade pending upstream.
+CVE-2024-3817 # Terragrunt bundles go-getter v1.7.1; patched version v1.7.4 not yet released with Terragrunt. Tracking upstream issue.

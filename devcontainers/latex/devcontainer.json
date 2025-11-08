@@ -1,8 +1,8 @@
 {
   "name": "LaTeX Dev Container",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": "."
+    "dockerfile": "devcontainers/latex/Dockerfile",
+    "context": "../.."
   },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
