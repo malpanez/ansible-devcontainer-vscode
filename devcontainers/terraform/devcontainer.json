@@ -1,73 +1,51 @@
 {
-  "name": "Terraform DevOps Environment",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
-  "runArgs": [
-    "--dns=1.1.1.1",
-    "--dns=1.0.0.1"
-  ],
+  "name": "Terraform Dev Container",
+  "build": {
+    "dockerfile": "devcontainers/terraform/Dockerfile",
+    "context": "../.."
+  },
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "customizations": {
     "vscode": {
       "extensions": [
-        "redhat.ansible",
-        "redhat.vscode-yaml",
         "hashicorp.terraform",
-        "hashicorp.terraform-ls",
         "gruntwork.terragrunt",
-        "ms-python.python",
-        "ms-python.vscode-pylance",
-        "charliermarsh.ruff",
-        "samuelcolvin.jinjahtml",
-        "ms-azuretools.vscode-docker",
         "tamasfe.even-better-toml",
         "eamodio.gitlens"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "ansible.python.interpreterPath": "/usr/local/bin/python",
-        "ansible.validation.enabled": true,
-        "ansible.validation.lint.enabled": true,
-        "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
-        "files.associations": {
-          "*.yml": "ansible",
-          "*.yaml": "ansible",
-          "*.tf": "terraform",
-          "*.tfvars": "terraform",
-          "*.hcl": "terraform"
-        },
-        "[yaml]": {
-          "editor.defaultFormatter": "redhat.vscode-yaml",
-          "editor.formatOnSave": true,
-          "editor.tabSize": 2
-        },
         "[terraform]": {
           "editor.defaultFormatter": "hashicorp.terraform",
           "editor.formatOnSave": true,
           "editor.tabSize": 2
         },
-        "editor.rulers": [120],
         "files.trimTrailingWhitespace": true,
-        "files.insertFinalNewline": true
+        "files.insertFinalNewline": true,
+        "editor.rulers": [120]
       }
     }
   },
   "mounts": [
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume"
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    "source=${localWorkspaceFolder}/.terraform.d/plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=bind"
   ],
   "remoteEnv": {
+    "TF_PLUGIN_CACHE_DIR": "/workspaces/.terraform.d/plugin-cache",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
-    "TF_IN_AUTOMATION": "1",
     "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
-    "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
+    "TF_IN_AUTOMATION": "1",
+    "SOPS_AGE_KEY_FILE": "/workspace/.secrets/age.key"
   },
   "remoteUser": "vscode",
-  "postCreateCommand": "sudo --preserve-env=CHECKOV_CONSTRAINT uv pip install --system \"${CHECKOV_CONSTRAINT}\"",
-  "forwardPorts": [8080, 3000],
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit"
+  ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }

@@ -1,0 +1,42 @@
+---
+minimum_pre_commit_version: "3.6.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt
+        args: ["-w"]
+        language: system
+        types: [go]
+
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      - id: golangci-lint
+        name: golangci-lint (if available)
+        entry: bash
+        args:
+          - -c
+          - |
+            if command -v golangci-lint >/dev/null 2>&1; then
+              golangci-lint run ./...
+            else
+              echo "golangci-lint not installed; skipping"
+            fi
+        language: system
+        pass_filenames: false
+        types: [go]

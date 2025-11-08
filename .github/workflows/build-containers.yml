@@ -87,7 +87,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: devcontainers/${{ github.event.inputs.stack }}
+          context: .
           file: devcontainers/${{ github.event.inputs.stack }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -218,7 +218,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: devcontainers/${{ matrix.stack }}
+          context: .
           file: devcontainers/${{ matrix.stack }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
