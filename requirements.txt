@@ -8,9 +8,9 @@ ansible-builder==3.1.1 \
     --hash=sha256:9d88bc15acc7d31056d0c51914a6102dac8e5ad73f9f2d35ba98378c89714ed2 \
     --hash=sha256:a8246022edb92ca27ea95e87c7af30bcb2752f108dcc75fbf96e77196dff1072
     # via ansible-navigator
-ansible-compat==25.8.2 \
-    --hash=sha256:c35fd18f3a8320123f881ad6a23c4125e323e7e559ae09b6279568690a583b8f \
-    --hash=sha256:c5ae1ff70938f1e009cfc7df66c9faad223a3ccd0ad6b57400de53b2459a6164
+ansible-compat==25.11.0 \
+    --hash=sha256:b9e6655d8f4942c427a39fa1df6697830d987fe5d311bc7be2b2f81c1edd48f5 \
+    --hash=sha256:e6f013b8a7d1fd87a9624b9dc125e4e76a61eb90680800cb4119d97d8ce63ae7
     # via
     #   ansible-lint
     #   molecule
@@ -28,9 +28,9 @@ ansible-lint==25.9.2 \
     --hash=sha256:0eea8a5d17dd328bef12e7c9b6eb8714ba03fb1af62d9c700bf46e4858d1a6a4 \
     --hash=sha256:3a4b273b549973c62279de75374138be39b555191227b7c92944428f9d81018d
     # via ansible-navigator
-ansible-navigator==25.9.0 \
-    --hash=sha256:0e0466d72ffcee000645c4d7d5907609be1e456645751d0a12fcdc60f1a8b186 \
-    --hash=sha256:d10ad99e6ad120e27278e0dc71f9745f0202ca0e71da73cc33b51cf2f397dc9a
+ansible-navigator==25.11.0 \
+    --hash=sha256:3cf4841045025f9f3f737233d4d32a0ad7ef388e5804f4d2a22813c3f52be198 \
+    --hash=sha256:dc40d8e7582765bc66339cd88213ba2c5f7ae477a311a83b552746b43715e31c
     # via ansible-devcontainer
 ansible-runner==2.4.2 \
     --hash=sha256:0bde6cb39224770ff49ccdc6027288f6a98f4ed2ea0c64688b31217033221893 \
@@ -68,13 +68,13 @@ black==25.11.0 \
     # via
     #   ansible-devcontainer
     #   ansible-lint
-boto3==1.40.69 \
-    --hash=sha256:5273f6bac347331a87db809dff97d8736c50c3be19f2bb36ad08c5131c408976 \
-    --hash=sha256:c3f710a1990c4be1c0db43b938743d4e404c7f1f06d5f1fa0c8e9b1cea4290b2
+boto3==1.40.70 \
+    --hash=sha256:191443707b391232ed15676bf6bba7e53caec1e71aafa12ccad2e825c5ee15cc \
+    --hash=sha256:e8c2f4f4cb36297270f1023ebe5b100333e0e88ab6457a9687d80143d2e15bf9
     # via ansible-devcontainer
-botocore==1.40.69 \
-    --hash=sha256:5d810efeb9e18f91f32690642fa81ae60e482eefeea0d35ec72da2e3d924c1a5 \
-    --hash=sha256:df310ddc4d2de5543ba3df4e4b5f9907a2951896d63a9fbae115c26ca0976951
+botocore==1.40.70 \
+    --hash=sha256:4a394ad25f5d9f1ef0bed610365744523eeb5c22de6862ab25d8c93f9f6d295c \
+    --hash=sha256:61b1f2cecd54d1b28a081116fa113b97bf4e17da57c62ae2c2751fe4c528af1f
     # via
     #   ansible-devcontainer
     #   boto3
