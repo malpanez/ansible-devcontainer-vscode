@@ -36,9 +36,9 @@ ansible-runner==2.4.2 \
     --hash=sha256:0bde6cb39224770ff49ccdc6027288f6a98f4ed2ea0c64688b31217033221893 \
     --hash=sha256:331d4da8d784e5a76aa9356981c0255f4bb1ba640736efe84b0bd7c73a4ca420
     # via ansible-navigator
-asttokens==3.0.0 \
-    --hash=sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7 \
-    --hash=sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2
+asttokens==3.0.1 \
+    --hash=sha256:15a3ebc0f43c2d0a50eeafea25e19046c68398e487b9f1f5b517f7c0f40f976a \
+    --hash=sha256:71a4ee5de0bde6a31d64f6b13f2293ac190344478f081c3d1bccfcf5eacb0cb7
     # via stack-data
 attrs==25.4.0 \
     --hash=sha256:16d5969b87f0859ef33a48b35d55ac1be6e42ae49d5e853b597db70c35c57e11 \
@@ -195,9 +195,9 @@ charset-normalizer==3.4.4 \
     --hash=sha256:f8bf04158c6b607d747e93949aa60618b61312fe647a6369f88ce2ff16043490 \
     --hash=sha256:f9d332f8c2a2fcbffe1378594431458ddbef721c1769d78e2cbc06280d8155f9
     # via requests
-click==8.3.0 \
-    --hash=sha256:9b9f285302c6e3064f4330c05f05b81945b2a39544279343e6e7c5f27a9baddc \
-    --hash=sha256:e7b8232224eba16f4ebe410c25ced9f7875cb5f3263ffc93cc3e8da705e229c4
+click==8.3.1 \
+    --hash=sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a \
+    --hash=sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6
     # via
     #   black
     #   click-help-colors
