@@ -68,13 +68,13 @@ black==25.11.0 \
     # via
     #   ansible-devcontainer
     #   ansible-lint
-boto3==1.40.76 \
-    --hash=sha256:16f4cf97f8dd8e0aae015f4dc66219bd7716a91a40d1e2daa0dafa241a4761c5 \
-    --hash=sha256:8df6df755727be40ad9e309cfda07f9a12c147e17b639430c55d4e4feee8a167
+boto3==1.41.1 \
+    --hash=sha256:05009dadcb0c63a2a4a11780f615362a811aa85e7a6950f2793ecf8055fcd1f2 \
+    --hash=sha256:fdee48cff828cfe0fb66295ae4d5f47736ee35f11e1de6be6c6dcd910f0810a4
     # via ansible-devcontainer
-botocore==1.40.76 \
-    --hash=sha256:2b16024d68b29b973005adfb5039adfe9099ebe772d40a90ca89f2e165c495dc \
-    --hash=sha256:fe425d386e48ac64c81cbb4a7181688d813df2e2b4c78b95ebe833c9e868c6f4
+botocore==1.41.1 \
+    --hash=sha256:0db40b7dbddef56fe8cfa06b5eda73b327786db9d64c09c3a616fc9b5548120d \
+    --hash=sha256:e98095492ef8f18d0d6a02ba87d9135c663d4627322e049228143b3a4ef4c2a3
     # via
     #   ansible-devcontainer
     #   boto3
@@ -139,9 +139,9 @@ cffi==2.0.0 \
     #   ansible-lint
     #   cryptography
     #   onigurumacffi
-cfgv==3.4.0 \
-    --hash=sha256:b7265b1f29fd3316bfcd2b330d63d024f2bfd8bcb8b0272f8e19a504856c48f9 \
-    --hash=sha256:e52591d4c5f5dead8e0f673fb16db7949d2cfb3f7da4582893288f0ded8fe560
+cfgv==3.5.0 \
+    --hash=sha256:a8dc6b26ad22ff227d2634a65cb388215ce6cc96bbcc5cfde7641ae87e8dacc0 \
+    --hash=sha256:d5b1034354820651caa73ede66a6294d6e95c1b00acc5e9b098e917404669132
     # via pre-commit
 charset-normalizer==3.4.4 \
     --hash=sha256:0a98e6759f854bd25a58a73fa88833fba3b7c491169f86ce1180c948ab3fd394 \
@@ -916,9 +916,9 @@ ruff==0.14.5 \
     --hash=sha256:f66e9bb762e68d66e48550b59c74314168ebb46199886c5c5aa0b0fbcc81b151 \
     --hash=sha256:f7a75236570318c7a30edd7f5491945f0169de738d945ca8784500b517163a72
     # via ansible-devcontainer
-s3transfer==0.14.0 \
-    --hash=sha256:ea3b790c7077558ed1f02a3072fb3cb992bbbd253392f4b6e9e8976941c7d456 \
-    --hash=sha256:eff12264e7c8b4985074ccce27a3b38a485bb7f7422cc8046fee9be4983e4125
+s3transfer==0.15.0 \
+    --hash=sha256:6f8bf5caa31a0865c4081186689db1b2534cef721d104eb26101de4b9d6a5852 \
+    --hash=sha256:d36fac8d0e3603eff9b5bfa4282c7ce6feb0301a633566153cbd0b93d11d8379
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2' \
     --hash=sha256:2a88b337ac46ad0f06f557b2806c3df62421972f766673dd8bf26732fb75a9ea \
