@@ -68,13 +68,13 @@ black==25.11.0 \
     # via
     #   ansible-devcontainer
     #   ansible-lint
-boto3==1.41.2 \
-    --hash=sha256:7054fbc61cadab383f40ea6d725013ba6c8f569641dddb14c0055e790280ad6c \
-    --hash=sha256:edcde82fdae4201aa690e3683f8e5b1a846cf1bbf79d03db4fa8a2f6f46dba9c
+boto3==1.41.4 \
+    --hash=sha256:2c6b8d13df6beb9255d0c8cb60a7a2164f5270580ea5b921a65658a0c28e3223 \
+    --hash=sha256:77d84b7ce890a9b0c6a8993f8de106d8cf8138f332a4685e6de453965e60cb24
     # via ansible-devcontainer
-botocore==1.41.2 \
-    --hash=sha256:154052dfaa7292212f01c8fab822c76cd10a15a7e164e4c45e4634eb40214b90 \
-    --hash=sha256:49a3e8f4c1a1759a687941fef8b36efd7bafcf63c1ef74aa75d6497eb4887c9c
+botocore==1.41.4 \
+    --hash=sha256:45c78f07b53a64cbe55e5d60297958f151bd4a2c6acb944a8bb65874bc2fd953 \
+    --hash=sha256:7143ef845f1d1400dbbf05d999f8c5e8cfaecd6bd84cbfbe5fa0a40e3a9f6353
     # via
     #   ansible-devcontainer
     #   boto3
