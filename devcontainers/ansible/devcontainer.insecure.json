@@ -1,11 +1,13 @@
 {
-  "name": "Ansible Dev Container (docker-socket)",
+  "name": "Ansible Dev Container (insecure mode - for labs/testing only)",
   "build": {
     "dockerfile": "devcontainers/ansible/Dockerfile",
     "context": "../.."
   },
   "runArgs": [
-    "--init"
+    "--init",
+    "--dns=1.1.1.1",
+    "--dns=1.0.0.1"
   ],
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
@@ -54,6 +56,7 @@
   "remoteEnv": {
     "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible.cfg",
     "ANSIBLE_FORCE_COLOR": "true",
+    "ANSIBLE_HOST_KEY_CHECKING": "false",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
     "ANSIBLE_GALAXY_CACHE_DIR": "/home/vscode/.ansible/galaxy_cache",
     "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
