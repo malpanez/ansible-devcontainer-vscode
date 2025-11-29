@@ -8,6 +8,7 @@ ARG TARGETOS
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
+ARG UV_VERSION="0.5.11"
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Ansible devcontainer with uv-managed Python toolchain and hardened defaults" \
@@ -23,6 +24,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=ansible \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
+# Install system dependencies
+# Note: git is installed via apt (no feature git:1) to keep it simple
+# Note: NOT installing tini since we use --init in runArgs
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -32,7 +36,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl \
       ca-certificates \
       unzip \
-      tini \
       sudo \
       build-essential \
       libffi-dev \
@@ -42,7 +45,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+# Install uv with pinned version for reproducibility
+RUN curl -fsSL https://astral.sh/uv/${UV_VERSION}/install.sh | sh
 
 COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
@@ -55,9 +59,11 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
+# Hardened sudoers: only allow uv, uvx, ansible-galaxy (no apt-get)
+# This forces package installations to happen during build, not at runtime
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && echo "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/uv, /usr/bin/uvx, /usr/bin/ansible-galaxy" > /etc/sudoers.d/${USERNAME} \
+    && echo "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/uv, /usr/bin/uvx, /usr/local/bin/ansible-galaxy" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME}
 
 RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
