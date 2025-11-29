@@ -186,14 +186,28 @@ jobs:
       max-parallel: 2
       matrix:
         include:
+          # Main Dockerfiles
           - stack: ansible
+            dockerfile: Dockerfile
+            variant: ""
             platforms: linux/amd64,linux/arm64
           - stack: golang
+            dockerfile: Dockerfile
+            variant: ""
             platforms: linux/amd64,linux/arm64
           - stack: terraform
+            dockerfile: Dockerfile
+            variant: ""
             platforms: linux/amd64,linux/arm64
           - stack: latex
+            dockerfile: Dockerfile
+            variant: ""
             platforms: linux/amd64
+          # Variant Dockerfiles
+          - stack: ansible
+            dockerfile: Dockerfile.podman
+            variant: -podman
+            platforms: linux/amd64,linux/arm64
 
     steps:
       - uses: actions/checkout@v5
@@ -217,23 +231,23 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           tags: |
             type=raw,value=latest
             type=sha
             type=ref,event=branch
 
-      - name: Build and push ${{ matrix.stack }}
+      - name: Build and push ${{ matrix.stack }}${{ matrix.variant }}
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: devcontainers/${{ matrix.stack }}/Dockerfile
+          file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.stack }}${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}${{ matrix.variant }}
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
@@ -241,6 +255,6 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
