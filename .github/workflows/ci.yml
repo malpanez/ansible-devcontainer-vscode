@@ -132,7 +132,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --requirement requirements.txt
+          uv pip install --system -e .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
@@ -444,7 +444,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --requirement requirements.txt
+          uv pip install --system -e .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -482,7 +482,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --requirement requirements.txt
+          uv pip install --system -e .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -530,7 +530,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --requirement requirements.txt
+          uv pip install --system -e .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
