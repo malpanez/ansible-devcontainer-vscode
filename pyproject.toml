@@ -5,7 +5,7 @@ description = "Ansible DevContainer tooling and automation stack."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "ansible>=9.0.0,<10.0.0",
+  "ansible>=9.0.0,<14.0.0",
   "ansible-navigator>=3.5.0",
   "molecule>=6.0.0,<7.0.0",
   "molecule-plugins[docker]>=23.5.0,<26.0.0",
