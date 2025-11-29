@@ -1,0 +1,33 @@
+# Code Owners for ansible-devcontainer-vscode
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @malpanez
+
+# Workflows and CI/CD
+/.github/workflows/ @malpanez
+/.github/dependabot.yml @malpanez
+/.github/renovate.json @malpanez
+
+# DevContainers
+/devcontainers/ @malpanez
+/.devcontainer/ @malpanez
+
+# Ansible
+/playbooks/ @malpanez
+/roles/ @malpanez
+/ansible.cfg @malpanez
+/requirements.yml @malpanez
+
+# Terraform
+/infrastructure/ @malpanez
+
+# Documentation
+/docs/ @malpanez
+/README.md @malpanez
+/SECURITY.md @malpanez
+
+# Python dependencies
+/pyproject.toml @malpanez
+/uv.lock @malpanez
+/requirements*.txt @malpanez

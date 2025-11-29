@@ -1,11 +1,18 @@
 # Infrastructure Dev Containers for VS Code
 
 [![CI Pipeline](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/ci.yml)
-[![Lint](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/lint.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/lint.yml)
-[![Roadmap](https://img.shields.io/badge/roadmap-public-1f6feb.svg)](docs/ROADMAP.md)
-[![Portfolio](https://img.shields.io/badge/portfolio-notes-6f42c1.svg)](docs/PORTFOLIO.md)
+[![Build Containers](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
+[![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)
+[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](https://github.com/malpanez/ansible-devcontainer-vscode/issues)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 [![uv](https://img.shields.io/badge/uv-ready-00A3FF)](https://github.com/astral-sh/uv)
+
+**Tool Versions:**
+[![Terraform](https://img.shields.io/badge/terraform-1.9.6-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Ansible](https://img.shields.io/badge/ansible-9.x-EE0000?logo=ansible)](https://www.ansible.com/)
 
 Modern, reproducible infrastructure development environments powered by VS Code Dev Containers and the `uv` Python toolchain. Open the repository in VS Code, pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in a container, and you are ready to lint, test, and ship automation from any platform (Windows + WSL2, macOS, or Linux).
 

@@ -4,34 +4,128 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 0
+      interval: "daily"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
     allow:
-      - dependency-type: "direct"
+      - dependency-type: "all"
     commit-message:
       prefix: "deps"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      ansible:
+        patterns:
+          - "ansible*"
+      testing:
+        patterns:
+          - "pytest*"
+          - "molecule*"
+      linting:
+        patterns:
+          - "ruff"
+          - "black"
+          - "mypy"
+          - "yamllint"
+          - "ansible-lint"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
   - package-ecosystem: "docker"
-    directory: "/devcontainers"
+    directory: "/devcontainers/ansible"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
     commit-message:
-      prefix: "deps"
+      prefix: "deps(ansible)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "ansible-stack"
+
+  - package-ecosystem: "docker"
+    directory: "/devcontainers/terraform"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(terraform)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "terraform-stack"
+
+  - package-ecosystem: "docker"
+    directory: "/devcontainers/golang"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(golang)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "golang-stack"
+
+  - package-ecosystem: "docker"
+    directory: "/devcontainers/latex"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(latex)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "latex-stack"
+
   - package-ecosystem: "docker"
     directory: "/.devcontainer"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
     commit-message:
-      prefix: "deps"
+      prefix: "deps(devcontainer)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"

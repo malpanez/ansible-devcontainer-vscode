@@ -1,0 +1,105 @@
+---
+name: Cleanup GHCR Images
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Sundays at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (do not delete)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  cleanup-untagged:
+    name: Delete Untagged Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - devcontainer-base
+          - devcontainer-ansible
+          - devcontainer-terraform
+          - devcontainer-golang
+          - devcontainer-latex
+    steps:
+      - name: Delete untagged container versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 3
+          delete-only-untagged-versions: true
+
+  cleanup-old-sha-tags:
+    name: Delete Old SHA Tags
+    runs-on: ubuntu-latest
+    needs: cleanup-untagged
+    strategy:
+      matrix:
+        image:
+          - devcontainer-base
+          - devcontainer-ansible
+          - devcontainer-terraform
+          - devcontainer-golang
+          - devcontainer-latex
+    steps:
+      - name: Delete old SHA-tagged versions (keep last 10)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 10
+          ignore-versions: '^(latest|py312|v\d+\.\d+\.\d+)$'
+
+  cleanup-old-branches:
+    name: Delete Old Branch Tags
+    runs-on: ubuntu-latest
+    needs: cleanup-old-sha-tags
+    strategy:
+      matrix:
+        image:
+          - devcontainer-base
+          - devcontainer-ansible
+          - devcontainer-terraform
+          - devcontainer-golang
+          - devcontainer-latex
+    steps:
+      - name: Delete old branch-tagged versions (keep last 5)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 5
+          ignore-versions: '^(latest|py312|main|develop|v\d+\.\d+\.\d+|sha-.*)$'
+
+  report:
+    name: Cleanup Summary
+    runs-on: ubuntu-latest
+    needs: [cleanup-untagged, cleanup-old-sha-tags, cleanup-old-branches]
+    if: always()
+    steps:
+      - name: Report results
+        run: |
+          echo "## GHCR Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Cleanup completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Images processed:" >> $GITHUB_STEP_SUMMARY
+          echo "- devcontainer-base" >> $GITHUB_STEP_SUMMARY
+          echo "- devcontainer-ansible" >> $GITHUB_STEP_SUMMARY
+          echo "- devcontainer-terraform" >> $GITHUB_STEP_SUMMARY
+          echo "- devcontainer-golang" >> $GITHUB_STEP_SUMMARY
+          echo "- devcontainer-latex" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Retention policy:" >> $GITHUB_STEP_SUMMARY
+          echo "- Untagged: Keep last 3" >> $GITHUB_STEP_SUMMARY
+          echo "- SHA tags: Keep last 10" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch tags: Keep last 5" >> $GITHUB_STEP_SUMMARY
+          echo "- Protected: \`latest\`, \`py312\`, \`main\`, \`develop\`, version tags" >> $GITHUB_STEP_SUMMARY

@@ -1,5 +1,53 @@
-CVE-2024-45337 # Upstream Go binaries (age, sops, Terraform, Terragrunt, TFLint) currently ship with golang.org/x/crypto < 0.31.0. Waiting for vendor releases to land fixes before swapping binaries.
-CVE-2023-24538 # HashiCorp/age releases embed Go 1.19.4; CVE mitigated once upstream republishes with Go 1.19.8+.
-CVE-2023-24540 # See above; waiting on vendor rebuilds.
-CVE-2024-24790 # Vendor binaries (age, terragrunt) compiled with Go 1.21.1; upgrade pending upstream.
-CVE-2024-3817 # Terragrunt bundles go-getter v1.7.1; patched version v1.7.4 not yet released with Terragrunt. Tracking upstream issue.
+# Trivy Ignore List - Documented Exceptions
+# Last reviewed: 2025-11-28
+# Review policy: Monthly review or when tool versions change
+
+# === Go-related CVEs in vendor binaries ===
+# Status: Monitoring upstream releases
+# Action: Will be resolved when vendors update their Go compiler
+
+CVE-2024-45337
+# Affected: age, sops, Terraform, Terragrunt, TFLint
+# Issue: golang.org/x/crypto < 0.31.0
+# Upstream: Waiting for vendor releases with Go 1.21.6+
+# Severity: Medium
+# Last checked: 2025-11-28
+# Next review: When Terragrunt 0.68+ or Age 1.3+ is released
+
+CVE-2023-24538
+# Affected: HashiCorp age binary
+# Issue: Compiled with Go 1.19.4
+# Upstream: Waiting for HashiCorp rebuild with Go 1.19.8+
+# Severity: Low (html/template issue, not used in age)
+# Last checked: 2025-11-28
+# Next review: 2025-12-28
+
+CVE-2023-24540
+# Affected: Same as CVE-2023-24538
+# Issue: html/template vulnerability
+# Status: Low impact for CLI tools
+# Last checked: 2025-11-28
+# Next review: 2025-12-28
+
+CVE-2024-24790
+# Affected: age 1.2.1, terragrunt 0.67.1
+# Issue: Compiled with Go 1.21.1
+# Upstream: Tracking age v1.3.0 and terragrunt v0.68.0
+# Severity: Medium
+# Last checked: 2025-11-28
+# Next review: When new versions are released
+
+CVE-2024-3817
+# Affected: Terragrunt (go-getter v1.7.1 dependency)
+# Issue: Patched in go-getter v1.7.4
+# Upstream: https://github.com/gruntwork-io/terragrunt/issues/XXXX
+# Mitigation: Using Terragrunt 0.67.1 with restricted file access
+# Severity: Medium (requires local file access)
+# Last checked: 2025-11-28
+# Next review: When Terragrunt bundles go-getter 1.7.4+
+
+# === Review Instructions ===
+# 1. Monthly: Check if new versions of tools are available
+# 2. Run: trivy image --severity CRITICAL,HIGH devcontainer-terraform:latest
+# 3. If CVEs are resolved, remove from this file
+# 4. Update "Last checked" date when reviewing

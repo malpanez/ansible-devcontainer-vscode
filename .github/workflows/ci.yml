@@ -25,7 +25,8 @@ concurrency:
 env:
   ANSIBLE_FORCE_COLOR: "1"
   PYTHON_VERSION: "3.12"
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.23"
+  TERRAFORM_VERSION: "1.9.6"
 
 jobs:
   changes:
@@ -93,6 +94,13 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: pre-commit-
 
       - name: Run pre-commit
         run: uvx pre-commit run --all-files
@@ -194,7 +202,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.7.5
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
       - name: Cache Terraform providers
@@ -363,7 +371,7 @@ jobs:
       - name: Scan with Trivy
         uses: aquasecurity/trivy-action@0.33.1
         with:
-          version: v0.67.2
+          version: v0.58.2
           image-ref: devcontainer-${{ matrix.stack }}:ci
           severity: CRITICAL
           ignore-unfixed: true
@@ -555,7 +563,7 @@ jobs:
         if: needs.changes.outputs.terraform == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.7.5
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Run Terraform scenario
         if: needs.changes.outputs.terraform == 'true'
