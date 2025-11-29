@@ -1,0 +1,142 @@
+# syntax=docker/dockerfile:1.7
+# Multi-stage Dockerfile for Ansible DevContainer with Podman + Execution Environments
+#
+# Strategy: Use official Podman binaries + Python slim base for maximum compatibility
+# and minimal maintenance burden.
+
+# Stage 1: Get Podman binaries and configuration from official image
+FROM quay.io/containers/podman:v5.3.1 AS podman-source
+
+# Stage 2: Build our Ansible devcontainer with Podman support
+ARG BASE_IMAGE=python:3.12-slim-bookworm
+FROM ${BASE_IMAGE}
+
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
+ARG BUILD_DATE="unknown"
+ARG VCS_REF="unknown"
+ARG IMAGE_VENDOR="malpanez"
+ARG UV_VERSION="0.5.11"
+
+LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
+      org.opencontainers.image.description="Ansible devcontainer with Podman for Execution Environments" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    UV_INSTALL_DIR=/usr/local/bin \
+    UV_LINK_MODE=copy \
+    WORKSPACE=/workspace \
+    DEVCONTAINER_STACK=ansible \
+    DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
+
+# Install system dependencies for Podman rootless + Ansible build tools
+# Note: git is installed via apt (no feature git:1) to keep it simple
+# Note: NOT installing tini since we use --init in runArgs
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+      # Base tools
+      git \
+      openssh-client \
+      rsync \
+      curl \
+      ca-certificates \
+      unzip \
+      sudo \
+      # Build essentials for Python packages
+      build-essential \
+      libffi-dev \
+      libonig-dev \
+      libssl-dev \
+      python3-dev \
+      pkg-config \
+      # Podman rootless dependencies
+      uidmap \
+      slirp4netns \
+      fuse-overlayfs \
+      iptables \
+      crun \
+      dbus-user-session \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Podman binaries and configuration from official image
+COPY --from=podman-source /usr/bin/podman /usr/local/bin/podman
+COPY --from=podman-source /usr/bin/conmon /usr/local/bin/conmon
+COPY --from=podman-source /etc/containers /etc/containers
+
+# Install uv with pinned version for reproducibility
+RUN curl -fsSL https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+
+COPY requirements-ansible.txt /tmp/requirements-ansible.txt
+
+# Install Ansible stack + tools for Execution Environments
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv pip install --system -r /tmp/requirements-ansible.txt \
+    && uv pip install --system \
+       pre-commit \
+       ansible-navigator \
+       ansible-builder \
+    && rm -f /tmp/requirements-ansible.txt
+
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+# Hardened sudoers: only allow uv, uvx, ansible-galaxy, podman (no apt-get)
+# This forces package installations to happen during build, not at runtime
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
+    && echo "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/uv, /usr/bin/uvx, /usr/local/bin/ansible-galaxy, /usr/local/bin/podman" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
+
+# Configure Podman for rootless operation
+# Set up storage driver (overlay with fuse-overlayfs) and runtime
+RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.ansible \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/containers \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/containers \
+    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible
+
+# Configure Podman storage for rootless
+RUN printf '[storage]\n\
+driver = "overlay"\n\
+\n\
+[storage.options.overlay]\n\
+mount_program = "/usr/bin/fuse-overlayfs"\n\
+mountopt = "nodev,metacopy=on"\n' > /home/${USERNAME}/.config/containers/storage.conf \
+    && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.config/containers/storage.conf
+
+# Configure Podman to use crun runtime
+RUN printf '[engine]\n\
+runtime = "crun"\n\
+\n\
+[engine.runtimes]\n\
+crun = [\n\
+  "/usr/bin/crun"\n\
+]\n' > /home/${USERNAME}/.config/containers/containers.conf \
+    && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.config/containers/containers.conf
+
+COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/ansible/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/ansible/.pre-commit-config.yaml
+COPY --chown=${USERNAME}:${USERNAME} templates/ansible/execution-environment.yml /usr/local/share/devcontainer-skel/ansible/execution-environment.yml
+COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --chmod=0755 devcontainers/scripts/podman-smoke-test.sh /usr/local/bin/podman-smoke-test
+
+ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
+
+USER ${USERNAME}
+
+# Configure git and verify Podman
+RUN git config --global init.defaultBranch main
+
+# Enable lingering for user (helps with systemd user services if needed)
+# This is optional but recommended for Podman rootless
+RUN mkdir -p /home/${USERNAME}/.config/systemd/user
+
+WORKDIR ${WORKSPACE}
+
+CMD ["/bin/bash"]

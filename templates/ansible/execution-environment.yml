@@ -1,0 +1,71 @@
+---
+# Ansible Execution Environment Definition
+# This file defines how to build a custom Execution Environment (EE) for your project.
+#
+# Usage:
+#   ansible-builder build -f execution-environment.yml -t my-ee:latest --container-runtime podman
+#
+# Docs: https://ansible.readthedocs.io/projects/builder/en/latest/definition/
+
+version: 3
+
+# Base image for the Execution Environment
+# creator-ee: Minimal image for creating collections/roles (recommended)
+# ee-minimal: Very minimal Ansible runtime
+# ansible-ee: Full-featured (includes many collections, larger)
+images:
+  base_image:
+    name: quay.io/ansible/creator-ee:v0.18.0
+
+# Dependencies to install in the EE
+dependencies:
+  # Ansible Galaxy collections (from requirements.yml in your project)
+  galaxy: requirements.yml
+
+  # Python packages (from requirements.txt in your project)
+  # Note: Only runtime dependencies, not dev tools like molecule/pytest
+  # python: requirements.txt
+
+  # System packages (using bindep format)
+  # Uncomment and create bindep.txt if you need system packages
+  # system: bindep.txt
+
+  # Python packages installed via pip (alternative to requirements.txt)
+  python_interpreter:
+    package_system: "python312"
+
+  # Ansible core version (optional, inherits from base image if not specified)
+  # ansible_core:
+  #   package_pip: ansible-core>=2.16,<2.17
+
+  # Runner (ansible-runner) configuration
+  ansible_runner:
+    package_pip: ansible-runner
+
+# Additional build steps (optional)
+# These run during the container build process
+additional_build_steps:
+  # Steps to run before galaxy collection install
+  prepend_galaxy:
+    - RUN echo "Installing collections from requirements.yml..."
+
+  # Steps to run before Python package install
+  prepend_builder:
+    - RUN echo "Preparing Python environment..."
+
+  # Steps to run after all dependencies are installed
+  append_final:
+    - RUN echo "Execution Environment build complete!"
+    # Example: Set timezone
+    # - RUN ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+    # Example: Create custom directories
+    # - RUN mkdir -p /runner/artifacts
+
+# Build arguments (optional)
+# These can be overridden with --build-arg
+options:
+  package_manager_path: /usr/bin/microdnf
+
+# Example: Custom user (inherits from base image by default)
+# options:
+#   user: root
