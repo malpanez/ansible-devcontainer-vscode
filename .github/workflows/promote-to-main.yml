@@ -66,9 +66,7 @@ jobs:
 
           *This PR was created automatically by the promote-to-main workflow.*
           EOF
-          )" \
-            --label "release" \
-            --label "automation"
+          )"
 
       - name: Enable auto-merge
         if: steps.check-pr.outputs.pr_count == '0'
