@@ -1,0 +1,150 @@
+---
+name: Code Quality Metrics
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**/*.py'
+      - '**/*.yml'
+      - '**/*.yaml'
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-quality:
+    name: Python Code Quality
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install analysis tools
+        run: |
+          pip install radon vulture bandit
+
+      - name: Cyclomatic Complexity
+        run: |
+          echo "## Cyclomatic Complexity Analysis" >> $GITHUB_STEP_SUMMARY
+          radon cc . -a -s --total-average >> $GITHUB_STEP_SUMMARY || true
+        continue-on-error: true
+
+      - name: Maintainability Index
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Maintainability Index" >> $GITHUB_STEP_SUMMARY
+          radon mi . -s >> $GITHUB_STEP_SUMMARY || true
+        continue-on-error: true
+
+      - name: Dead Code Detection
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Dead Code Detection" >> $GITHUB_STEP_SUMMARY
+          vulture . --min-confidence 80 >> $GITHUB_STEP_SUMMARY || echo "No dead code found" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Security Issues (Bandit)
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Security Issues (Bandit)" >> $GITHUB_STEP_SUMMARY
+          bandit -r . -f json -o bandit-report.json || true
+          if [ -f bandit-report.json ]; then
+            echo "Report generated successfully" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+          retention-days: 30
+
+  yaml-quality:
+    name: YAML Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: YAML Lint Summary
+        run: |
+          echo "## YAML Lint Results" >> $GITHUB_STEP_SUMMARY
+          uvx yamllint -f parsable . >> $GITHUB_STEP_SUMMARY || echo "YAML issues found" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+  ansible-quality:
+    name: Ansible Quality
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible ansible-lint
+
+      - name: Ansible Lint Summary
+        run: |
+          echo "## Ansible Lint Results" >> $GITHUB_STEP_SUMMARY
+          ansible-lint --profile production || echo "Ansible lint issues found" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+  dockerfile-quality:
+    name: Dockerfile Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "devcontainers/*/Dockerfile"
+          recursive: true
+          format: sarif
+          output-file: hadolint-results.sarif
+          no-fail: true
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-results.sarif
+          category: hadolint
+
+  summary:
+    name: Quality Summary
+    runs-on: ubuntu-latest
+    needs: [python-quality, yaml-quality, ansible-quality, dockerfile-quality]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Code Quality Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Quality checks completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Jobs Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Python Quality: ${{ needs.python-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- YAML Quality: ${{ needs.yaml-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Ansible Quality: ${{ needs.ansible-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Dockerfile Quality: ${{ needs.dockerfile-quality.result }}" >> $GITHUB_STEP_SUMMARY

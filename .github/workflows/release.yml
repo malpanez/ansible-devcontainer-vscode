@@ -86,7 +86,7 @@ jobs:
             echo "Scanning ${image}"
             docker run --rm \
               -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              aquasec/trivy:0.50.1 \
+              aquasec/trivy:0.58.2 \
               image \
                 --scanners vuln \
                 --severity CRITICAL,HIGH \

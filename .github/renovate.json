@@ -1,0 +1,86 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":semanticCommitScope(deps)"
+  ],
+  "schedule": ["before 5am on monday"],
+  "timezone": "UTC",
+  "assignees": ["@malpanez"],
+  "labels": ["dependencies"],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "ignorePaths": [
+    ".venv/**",
+    ".cache/**",
+    "collections/**"
+  ],
+  "packageRules": [
+    {
+      "description": "Auto-merge minor and patch updates for non-zero versions",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true
+    },
+    {
+      "description": "Group Ansible packages",
+      "groupName": "ansible packages",
+      "matchPackagePatterns": ["^ansible"],
+      "automerge": true
+    },
+    {
+      "description": "Group pytest packages",
+      "groupName": "testing packages",
+      "matchPackagePatterns": ["^pytest", "^molecule"],
+      "automerge": true
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "automerge": true
+    },
+    {
+      "description": "Pin Terraform version (manual updates only)",
+      "matchPackageNames": ["hashicorp/terraform"],
+      "enabled": false
+    },
+    {
+      "description": "Require approval for major updates",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"]
+    },
+    {
+      "description": "Security updates auto-merge",
+      "matchDatasources": ["pypi", "docker"],
+      "matchUpdateTypes": ["patch"],
+      "vulnerabilityAlerts": {
+        "enabled": true
+      },
+      "automerge": true,
+      "labels": ["dependencies", "security"]
+    }
+  ],
+  "docker": {
+    "enabled": true,
+    "pinDigests": false
+  },
+  "python": {
+    "enabled": true
+  },
+  "pip_requirements": {
+    "fileMatch": ["^requirements.*\\.txt$"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "automerge": true
+  },
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 2,
+  "branchConcurrentLimit": 5
+}

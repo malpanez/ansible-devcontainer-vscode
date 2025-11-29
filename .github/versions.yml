@@ -1,0 +1,35 @@
+---
+# Centralized tool versions for consistency across workflows and Dockerfiles
+# Update this file to bump versions across the entire repository
+
+# Infrastructure Tools
+terraform: "1.9.6"
+terragrunt: "0.67.1"  # Updated from 0.54.22
+tflint: "0.54.0"      # Updated from 0.51.2
+sops: "3.9.3"         # Updated from 3.9.0
+age: "1.2.1"          # Updated from 1.1.1
+
+# LaTeX
+tectonic: "0.15.0"
+
+# Languages
+python: "3.12"
+go: "1.23"            # Updated from 1.22
+
+# Security Tools
+trivy: "0.58.2"       # Unified version
+cosign: "v2.4.1"
+
+# Linters & Formatters
+ansible_lint: "v25.9.2"
+ruff: "v0.14.3"
+yamllint: "v1.37.1"
+hadolint: "v2.12.0"
+
+# Pre-commit
+pre_commit_hooks: "v6.0.0"
+detect_secrets: "v1.5.0"
+
+# Ansible
+ansible_min: "9.0.0"
+ansible_max: "10.0.0"

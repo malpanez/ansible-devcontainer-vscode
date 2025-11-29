@@ -18,11 +18,17 @@ on:
           - latex
   schedule:
     - cron: '0 3 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'devcontainers/**'
+      - '.github/workflows/build-containers.yml'
 
 jobs:
   build-single:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.stack != 'all'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -108,6 +114,7 @@ jobs:
   build-base:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -168,6 +175,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     needs: build-base
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -175,6 +183,7 @@ jobs:
       attestations: write
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
           - stack: ansible

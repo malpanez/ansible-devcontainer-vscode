@@ -15,22 +15,59 @@
         "GitHub.vscode-pull-request-github"
       ],
       "settings": {
+        "latex-workshop.latex.recipes": [
+          {
+            "name": "Tectonic",
+            "tools": ["tectonic"]
+          }
+        ],
+        "latex-workshop.latex.tools": [
+          {
+            "name": "tectonic",
+            "command": "tectonic",
+            "args": [
+              "-X", "compile",
+              "%DOC%.tex",
+              "--synctex",
+              "--keep-logs"
+            ]
+          }
+        ],
         "latex-workshop.latex.outDir": "out",
         "latex-workshop.latex.autoBuild.run": "onSave",
         "latex-workshop.synctex.path": "synctex",
         "latex-workshop.view.pdf.viewer": "tab",
-        "editor.renderWhitespace": "boundary"
+        "editor.renderWhitespace": "boundary",
+        "cSpell.language": "en,es",
+        "cSpell.enabledLanguageIds": ["latex", "markdown"],
+        "files.exclude": {
+          "**/*.aux": true,
+          "**/*.log": true,
+          "**/*.out": true,
+          "**/*.synctex.gz": true
+        },
+        "files.watcherExclude": {
+          "**/.git/objects/**": true,
+          "**/out/**": true,
+          "**/*.aux": true,
+          "**/*.log": true
+        },
+        "git.enableSmartCommit": true,
+        "git.autofetch": true
       }
     }
   },
   "mounts": [
-    "source=${localEnv:HOME}/.cache/tectonic,target=/home/vscode/.cache/Tectonic,type=bind"
+    "source=${localEnv:HOME}/.cache/tectonic,target=/home/vscode/.cache/Tectonic,type=bind",
+    "source=${localEnv:HOME}/.cache/uv,target=/home/vscode/.cache/uv,type=bind",
+    "source=${localEnv:HOME}/.cache/pre-commit,target=/home/vscode/.cache/pre-commit,type=bind"
   ],
   "remoteEnv": {
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
-    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit",
     "TECTONIC_CACHE_DIR": "/home/vscode/.cache/Tectonic"
   },
+  "onCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
   "remoteUser": "vscode",
   "postCreateCommand": [
     "/bin/bash",
