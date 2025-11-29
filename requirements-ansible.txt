@@ -510,15 +510,15 @@ mdurl==0.1.2 \
     --hash=sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8 \
     --hash=sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba
     # via markdown-it-py
-molecule==6.0.3 \
-    --hash=sha256:8e5d7a7841f9ed5dd26878d24951ec030b86f780aca17ffc509db8076f42de3d \
-    --hash=sha256:d2a881062fcc5ef1e08c1e5127c04354d2c95171955e270bd82b3fbfef72d3b0
+molecule==25.11.1 \
+    --hash=sha256:45713f2831d6409435bc3f2fd4f18a2171490d5c9c0f58e6990b9d616124e47f \
+    --hash=sha256:c65888e3283c2677048f945d197296064ffcee8aea5bb7e8fff39b1c199ce3ba
     # via
     #   ansible-devcontainer
     #   molecule-plugins
-molecule-plugins==23.6.0 \
-    --hash=sha256:432586a21226ef72fca5eaafb56ec7c0dc6d5e471f4e1e5272be5425357bcd2c \
-    --hash=sha256:be3d15329ede00d79a0a60482e8c78cfbb2d18500ad98319c0c076cb833db340
+molecule-plugins==25.8.12 \
+    --hash=sha256:75f32763e90275bfc24bcc0d27b9bb22ac973658bf902b2e3e8af8e2a1c32083 \
+    --hash=sha256:c5b8ceb209a5ff87326631d60408f8d08b9431b2e339dad4c620130b50279ce0
     # via ansible-devcontainer
 mypy==1.18.2 \
     --hash=sha256:01199871b6110a2ce984bde85acd481232d17413868c9807e95c1b0739a58914 \
@@ -649,9 +649,9 @@ pygments==2.19.2 \
     #   ipython-pygments-lexers
     #   pytest
     #   rich
-pytest==8.4.2 \
-    --hash=sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01 \
-    --hash=sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79
+pytest==9.0.1 \
+    --hash=sha256:3e9c069ea73583e255c3b21cf46b8d3c56f6e3a1a8f6da94ccb0fcf57b9d73c8 \
+    --hash=sha256:67be0030d194df2dfa7b556f2e56fb3c3315bd5c8822c6951162b92b32ce7dad
     # via
     #   ansible-devcontainer
     #   pytest-ansible
@@ -660,9 +660,9 @@ pytest==8.4.2 \
     #   pytest-sugar
     #   pytest-testinfra
     #   pytest-xdist
-pytest-ansible==25.8.0 \
-    --hash=sha256:0e047659365761abdffc5cbe876807532cdddcc91020f7f635cdc290a0be84f8 \
-    --hash=sha256:d052c495165eca60e083d8b8d3ecb7e300dc875963e5ebf62b2787649c82fbac
+pytest-ansible==25.11.1 \
+    --hash=sha256:2d810bc6b1d35df6bcd5e6c3598af1b505e37bfd7d83a5915d8955fd9959916a \
+    --hash=sha256:f54101960cd4a00036dd9b3195ab4bee2abb5df5ac1a93a10d5c3c4c7131d9fb
     # via ansible-devcontainer
 pytest-cov==7.0.0 \
     --hash=sha256:33c97eda2e049a0c5298e91f519302a1334c26ac65c1a483d6206fd458361af1 \
