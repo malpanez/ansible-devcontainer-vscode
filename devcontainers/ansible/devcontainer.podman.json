@@ -1,0 +1,158 @@
+{
+  "name": "Ansible Dev Container (Podman + Execution Environments)",
+  "build": {
+    "dockerfile": "devcontainers/ansible/Dockerfile.podman",
+    "context": "../.."
+  },
+  "runArgs": [
+    "--init",
+    // Rootless Podman configuration
+    "--userns=keep-id",
+    "--cgroupns=host",
+    // Enable systemd (optional, helps with some Podman operations)
+    "--tmpfs=/tmp:exec",
+    "--tmpfs=/run",
+    // Uncomment if you experience issues with rootless Podman on your host:
+    // "--privileged",
+    // Uncomment if you have SELinux issues:
+    // "--security-opt=label=disable"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "samuelcolvin.jinjahtml",
+        "ms-azuretools.vscode-docker",
+        "tamasfe.even-better-toml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        // Python configuration
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+
+        // Ansible extension configuration
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.ansible.path": "/usr/local/bin/ansible",
+        "ansible.ansible.useFullyQualifiedCollectionNames": true,
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
+
+        // Execution Environment configuration
+        "ansible.executionEnvironment.enabled": true,
+        "ansible.executionEnvironment.containerEngine": "podman",
+        "ansible.executionEnvironment.image": "quay.io/ansible/creator-ee:v0.18.0",
+        "ansible.executionEnvironment.pull.policy": "missing",
+
+        // File associations
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        },
+
+        // YAML formatting
+        "[yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2
+        },
+
+        // Editor settings
+        "editor.rulers": [120],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      },
+
+      // VS Code tasks for common Ansible workflows
+      "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+          {
+            "label": "Ansible: Lint Current File",
+            "type": "shell",
+            "command": "ansible-lint ${file}",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "new"
+            }
+          },
+          {
+            "label": "Ansible: Run Playbook with EE",
+            "type": "shell",
+            "command": "ansible-navigator run ${file} --ee true --ce podman --mode stdout",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "new"
+            }
+          },
+          {
+            "label": "Ansible: Build Custom Execution Environment",
+            "type": "shell",
+            "command": "ansible-builder build -f execution-environment.yml -t my-custom-ee:latest --container-runtime podman",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "new"
+            }
+          },
+          {
+            "label": "Podman: List Images",
+            "type": "shell",
+            "command": "podman images",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "shared"
+            }
+          },
+          {
+            "label": "Podman: Info",
+            "type": "shell",
+            "command": "podman info",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "shared"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "mounts": [
+    // Podman storage (images, containers)
+    "source=podman-storage,target=/home/vscode/.local/share/containers,type=volume",
+    // UV package cache
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    // Ansible Galaxy cache
+    "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
+  ],
+  "remoteEnv": {
+    "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible.cfg",
+    "ANSIBLE_FORCE_COLOR": "true",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "ANSIBLE_GALAXY_CACHE_DIR": "/home/vscode/.ansible/galaxy_cache",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp",
+    // Podman-specific environment
+    "CONTAINER_ENGINE": "podman",
+    "ANSIBLE_NAVIGATOR_CONTAINER_ENGINE": "podman"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "podman-smoke-test"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

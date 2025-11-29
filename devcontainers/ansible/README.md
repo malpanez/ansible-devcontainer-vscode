@@ -9,7 +9,8 @@ A production-ready Ansible development container with hardened defaults, multipl
 - **Pre-commit hooks** automatically configured
 - **VS Code extensions** for Ansible, Python, YAML, and Docker
 - **Hardened security defaults** (opt-in for insecure modes)
-- **Multiple runtime profiles** (docker-socket, dind, insecure)
+- **Multiple runtime profiles** (docker-socket, dind, podman, insecure)
+- **Podman + Execution Environments** support for modern Ansible workflows
 
 ## Quick Start
 
@@ -101,6 +102,61 @@ This is the **recommended** profile for most use cases.
 
 > **⚠️ Security Warning:** The insecure profile disables SSH host key checking and overrides DNS.
 > Only use in isolated lab/testing environments. Never use against production systems.
+
+---
+
+### 4. podman (Podman + Execution Environments) 🚀 **Best for AAP/Collections**
+
+**File:** `devcontainer.podman.json`
+
+**When to use:**
+- Creating Ansible collections, roles, or playbooks for Ansible Automation Platform (AAP)
+- Testing with Execution Environments (the modern Ansible standard)
+- Want Podman instead of Docker (e.g., security policies, rootless preference)
+- Developing content that will run in containerized Ansible (ansible-navigator)
+
+**Characteristics:**
+- Uses **Podman** for container runtime (rootless by default)
+- Includes **ansible-navigator** for running playbooks in Execution Environments
+- Includes **ansible-builder** for creating custom Execution Environments
+- Pre-configured with `creator-ee` (official minimal EE for content creators)
+- No Docker socket dependency
+- Rootless container execution (more secure)
+
+**Select in VS Code:**
+```json
+// .devcontainer/devcontainer.json
+{
+  "extends": "../devcontainers/ansible/devcontainer.podman.json"
+}
+```
+
+**Quick Start:**
+```bash
+# Run a playbook in an Execution Environment
+ansible-navigator run playbook.yml --ee true --ce podman --mode stdout
+
+# Build a custom Execution Environment
+ansible-builder build -f execution-environment.yml -t my-ee:latest --container-runtime podman
+
+# List Podman images
+podman images
+
+# Use VS Code tasks (Ctrl+Shift+P → "Tasks: Run Task")
+```
+
+**Why Podman + EE?**
+- ✅ **AAP-compatible**: Matches Ansible Automation Platform's execution model
+- ✅ **Isolated dependencies**: Each playbook can use different Python/collection versions
+- ✅ **Reproducible**: EE images lock all dependencies
+- ✅ **Portable**: Same EE runs in dev, CI, and production
+- ✅ **Rootless**: More secure than traditional Docker
+- ✅ **Future-proof**: This is the direction Ansible is heading
+
+> **💡 Tip:** If you're creating collections or roles for AAP, start with the Podman profile.
+> It ensures your content works the same way in AAP as in your dev environment.
+
+---
 
 ## What Gets Installed
 
@@ -361,11 +417,238 @@ For lab environments (insecure):
 }
 ```
 
+For Podman + Execution Environments (AAP):
+```json
+{
+  "extends": "../devcontainers/ansible/devcontainer.podman.json"
+}
+```
+
+---
+
+## Podman + Execution Environments Guide
+
+### What are Execution Environments?
+
+Execution Environments (EEs) are containerized Ansible runtimes that include:
+- Ansible Core
+- Ansible Collections
+- Python dependencies
+- System packages
+
+They ensure consistent execution across development, CI, and production (AAP).
+
+### Creating Your First EE
+
+1. **Use the template** (already in your workspace after first container start):
+```yaml
+# execution-environment.yml
+---
+version: 3
+images:
+  base_image:
+    name: quay.io/ansible/creator-ee:v0.18.0
+
+dependencies:
+  galaxy: requirements.yml
+  # python: requirements.txt  # Uncomment if needed
+```
+
+2. **Build the EE**:
+```bash
+ansible-builder build -f execution-environment.yml -t my-custom-ee:latest --container-runtime podman
+```
+
+3. **Run a playbook with the EE**:
+```bash
+ansible-navigator run playbook.yml --ee true --ce podman --eei my-custom-ee:latest
+```
+
+### Using VS Code Tasks (Podman Profile)
+
+The Podman profile includes pre-configured tasks:
+
+1. **Press** `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+2. **Type**: `Tasks: Run Task`
+3. **Choose**:
+   - `Ansible: Lint Current File` - Lint the open playbook/role
+   - `Ansible: Run Playbook with EE` - Execute in Execution Environment
+   - `Ansible: Build Custom Execution Environment` - Build your EE
+   - `Podman: List Images` - See available images
+   - `Podman: Info` - Check Podman configuration
+
+### Troubleshooting Podman
+
+#### Issue: `podman info` fails with "permission denied"
+
+**Cause:** cgroups v2 not available or user namespaces not configured
+
+**Solution 1:** Check cgroups version
+```bash
+# Inside devcontainer
+if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+  echo "cgroups v2 ✓"
+else
+  echo "cgroups v1 - Podman may have issues"
+fi
+```
+
+**Solution 2:** Enable `--privileged` mode (temporary workaround)
+
+Edit `devcontainer.podman.json`:
+```json
+{
+  "runArgs": [
+    "--init",
+    "--userns=keep-id",
+    "--cgroupns=host",
+    "--privileged"  // Add this line
+  ]
+}
+```
+
+> **Note:** `--privileged` is a workaround for hosts with limited rootless support.
+> Most modern systems (Docker Desktop, Linux 5.x+) don't need it.
+
+---
+
+#### Issue: Storage driver errors (overlay vs fuse-overlayfs)
+
+**Symptom:**
+```
+Error: 'overlay' is not supported over overlayfs
+```
+
+**Cause:** The devcontainer is running on an overlay filesystem
+
+**Solution:** Storage is pre-configured to use `fuse-overlayfs`. If issues persist:
+
+1. Check storage configuration:
+```bash
+cat ~/.config/containers/storage.conf
+```
+
+2. Should contain:
+```ini
+[storage]
+driver = "overlay"
+
+[storage.options.overlay]
+mount_program = "/usr/bin/fuse-overlayfs"
+```
+
+3. If not, recreate the container (storage.conf is set during build)
+
+---
+
+#### Issue: "Cannot connect to Podman socket"
+
+**Symptom:**
+```
+Error: unable to connect to Podman socket
+```
+
+**Cause:** Podman is configured for rootless but socket isn't started
+
+**Solution:** The Podman profile uses rootless mode (no socket needed). If a tool requires a socket:
+
+```bash
+# Start Podman system service (inside devcontainer)
+podman system service --time=0 unix:///tmp/podman.sock &
+export DOCKER_HOST=unix:///tmp/podman.sock
+```
+
+---
+
+#### Issue: EE image pull is slow or fails
+
+**Symptom:**
+```
+Error pulling image: timeout
+```
+
+**Solutions:**
+
+1. **Pre-pull manually**:
+```bash
+podman pull quay.io/ansible/creator-ee:v0.18.0
+```
+
+2. **Use a mirror** (if behind corporate proxy):
+
+Edit `~/.config/containers/registries.conf`:
+```toml
+[[registry]]
+location = "quay.io"
+[[registry.mirror]]
+location = "your-mirror.company.com"
+```
+
+3. **Check network**:
+```bash
+podman run --rm quay.io/podman/hello:latest
+```
+
+---
+
+#### Issue: ansible-navigator can't find Podman
+
+**Symptom:**
+```
+Error: container engine 'podman' not found
+```
+
+**Solution:** Verify environment variables:
+```bash
+echo $ANSIBLE_NAVIGATOR_CONTAINER_ENGINE  # Should be "podman"
+echo $CONTAINER_ENGINE  # Should be "podman"
+
+# If not set:
+export ANSIBLE_NAVIGATOR_CONTAINER_ENGINE=podman
+```
+
+These are pre-configured in `devcontainer.podman.json` but can be overridden.
+
+---
+
+### Best Practices for EE Development
+
+1. **Lock your dependencies**:
+```yaml
+# requirements.yml
+collections:
+  - name: community.general
+    version: "9.5.0"  # Pin to specific version
+```
+
+2. **Test locally before building EE**:
+```bash
+# Install collections locally first
+ansible-galaxy collection install -r requirements.yml
+
+# Test playbook
+ansible-playbook playbook.yml --check
+```
+
+3. **Use semantic versioning for custom EEs**:
+```bash
+ansible-builder build -f execution-environment.yml -t my-ee:1.0.0
+ansible-builder build -f execution-environment.yml -t my-ee:latest
+```
+
+4. **Document your EE**:
+Add comments in `execution-environment.yml` explaining why specific collections/packages are needed.
+
+5. **Keep EEs small**:
+Only include collections you actually use. Smaller EEs = faster pulls and builds.
+
+---
+
 ## Contributing
 
 When making changes to this devcontainer:
 
-1. **Test all profiles** - Ensure docker-socket, dind, and insecure all work
+1. **Test all profiles** - Ensure docker-socket, dind, podman, and insecure all work
 2. **Update this README** - Document any new features or changes
 3. **Keep dependencies locked** - Regenerate `requirements-ansible.txt` with `uv export`
 4. **Maintain security defaults** - Don't weaken the hardened configuration without good reason
