@@ -1,0 +1,85 @@
+---
+name: Promote develop to main
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-promotion-pr:
+    name: Create PR from develop to main
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR already exists
+        id: check-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_COUNT=$(gh pr list --base main --head develop --state open --json number --jq 'length')
+          echo "pr_count=$PR_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Create promotion PR
+        if: steps.check-pr.outputs.pr_count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --base main \
+            --head develop \
+            --title "chore: promote develop to main" \
+            --body "$(cat <<'EOF'
+          ## Automated Promotion from develop to main
+
+          This PR promotes the current `develop` branch to `main` after all tests have passed.
+
+          ### What's included
+
+          All changes merged to `develop` since the last promotion, including:
+          - Feature additions
+          - Bug fixes
+          - Dependency updates
+          - Documentation improvements
+
+          ### Pre-merge checklist
+
+          - [ ] All CI checks passing
+          - [ ] No merge conflicts
+          - [ ] Reviewed recent commits in develop
+
+          ### Auto-merge
+
+          This PR will automatically merge once all required checks pass.
+
+          ---
+
+          *This PR was created automatically by the promote-to-main workflow.*
+          EOF
+          )" \
+            --label "release" \
+            --label "automation"
+
+      - name: Enable auto-merge
+        if: steps.check-pr.outputs.pr_count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Wait a moment for the PR to be fully created
+          sleep 5
+
+          # Get the PR number
+          PR_NUMBER=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')
+
+          # Enable auto-merge with squash strategy
+          gh pr merge "$PR_NUMBER" --auto --squash
