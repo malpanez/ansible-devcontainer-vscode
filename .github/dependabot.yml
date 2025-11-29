@@ -3,6 +3,7 @@ version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "daily"
       time: "04:00"
@@ -34,6 +35,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -53,6 +55,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/devcontainers/ansible"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -69,6 +72,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/devcontainers/terraform"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -85,6 +89,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/devcontainers/golang"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -101,6 +106,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/devcontainers/latex"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -117,6 +123,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/.devcontainer"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"

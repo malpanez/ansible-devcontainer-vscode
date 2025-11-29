@@ -12,11 +12,60 @@ Thanks for helping to evolve the Ansible DevContainer! This document captures th
    ansible-playbook playbooks/test-environment.yml
    ```
 
-## 2. Branching & Commits
+## 2. Branching & Git Flow Workflow
 
-- Branch from `main` using a descriptive name such as `feature/molecule-matrix` or `fix/yamllint`.
-- Keep commits focused; prefer small, reviewable slices over large batches.
-- Write clear commit messages in the present tense (e.g. `Add Molecule CI matrix for Debian and Ubuntu`).
+This repository follows a **Git Flow** strategy to protect the `main` branch and ensure stability:
+
+### Branch Structure
+
+- **`main`** - Production-ready code. Protected branch, only accepts PRs.
+- **`develop`** - Integration branch for ongoing development. All feature/fix PRs target here.
+- **Feature branches** - Created from `develop` for new features or fixes.
+
+### Naming Conventions
+
+Use descriptive branch names with prefixes:
+- `feat/description` - New features (e.g., `feat/podman-support`)
+- `fix/description` - Bug fixes (e.g., `fix/ansible-lint-errors`)
+- `chore/description` - Maintenance tasks (e.g., `chore/update-deps`)
+- `refactor/description` - Code refactoring (e.g., `refactor/devcontainer-profiles`)
+- `docs/description` - Documentation updates (e.g., `docs/contributing-guide`)
+
+### Workflow Steps
+
+1. **Create feature branch from `develop`:**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feat/your-feature-name
+   ```
+
+2. **Make changes and commit:**
+   - Keep commits focused; prefer small, reviewable slices over large batches.
+   - Write clear commit messages using [Conventional Commits](https://www.conventionalcommits.org/):
+     ```
+     feat(ansible): add Podman support for Execution Environments
+     fix(ci): resolve pre-commit dependency installation
+     chore(deps): update ansible-lint to 24.2.0
+     ```
+
+3. **Push and create PR to `develop`:**
+   ```bash
+   git push origin feat/your-feature-name
+   gh pr create --base develop --title "feat: your feature description"
+   ```
+
+4. **After PR is merged to `develop`:**
+   - If all tests pass on `develop`, a PR to `main` will be automatically created
+   - Once that PR passes all checks, it will auto-merge to `main`
+   - Dependabot PRs automatically target `develop` and follow the same flow
+
+### Important Notes
+
+- **Never push directly to `main` or `develop`** - always use pull requests
+- **All PRs must pass CI checks** before merging (linting, tests, security scans)
+- **Dependabot PRs** automatically target `develop` and will auto-merge if tests pass
+- **Release flow:** `develop` → `main` happens automatically when `develop` is stable
 
 ## 3. Code Style & Automation
 
