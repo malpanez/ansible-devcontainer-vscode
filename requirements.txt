@@ -24,9 +24,9 @@ ansible-core==2.16.14 \
     #   ansible-lint
     #   molecule
     #   pytest-ansible
-ansible-lint==25.9.2 \
-    --hash=sha256:0eea8a5d17dd328bef12e7c9b6eb8714ba03fb1af62d9c700bf46e4858d1a6a4 \
-    --hash=sha256:3a4b273b549973c62279de75374138be39b555191227b7c92944428f9d81018d
+ansible-lint==25.11.1 \
+    --hash=sha256:f81946a540dc6b4b0cb5a8b050ab3c67c2b29a12aa0a0ba8dae03a9d44670f19 \
+    --hash=sha256:f9d7ce3877eeda5c39ee70acf9b88677732fea4cfc28a005c014dfaaa8678c85
     # via ansible-navigator
 ansible-navigator==25.11.0 \
     --hash=sha256:3cf4841045025f9f3f737233d4d32a0ad7ef388e5804f4d2a22813c3f52be198 \
