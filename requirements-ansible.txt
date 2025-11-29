@@ -64,9 +64,9 @@ black==25.9.0 \
     # via
     #   ansible-devcontainer
     #   ansible-lint
-boto3==1.40.62 \
-    --hash=sha256:3dbe7e1e7dc9127a4b1f2020a14f38ffe64fad84df00623e8ab6a5d49a82ea28 \
-    --hash=sha256:f422d4ae3b278832ba807059aafa553164bce2c464cd65b24c9ea8fb8a6c4192
+boto3==1.41.5 \
+    --hash=sha256:bb278111bfb4c33dca8342bda49c9db7685e43debbfa00cc2a5eb854dd54b745 \
+    --hash=sha256:bc7806bee681dfdff2fe2b74967b107a56274f1e66ebe4d20dc8eee1ea408d17
     # via ansible-devcontainer
 botocore==1.40.62 \
     --hash=sha256:1e8e57c131597dc234d67428bda1323e8f0a687ea13ea570253159ab9256fa28 \
