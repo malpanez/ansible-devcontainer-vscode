@@ -336,8 +336,9 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 - Use the shipped `.secrets.baseline` and `pre-commit` hooks to catch accidental leaks before pushing.
 - Populate GitHub repository secrets (e.g. `TF_PM_TOKEN_ID`, `TF_PM_TOKEN_SECRET`) before enabling Terraform plans in CI.
 
-## Portfolio & Narrative
+## Documentation
 
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) – visual architecture diagrams (Mermaid) showing container build hierarchy, CI/CD pipeline, dependency management flow, and security scanning strategy.
 - `docs/PORTFOLIO.md` captures the automation story behind this repo (useful for blog posts or personal branding).
 - `docs/ROADMAP.md` lists planned enhancements such as extra Dev Containers, CV automation in LaTeX, and onboarding tooling.
 - `docs/CHANGELOG.md` tracks notable changes between releases.
