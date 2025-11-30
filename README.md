@@ -9,9 +9,9 @@
 [![uv](https://img.shields.io/badge/uv-ready-00A3FF)](https://github.com/astral-sh/uv)
 
 **Tool Versions:**
-[![Terraform](https://img.shields.io/badge/terraform-1.9.6-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Go](https://img.shields.io/badge/go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Terraform](https://img.shields.io/badge/terraform-1.14.0-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![Python](https://img.shields.io/badge/python-3.12.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Ansible](https://img.shields.io/badge/ansible-9.x-EE0000?logo=ansible)](https://www.ansible.com/)
 
 Modern, reproducible infrastructure development environments powered by VS Code Dev Containers and the `uv` Python toolchain. Open the repository in VS Code, pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in a container, and you are ready to lint, test, and ship automation from any platform (Windows + WSL2, macOS, or Linux).
@@ -78,14 +78,14 @@ This keeps developer experience consistent:
 | --- | --- | --- | --- | --- |
 | `ansible` | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume |
 | `terraform` | multi-stage Debian (bookworm tools + runtime) | ~240 MB | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher | `${workspace}/.terraform.d/plugin-cache` bind |
-| `golang` | `golang:1.22-alpine` (overrideable via `BASE_IMAGE`) | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
+| `golang` | `golang:1.25-alpine` (overrideable via `BASE_IMAGE`) | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
 | `latex` | `debian:bookworm-slim` + Tectonic | ~320 MB | Tectonic CLI, git/perl helpers, `uv` launcher | `${HOME}/.cache/tectonic` bind |
 
 ¹Sizes are indicative for `linux/amd64` and vary slightly per architecture.
 
 ## Why not distroless or Alpine?
 
-Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`—so the Python stacks stay on slim Debian / Wolfi bases. The Go stack is the exception because it only needs the Go toolchain and busybox utilities, so `golang:1.22-alpine` keeps it lightweight without impacting DX.
+Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`—so the Python stacks stay on slim Debian / Wolfi bases. The Go stack is the exception because it only needs the Go toolchain and busybox utilities, so `golang:1.25-alpine` keeps it lightweight without impacting DX.
 
 ## Image Publishing & GHCR
 
@@ -145,9 +145,11 @@ All Python dependencies for the Ansible stack live in `requirements-ansible.txt`
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Terraform | `1.9.x` | Terraform Dev Container pins `1.9.6`; CI tracks the latest patch in the 1.9 series. |
-| Terragrunt | `0.54.x` | Installed globally in the Terraform container for Terragrunt workflows. |
-| TFLint | `0.51.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
+| Terraform | `1.14.x` | Terraform Dev Container pins `1.14.0`; CI tracks the latest patch in the 1.14 series. |
+| Terragrunt | `0.93.x` | Installed globally in the Terraform container for Terragrunt workflows. |
+| TFLint | `0.60.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
+| SOPS | `3.11.x` | SOPS 3.11.0 for secrets management with age/PGP encryption. |
+| age | `1.2.1` | Age encryption tool for SOPS workflows. |
 | Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans. |
 | Ansible | `9.13.0` | Locked in `requirements-ansible.txt` / `uv.lock`; smoke playbooks enforce the version. |
 

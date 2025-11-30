@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12.12-slim-bookworm
 FROM ${PYTHON_IMAGE}
 
 # BuildKit platform arguments
@@ -13,7 +13,7 @@ LABEL description="Shared Python base layer for infrastructure devcontainers"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
-ARG UV_VERSION=0.4.21
+ARG UV_VERSION=0.9.13
 
 # Common system packages used across Python-based stacks.
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \

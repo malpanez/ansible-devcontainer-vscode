@@ -249,7 +249,6 @@ jobs:
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VCS_REF=${{ github.sha }}
-            BASE_IMAGE=python:3.12-slim-bookworm
           cache-from: type=gha,scope=${{ matrix.stack }}${{ matrix.variant }}
           cache-to: type=gha,mode=max,scope=${{ matrix.stack }}${{ matrix.variant }}
           platforms: ${{ matrix.platforms }}
