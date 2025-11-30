@@ -78,15 +78,16 @@ Use descriptive branch names with prefixes:
 
   Hooks cover whitespace, YAML validation, `ansible-lint`, `yamllint`, `ruff`, and `detect-secrets`. They should pass before every push.
 
-- Dependency changes for the Ansible stack are managed with `uv`:
+- Dependency changes for the Ansible stack are managed with `uv` and `pyproject.toml`:
 
   ```bash
-  uv add <package>
+  # Add a new dependency
+  # Edit pyproject.toml to add the package with version constraint
   uv lock
-  uv export --format requirements-txt --frozen --output requirements-ansible.txt
+  uv pip install --system .
   ```
 
-  Commit `pyproject.toml`, `uv.lock`, and the regenerated `requirements-ansible.txt`. You can also run `ansible-playbook playbooks/update-dependencies.yml` to refresh everything in one step (supports proxy overrides via `uv_http_proxy`, `uv_https_proxy`, etc.).
+  Commit both `pyproject.toml` and `uv.lock`. You can also run `ansible-playbook playbooks/update-dependencies.yml` to refresh the lockfile in one step (supports proxy overrides via `uv_http_proxy`, `uv_https_proxy`, etc.).
 
 - Python formatting and linting are managed by `ruff` and `black`. Ansible/YAML files must stay compliant with the repo’s `.ansible-lint` and `.yamllint` configs.
 
