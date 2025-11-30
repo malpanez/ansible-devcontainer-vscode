@@ -9,16 +9,16 @@
 [![uv](https://img.shields.io/badge/uv-ready-00A3FF)](https://github.com/astral-sh/uv)
 
 **Tool Versions:**
-[![Terraform](https://img.shields.io/badge/terraform-1.14.0-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![Python](https://img.shields.io/badge/python-3.12.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Terraform](https://img.shields.io/badge/terraform-1.9.6-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Ansible](https://img.shields.io/badge/ansible-9.x-EE0000?logo=ansible)](https://www.ansible.com/)
 
 Modern, reproducible infrastructure development environments powered by VS Code Dev Containers and the `uv` Python toolchain. Open the repository in VS Code, pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in a container, and you are ready to lint, test, and ship automation from any platform (Windows + WSL2, macOS, or Linux).
 
 ## Highlights
 
-- ⚡ **uv-first Python workflow** – dependency installs are fast and reproducible via `uv pip install --system --requirement requirements-ansible.txt` for the Ansible stack.
+- ⚡ **uv-first Python workflow** – dependency installs are fast and reproducible via `uv pip install --system .` using `pyproject.toml` for the Ansible stack.
 - 🐳 **Dev Container ready** – Dockerfile, features, extensions, and VS Code settings ship in the repo.
 - 🤖 **Automation via Ansible** – `playbooks/setup-workspace.yml` provisions the container with roles for base OS tweaks, Ansible tooling, Python testing tools, and editor config.
 - 🧩 **Multi-stack templates** – ship Ansible, Terraform, Golang, and LaTeX workspaces side-by-side; switch with a single helper script.
@@ -78,18 +78,29 @@ This keeps developer experience consistent:
 | --- | --- | --- | --- | --- |
 | `ansible` | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume |
 | `terraform` | multi-stage Debian (bookworm tools + runtime) | ~240 MB | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher | `${workspace}/.terraform.d/plugin-cache` bind |
-| `golang` | `golang:1.25-alpine` (overrideable via `BASE_IMAGE`) | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
+| `golang` | `golang:1.23-alpine` (overrideable via `BASE_IMAGE`) | ~210 MB | Go toolchain, git, `uv` launcher, sudo minimal | Go module & build caches |
 | `latex` | `debian:bookworm-slim` + Tectonic | ~320 MB | Tectonic CLI, git/perl helpers, `uv` launcher | `${HOME}/.cache/tectonic` bind |
 
 ¹Sizes are indicative for `linux/amd64` and vary slightly per architecture.
 
 ## Why not distroless or Alpine?
 
-Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`—so the Python stacks stay on slim Debian / Wolfi bases. The Go stack is the exception because it only needs the Go toolchain and busybox utilities, so `golang:1.25-alpine` keeps it lightweight without impacting DX.
+Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`—so the Python stacks stay on slim Debian / Wolfi bases. The Go stack is the exception because it only needs the Go toolchain and busybox utilities, so `golang:1.23-alpine` keeps it lightweight without impacting DX.
 
 ## Image Publishing & GHCR
 
-This repository publishes one image per stack (`devcontainer-ansible`, `devcontainer-terraform`, `devcontainer-golang`, `devcontainer-latex`). Tag pushes (via `.github/workflows/release.yml`) build every image for `linux/amd64` and `linux/arm64` (LaTeX ships on `amd64` only), upload build caches, and push both `:latest` and `:<tag>` variants to GHCR. The Ansible image accepts a `BASE_IMAGE` build arg so you can swap between `python:3.12-slim-bookworm` and `ghcr.io/chainguard-images/python:latest` without touching the Dockerfile.
+This repository publishes six container images to GHCR:
+
+| Image | Variants | Platforms | Purpose |
+|-------|----------|-----------|---------|
+| `devcontainer-base` | `py312` | amd64, arm64 | Shared Python 3.12 base layer with uv and pre-commit |
+| `devcontainer-ansible` | `latest` | amd64, arm64 | Standard Ansible environment |
+| `devcontainer-ansible-podman` | `latest` | amd64, arm64 | Ansible + Podman for rootless container workflows |
+| `devcontainer-terraform` | `latest` | amd64, arm64 | Terraform + Terragrunt + TFLint + SOPS + age |
+| `devcontainer-golang` | `latest` | amd64, arm64 | Go development environment |
+| `devcontainer-latex` | `latest` | amd64 only | LaTeX with Tectonic engine |
+
+Tag pushes (via `.github/workflows/release.yml`) and pushes to `main` trigger multi-arch builds, upload build caches, and push both `:latest` and `:<tag>` (for releases) or `:sha-<commit>` (for main branch) variants to GHCR.
 
 > **Security hygiene** – `.github/workflows/build-containers.yml` runs on a weekly schedule so GHCR images automatically pick up Debian security fixes (`apt full-upgrade`) and refreshed tooling even when the repository is quiet.
 
@@ -139,19 +150,17 @@ The table below outlines the tooling shipped with the Ansible stack; Terraform i
 | VS Code | Recommended extensions, workspace settings, and tasks delivered by the `vscode_config` role |
 | Terraform | Terraform CLI, Terragrunt, TFLint, Checkov (Dev Container installs; CI mirrors tooling) |
 
-All Python dependencies for the Ansible stack live in `requirements-ansible.txt` (referenced by a thin `requirements.txt` wrapper) and are installed system-wide in the container with `uv`. If you prefer an isolated virtual environment, run `uv venv .venv && uv pip install -r requirements-ansible.txt` inside the container; VS Code will automatically pick up `.venv` thanks to the defaults in `.vscode/settings.json`. Other stacks install only the tooling they need (for example, Terraform pins Terraform/Terragrunt/TFLint via the Dockerfile and installs Checkov with `uv pip install "checkov>=3.0.0,<4.0.0"`).
+All Python dependencies for the Ansible stack are declared in `pyproject.toml` and locked in `uv.lock`. The container installs them system-wide with `uv pip install --system .` during build. If you prefer an isolated virtual environment, run `uv venv .venv && uv pip install -e .` inside the container; VS Code will automatically pick up `.venv` thanks to the defaults in `.vscode/settings.json`. Other stacks install only the tooling they need (for example, Terraform pins Terraform/Terragrunt/TFLint via the Dockerfile and installs Checkov with `uv pip install "checkov>=3.0.0,<4.0.0"`).
 
 ## Pinned Tool Versions
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Terraform | `1.14.x` | Terraform Dev Container pins `1.14.0`; CI tracks the latest patch in the 1.14 series. |
-| Terragrunt | `0.93.x` | Installed globally in the Terraform container for Terragrunt workflows. |
-| TFLint | `0.60.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
-| SOPS | `3.11.x` | SOPS 3.11.0 for secrets management with age/PGP encryption. |
-| age | `1.2.1` | Age encryption tool for SOPS workflows. |
+| Terraform | `1.9.x` | Terraform Dev Container pins `1.9.6`; CI tracks the latest patch in the 1.9 series. |
+| Terragrunt | `0.67.x` | Installed globally in the Terraform container for Terragrunt workflows. |
+| TFLint | `0.54.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
 | Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans. |
-| Ansible | `9.13.0` | Locked in `requirements-ansible.txt` / `uv.lock`; smoke playbooks enforce the version. |
+| Ansible | `9.13.0` | Locked in `uv.lock` via `pyproject.toml`; smoke playbooks enforce the version. |
 
 Update this table whenever you bump toolchains so contributors stay aligned with CI.
 
@@ -197,11 +206,12 @@ All jobs use Python 3.12 on `ubuntu-latest`. The shared toolchain mirrors the De
 ├── .devcontainer/           # Dockerfile + devcontainer.json (uv-enabled)
 ├── .github/workflows/       # CI/CD pipelines
 ├── .vscode/                 # Local workspace defaults
+├── devcontainers/           # Stack-specific Dockerfiles (ansible, terraform, golang, latex)
 ├── inventory/               # Sample localhost inventory
 ├── playbooks/               # Ansible playbooks (setup + verification)
 ├── roles/                   # Role-based workspace provisioning
-├── requirements-ansible.txt # Ansible stack Python dependencies consumed via uv
-├── requirements.txt         # Compatibility wrapper referencing requirements-ansible.txt
+├── pyproject.toml           # Python dependencies (Ansible stack)
+├── uv.lock                  # Locked dependency versions
 ├── requirements.yml         # Ansible collections
 └── docs/                   # Documentation (bootstrap guides, roadmap, quick starts)
 ```
@@ -257,7 +267,7 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
   }
   ```
 - Use `inventory/cloud-example.yml` as a starting point for remote or cloud inventories; copy it, replace the placeholder host data, and point `ANSIBLE_INVENTORY` (or update `ansible.cfg`) to the new file.
-- Update `requirements-ansible.txt` and re-run `uv pip install --system --requirement requirements-ansible.txt` to add Python tooling (Molecule/Testinfra depends on `pytest-testinfra`, already included).
+- Update `pyproject.toml` dependencies and re-run `uv lock && uv pip install --system .` to add Python tooling (Molecule/Testinfra depends on `pytest-testinfra`, already included).
 - Add collections to `requirements.yml` and rerun `ansible-galaxy collection install -r requirements.yml`.
 - Adjust VS Code defaults by editing the templates under `roles/vscode_config/templates/` so the changes apply to every workspace bootstrap.
 - Use `playbooks/setup-workspace.yml --tags …` to run only selected roles (e.g. `--tags vscode` to refresh editor settings).
@@ -290,14 +300,14 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 
 ## Dependency Management
 
-- Dependencies are defined in `pyproject.toml` and locked via `uv.lock`. Run `uv lock && uv export --format requirements-txt --frozen --output requirements-ansible.txt` whenever you add or upgrade packages.
-- Installations in the Dev Container and CI still consume `requirements-ansible.txt` (plus the lightweight `requirements.txt` wrapper) so downstream users without `uv` can keep using pip.
+- Dependencies are defined in `pyproject.toml` and locked via `uv.lock`. Run `uv lock` whenever you add or upgrade packages.
+- Installations in the Dev Container and CI use `uv pip install --system .` directly from `pyproject.toml`, letting `uv` handle dependency resolution automatically.
 - To test upgrades locally:
   ```bash
   uv lock --upgrade package_name
-  uv export --format requirements-txt --frozen --output requirements-ansible.txt
+  uv pip install --system .
   ```
-  Commit both `uv.lock` and the regenerated `requirements-ansible.txt`.
+  Commit `uv.lock` and the updated `pyproject.toml`.
 - You can automate the lock refresh with `ansible-playbook playbooks/update-dependencies.yml`. Pass `uv_http_proxy`, `uv_https_proxy`, `uv_index_url`, or `uv_no_proxy` as extra vars when running behind a corporate proxy.
 
 ## Testing
@@ -308,7 +318,7 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 - `./scripts/run-smoke-tests.sh` – convenience wrapper around `playbooks/test-environment.yml`; pass extra args to forward flags (e.g. `--check`).
 - `./scripts/run-terraform-tests.sh` – formats (`terraform fmt -check`) and validates every Terraform module under `infrastructure/` (skips gracefully when no configs exist). Modules that depend on private providers (for example `infrastructure/proxmox_lab`) are skipped automatically in CI so they can be tested manually when the provider binaries are available.
 - `.trivyignore` documents the temporary CVE allowlist applied to vendor-supplied Terraform tooling (age/sops/terragrunt/tflint). We keep the list short and revisit it whenever upstream ships patched binaries.
-- `ansible-playbook playbooks/update-dependencies.yml` – regenerates `uv.lock` and `requirements-ansible.txt`.
+- `ansible-playbook playbooks/update-dependencies.yml` – regenerates `uv.lock` from `pyproject.toml`.
 - `molecule test` – full integration verification.
   Run `molecule test --scenario-name latex` to exercise the MiKTeX ↔ TeX Live toggle specifically.
 - `tflint --init && tflint` – optional Terraform lint (configure rules in `infrastructure/.tflint.hcl`).
@@ -326,8 +336,9 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 - Use the shipped `.secrets.baseline` and `pre-commit` hooks to catch accidental leaks before pushing.
 - Populate GitHub repository secrets (e.g. `TF_PM_TOKEN_ID`, `TF_PM_TOKEN_SECRET`) before enabling Terraform plans in CI.
 
-## Portfolio & Narrative
+## Documentation
 
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) – visual architecture diagrams (Mermaid) showing container build hierarchy, CI/CD pipeline, dependency management flow, and security scanning strategy.
 - `docs/PORTFOLIO.md` captures the automation story behind this repo (useful for blog posts or personal branding).
 - `docs/ROADMAP.md` lists planned enhancements such as extra Dev Containers, CV automation in LaTeX, and onboarding tooling.
 - `docs/CHANGELOG.md` tracks notable changes between releases.

@@ -1,6 +1,15 @@
 ---
 name: Promote develop to main
 
+# This workflow automatically creates a PR from develop to main when changes are pushed to develop.
+# It uses continue-on-error to handle cases where GitHub Actions doesn't have permission to create PRs.
+#
+# To enable full automation, go to:
+# Settings → Actions → General → Workflow permissions
+# Enable: "Allow GitHub Actions to create and approve pull requests"
+#
+# Without this setting, you can still manually create the PR and this workflow will attempt to enable auto-merge.
+
 on:
   push:
     branches:
@@ -31,7 +40,9 @@ jobs:
           echo "pr_count=$PR_COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Create promotion PR
+        id: create-pr
         if: steps.check-pr.outputs.pr_count == '0'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -68,16 +79,24 @@ jobs:
           EOF
           )"
 
-      - name: Enable auto-merge
-        if: steps.check-pr.outputs.pr_count == '0'
+      - name: Wait for PR to be ready
+        if: steps.check-pr.outputs.pr_count == '0' && steps.create-pr.outcome == 'success'
+        run: sleep 5
+
+      - name: Enable auto-merge on promotion PR
+        if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Wait a moment for the PR to be fully created
-          sleep 5
-
-          # Get the PR number
+          # Get the PR number (works whether we just created it or it already exists)
           PR_NUMBER=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')
 
-          # Enable auto-merge with squash strategy
-          gh pr merge "$PR_NUMBER" --auto --squash
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR #$PR_NUMBER from develop to main"
+            # Enable auto-merge with squash strategy
+            gh pr merge "$PR_NUMBER" --auto --squash || echo "Auto-merge might already be enabled or permissions insufficient"
+          else
+            echo "No open PR found from develop to main"
+            exit 0
+          fi
