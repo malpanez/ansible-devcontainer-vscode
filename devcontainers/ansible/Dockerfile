@@ -48,12 +48,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Install uv with pinned version for reproducibility
 RUN curl -fsSL https://astral.sh/uv/${UV_VERSION}/install.sh | sh
 
-COPY requirements-ansible.txt /tmp/requirements-ansible.txt
+COPY pyproject.toml /tmp/pyproject.toml
 
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv pip install --system -r /tmp/requirements-ansible.txt \
-    && uv pip install --system pre-commit \
-    && rm -f /tmp/requirements-ansible.txt
+    cd /tmp \
+    && uv pip install --system . \
+    && rm -f /tmp/pyproject.toml
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
