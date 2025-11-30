@@ -4,11 +4,13 @@
 # Strategy: Use official Podman binaries + Python slim base for maximum compatibility
 # and minimal maintenance burden.
 
+# Global build arguments must be declared before the first FROM
+ARG BASE_IMAGE=python:3.12-slim-bookworm
+
 # Stage 1: Get Podman binaries and configuration from official image
 FROM quay.io/containers/podman:v5.3.1 AS podman-source
 
 # Stage 2: Build our Ansible devcontainer with Podman support
-ARG BASE_IMAGE=python:3.12-slim-bookworm
 FROM ${BASE_IMAGE}
 
 ARG TARGETPLATFORM
