@@ -1,0 +1,78 @@
+---
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  # Python toolchain
+  - name: 'Python binary exists'
+    path: '/usr/local/bin/python3'
+    shouldExist: true
+
+  # uv package manager
+  - name: 'uv binary installed'
+    path: '/usr/bin/uv'
+    shouldExist: true
+
+  # Ansible tools
+  - name: 'ansible binary exists'
+    path: '/usr/local/bin/ansible'
+    shouldExist: true
+
+  - name: 'ansible-playbook exists'
+    path: '/usr/local/bin/ansible-playbook'
+    shouldExist: true
+
+  # Pre-commit template
+  - name: 'Pre-commit config template'
+    path: '/usr/local/share/devcontainer-skel/ansible/.pre-commit-config.yaml'
+    shouldExist: true
+
+  - name: 'Workspace directory'
+    path: '/workspace'
+    shouldExist: true
+    isDirectory: true
+
+commandTests:
+  # Python version
+  - name: 'Python 3.12 available'
+    command: 'python3'
+    args: ['--version']
+    expectedOutput: ['Python 3.12']
+
+  # uv works
+  - name: 'uv functional'
+    command: 'uv'
+    args: ['--version']
+    exitCode: 0
+
+  # Ansible version
+  - name: 'Ansible installed'
+    command: 'ansible'
+    args: ['--version']
+    expectedOutput: ['ansible']
+
+  # Pre-commit available
+  - name: 'pre-commit available'
+    command: 'pre-commit'
+    args: ['--version']
+    expectedOutput: ['pre-commit']
+
+  # Workspace writable
+  - name: 'Workspace writable'
+    command: 'sh'
+    args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
+    exitCode: 0
+
+metadataTest:
+  labels:
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
+
+  env:
+    - key: 'DEVCONTAINER_STACK'
+      value: 'ansible'
+    - key: 'WORKSPACE'
+      value: '/workspace'
+
+  workdir: '/workspace'
+  cmd: ['/bin/bash']
+  user: 'vscode'

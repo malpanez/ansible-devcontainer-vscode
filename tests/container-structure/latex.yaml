@@ -1,0 +1,64 @@
+---
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  # Tectonic LaTeX engine
+  - name: 'tectonic binary'
+    path: '/usr/local/bin/tectonic'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  # uv package manager
+  - name: 'uv binary'
+    path: '/usr/local/bin/uv'
+    shouldExist: true
+
+  # Pre-commit template
+  - name: 'Pre-commit template'
+    path: '/usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml'
+    shouldExist: true
+
+  - name: 'Workspace directory'
+    path: '/workspace'
+    shouldExist: true
+
+  - name: 'Tectonic cache directory'
+    path: '/home/vscode/.cache/Tectonic'
+    shouldExist: true
+    isDirectory: true
+
+commandTests:
+  # Tectonic version
+  - name: 'Tectonic version'
+    command: 'tectonic'
+    args: ['--version']
+    expectedOutput: ['Tectonic 0.15']
+
+  # uv functional
+  - name: 'uv functional'
+    command: 'uv'
+    args: ['--version']
+    exitCode: 0
+
+  # Workspace writable
+  - name: 'Workspace writable'
+    command: 'sh'
+    args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
+    exitCode: 0
+
+metadataTest:
+  labels:
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
+
+  env:
+    - key: 'DEVCONTAINER_STACK'
+      value: 'latex'
+    - key: 'WORKSPACE'
+      value: '/workspace'
+    - key: 'TECTONIC_CACHE_DIR'
+      value: '/home/vscode/.cache/Tectonic'
+
+  workdir: '/workspace'
+  cmd: ['/bin/bash']
+  user: 'vscode'
