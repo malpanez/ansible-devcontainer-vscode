@@ -1,0 +1,106 @@
+---
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  # Terraform toolchain
+  - name: 'terraform binary'
+    path: '/usr/local/bin/terraform'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  - name: 'terragrunt binary'
+    path: '/usr/local/bin/terragrunt'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  - name: 'tflint binary'
+    path: '/usr/local/bin/tflint'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  - name: 'sops binary'
+    path: '/usr/local/bin/sops'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  - name: 'age binary'
+    path: '/usr/local/bin/age'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  - name: 'age-keygen binary'
+    path: '/usr/local/bin/age-keygen'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  # uv package manager
+  - name: 'uv binary'
+    path: '/usr/local/bin/uv'
+    shouldExist: true
+
+  # Pre-commit template
+  - name: 'Pre-commit template'
+    path: '/usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml'
+    shouldExist: true
+
+  - name: 'Workspace directory'
+    path: '/workspace'
+    shouldExist: true
+
+commandTests:
+  # Terraform version
+  - name: 'Terraform version'
+    command: 'terraform'
+    args: ['version']
+    expectedOutput: ['Terraform v1.14']
+
+  # Terragrunt version
+  - name: 'Terragrunt version'
+    command: 'terragrunt'
+    args: ['--version']
+    expectedOutput: ['terragrunt version v0.93']
+
+  # TFLint version
+  - name: 'TFLint version'
+    command: 'tflint'
+    args: ['--version']
+    expectedOutput: ['TFLint version 0.60']
+
+  # SOPS functional
+  - name: 'SOPS functional'
+    command: 'sops'
+    args: ['--version']
+    expectedOutput: ['sops 3.11']
+
+  # age functional
+  - name: 'age functional'
+    command: 'age'
+    args: ['--version']
+    expectedOutput: ['v1.2.1']
+
+  # uv works
+  - name: 'uv functional'
+    command: 'uv'
+    args: ['--version']
+    exitCode: 0
+
+  # Workspace writable
+  - name: 'Workspace writable'
+    command: 'sh'
+    args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
+    exitCode: 0
+
+metadataTest:
+  labels:
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
+
+  env:
+    - key: 'DEVCONTAINER_STACK'
+      value: 'terraform'
+    - key: 'WORKSPACE'
+      value: '/workspace'
+
+  workdir: '/workspace'
+  cmd: ['/bin/bash']
+  user: 'vscode'

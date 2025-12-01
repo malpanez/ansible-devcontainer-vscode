@@ -13,6 +13,7 @@ ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
 COPY devcontainers/terraform/install_age.sh /tmp/install_age.sh
 
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -40,7 +41,7 @@ RUN set -eux; \
     curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${ARCH}" \
       -o /tmp/bin/sops; \
     chmod +x /tmp/bin/sops; \
-    /bin/bash /tmp/install_age.sh ${AGE_VERSION} ${ARCH};
+    /bin/bash /tmp/install_age.sh "${AGE_VERSION}" "${ARCH}";
 
 FROM ${BASE_IMAGE}
 
@@ -63,6 +64,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=terraform \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -74,6 +76,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform

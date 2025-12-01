@@ -16,6 +16,7 @@ ENV UV_LINK_MODE=copy
 ARG UV_VERSION=0.9.13
 
 # Common system packages used across Python-based stacks.
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     apt-get update \

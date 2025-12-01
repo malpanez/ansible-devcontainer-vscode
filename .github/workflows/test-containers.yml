@@ -1,0 +1,120 @@
+---
+name: Container Structure Tests
+
+on:
+  pull_request:
+    paths:
+      - 'devcontainers/**'
+      - 'tests/container-structure/**'
+      - '.github/workflows/test-containers.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'devcontainers/**'
+      - 'tests/container-structure/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect Changed Stacks
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.filter.outputs.changes }}
+      any_changed: ${{ steps.filter.outputs.any_changed }}
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Detect changes
+        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a  # v3.0.1
+        id: filter
+        with:
+          filters: |
+            golang:
+              - 'devcontainers/golang/**'
+              - 'tests/container-structure/golang.yaml'
+            ansible:
+              - 'devcontainers/ansible/**'
+              - 'devcontainers/base/**'
+              - 'tests/container-structure/ansible.yaml'
+            terraform:
+              - 'devcontainers/terraform/**'
+              - 'tests/container-structure/terraform.yaml'
+            latex:
+              - 'devcontainers/latex/**'
+              - 'tests/container-structure/latex.yaml'
+
+  test-containers:
+    name: Test ${{ matrix.stack }} Container
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.detect-changes.outputs.stacks) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5  # v3.10.0
+
+      - name: Build ${{ matrix.stack }} container
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355  # v6.10.0
+        with:
+          context: .
+          file: devcontainers/${{ matrix.stack }}/Dockerfile
+          push: false
+          load: true
+          tags: test-${{ matrix.stack }}:latest
+          cache-from: type=gha,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+
+      - name: Install container-structure-test
+        run: |
+          curl -fsSL https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64 \
+            -o /usr/local/bin/container-structure-test
+          chmod +x /usr/local/bin/container-structure-test
+
+      - name: Run structure tests for ${{ matrix.stack }}
+        run: |
+          container-structure-test test \
+            --image test-${{ matrix.stack }}:latest \
+            --config tests/container-structure/${{ matrix.stack }}.yaml \
+            --output junit \
+            --test-report test-results-${{ matrix.stack }}.xml
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@82082dac68ad6a19d980f8ce817e108b9f496c2a  # v2.18.0
+        with:
+          files: test-results-*.xml
+          check_name: Container Tests (${{ matrix.stack }})
+
+      - name: Get image size
+        if: always()
+        run: |
+          SIZE=$(docker images test-${{ matrix.stack }} --format "{{.Size}}")
+          echo "📦 **${{ matrix.stack }}** image size: \`$SIZE\`" >> $GITHUB_STEP_SUMMARY
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: test-containers
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Container Structure Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All container structure tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Results**: ${{ needs.test-containers.result }}" >> $GITHUB_STEP_SUMMARY
