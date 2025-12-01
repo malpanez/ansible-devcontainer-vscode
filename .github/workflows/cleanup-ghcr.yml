@@ -30,7 +30,7 @@ jobs:
           - devcontainer-latex
     steps:
       - name: Delete untagged container versions
-        uses: actions/delete-package-versions@v5
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55  # v5.1.0
         with:
           package-name: ${{ matrix.image }}
           package-type: container
@@ -51,7 +51,7 @@ jobs:
           - devcontainer-latex
     steps:
       - name: Delete old SHA-tagged versions (keep last 10)
-        uses: actions/delete-package-versions@v5
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55  # v5.1.0
         with:
           package-name: ${{ matrix.image }}
           package-type: container
@@ -72,7 +72,7 @@ jobs:
           - devcontainer-latex
     steps:
       - name: Delete old branch-tagged versions (keep last 5)
-        uses: actions/delete-package-versions@v5
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55  # v5.1.0
         with:
           package-name: ${{ matrix.image }}
           package-type: container
