@@ -1004,9 +1004,9 @@ ruff==0.14.7 \
     --hash=sha256:f217ed871e4621ea6128460df57b19ce0580606c23aeab50f5de425d05226784 \
     --hash=sha256:f53accc02ed2d200fa621593cdb3c1ae06aa9b2c3cae70bc96f72f0000ae97a9
     # via ansible-devcontainer
-s3transfer==0.16.0 \
-    --hash=sha256:18e25d66fed509e3868dc1572b3f427ff947dd2c56f844a5bf09481ad3f3b2fe \
-    --hash=sha256:8e990f13268025792229cd52fa10cb7163744bf56e719e0b9cb925ab79abf920
+s3transfer==0.15.0 \
+    --hash=sha256:6f8bf5caa31a0865c4081186689db1b2534cef721d104eb26101de4b9d6a5852 \
+    --hash=sha256:d36fac8d0e3603eff9b5bfa4282c7ce6feb0301a633566153cbd0b93d11d8379
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2' \
     --hash=sha256:2a88b337ac46ad0f06f557b2806c3df62421972f766673dd8bf26732fb75a9ea \
