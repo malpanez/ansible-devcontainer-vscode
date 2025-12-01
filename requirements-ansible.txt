@@ -68,9 +68,9 @@ boto3==1.42.0 \
     --hash=sha256:9c67729a6112b7dced521ea70b0369fba138e89852b029a7876041cd1460c084 \
     --hash=sha256:af32b7f61dd6293cad728ec205bcb3611ab1bf7b7dbccfd0f2bd7b9c9af96039
     # via ansible-devcontainer
-botocore==1.41.5 \
-    --hash=sha256:0367622b811597d183bfcaab4a350f0d3ede712031ce792ef183cabdee80d3bf \
-    --hash=sha256:3fef7fcda30c82c27202d232cfdbd6782cb27f20f8e7e21b20606483e66ee73a
+botocore==1.41.6 \
+    --hash=sha256:08fe47e9b306f4436f5eaf6a02cb6d55c7745d13d2d093ce5d917d3ef3d3df75 \
+    --hash=sha256:963cc946e885acb941c96e7d343cb6507b479812ca22566ceb3e9410d0588de0
     # via
     #   ansible-devcontainer
     #   boto3
