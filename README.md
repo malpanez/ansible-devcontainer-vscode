@@ -3,9 +3,11 @@
 [![CI Pipeline](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/ci.yml)
 [![Build Containers](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
+[![Code Quality](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml)
 [![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](https://github.com/malpanez/ansible-devcontainer-vscode/issues)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
+[![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 [![uv](https://img.shields.io/badge/uv-ready-00A3FF)](https://github.com/astral-sh/uv)
 
 **Tool Versions:**
