@@ -24,6 +24,9 @@ on:
       - 'devcontainers/**'
       - '.github/workflows/build-containers.yml'
 
+permissions:
+  contents: read
+
 jobs:
   build-single:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.stack != 'all'
