@@ -32,7 +32,7 @@ jobs:
             };
 
       - name: Wait for status checks
-        uses: lewagon/wait-on-check-action@e1f1b01f985ee71d799beca42d089f840ec4551a  # v1.4.1
+        uses: lewagon/wait-on-check-action@3603e826ee561ea102b58accb5ea55a1a7482343  # v1.4.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           running-workflow-name: 'Enable Auto-Merge'
