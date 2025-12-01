@@ -40,7 +40,7 @@ RUN set -eux; \
     curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${ARCH}" \
       -o /tmp/bin/sops; \
     chmod +x /tmp/bin/sops; \
-    /bin/bash /tmp/install_age.sh ${AGE_VERSION} ${ARCH};
+    /bin/bash /tmp/install_age.sh "${AGE_VERSION}" "${ARCH}";
 
 FROM ${BASE_IMAGE}
 
@@ -74,6 +74,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform

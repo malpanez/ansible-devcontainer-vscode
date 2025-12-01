@@ -35,6 +35,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     ARCH="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     case "${ARCH}" in \
@@ -53,6 +54,7 @@ RUN set -eux; \
     install -m 0755 "${SRC}" /usr/local/bin/tectonic; \
     rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
 ARG USERNAME=vscode
