@@ -21,11 +21,12 @@ ENV UV_INSTALL_DIR=/usr/local/bin \
     GOPATH=/home/vscode/go
 
 RUN apk add --no-cache \
-      bash \
-      curl \
-      git \
-      sudo
+      bash=~5 \
+      curl=~8 \
+      git=~2 \
+      sudo=~1
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
 ARG USERNAME=vscode
