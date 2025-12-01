@@ -2,86 +2,172 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Ansible: Lint All",
+      "label": "Run Pre-commit (All Files)",
       "type": "shell",
-      "command": "ansible-lint --profile production",
+      "command": "uvx pre-commit run --all-files",
       "problemMatcher": [],
       "group": {
-        "kind": "build",
+        "kind": "test",
         "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
       }
     },
     {
-      "label": "Ansible: Syntax Check",
+      "label": "Lint Ansible Playbooks",
       "type": "shell",
-      "command": "ansible-playbook playbooks/*.yml --syntax-check",
-      "problemMatcher": []
+      "command": "ansible-lint",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "YAML: Lint All",
+      "label": "Test Ansible Environment",
       "type": "shell",
-      "command": "yamllint .",
-      "problemMatcher": []
+      "command": "ansible-playbook playbooks/test-environment.yml",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Smoke Tests",
+      "label": "Run Molecule Test (Default)",
       "type": "shell",
-      "command": "./scripts/run-smoke-tests.sh",
-      "problemMatcher": []
+      "command": "molecule test --scenario-name default",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Molecule: Test",
+      "label": "Build Devcontainer (Ansible)",
       "type": "shell",
-      "command": "molecule test",
-      "problemMatcher": []
+      "command": "./scripts/smoke-devcontainer-image.sh --stack ansible --build",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Devcontainer: Build All",
+      "label": "Build Devcontainer (Terraform)",
       "type": "shell",
-      "command": "./scripts/check-devcontainer.sh",
-      "problemMatcher": []
+      "command": "./scripts/smoke-devcontainer-image.sh --stack terraform --build",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Ansible: ansible-test sanity",
+      "label": "Build Devcontainer (Golang)",
       "type": "shell",
-      "command": "./scripts/run-ansible-tests.sh",
-      "problemMatcher": []
+      "command": "./scripts/smoke-devcontainer-image.sh --stack golang --build",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Pre-commit: Run All",
+      "label": "Build Devcontainer (LaTeX)",
       "type": "shell",
-      "command": "pre-commit run --all-files",
-      "problemMatcher": []
+      "command": "./scripts/smoke-devcontainer-image.sh --stack latex --build",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Terraform: Validate",
+      "label": "Update Dependencies (uv lock)",
       "type": "shell",
-      "command": "./scripts/run-terraform-tests.sh",
-      "problemMatcher": []
+      "command": "uv lock --upgrade && uv export --format requirements-txt --frozen > requirements.txt",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Devcontainer: Rebuild Ansible",
+      "label": "Run Python Tests",
       "type": "shell",
-      "command": "devcontainer build --workspace-folder devcontainers/ansible --config devcontainer.json",
-      "problemMatcher": []
+      "command": "python -m pytest tests/ --verbose",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Devcontainer: Rebuild Terraform",
+      "label": "Check Workflow Syntax",
       "type": "shell",
-      "command": "devcontainer build --workspace-folder devcontainers/terraform --config devcontainer.json",
-      "problemMatcher": []
+      "command": "yamllint .github/workflows/",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Devcontainer: Rebuild Golang",
+      "label": "Lint All Dockerfiles",
       "type": "shell",
-      "command": "devcontainer build --workspace-folder devcontainers/golang --config devcontainer.json",
-      "problemMatcher": []
+      "command": "for dockerfile in devcontainers/*/Dockerfile*; do echo \"Linting $dockerfile\" && docker run --rm -i hadolint/hadolint < \"$dockerfile\"; done",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     },
     {
-      "label": "Devcontainer: Rebuild LaTeX",
+      "label": "Security Scan (Trivy)",
       "type": "shell",
-      "command": "devcontainer build --workspace-folder devcontainers/latex --config devcontainer.json",
-      "problemMatcher": []
+      "command": "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):/workspace aquasec/trivy:latest fs --scanners vuln,secret --severity CRITICAL,HIGH /workspace",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Run All Quality Checks",
+      "type": "shell",
+      "command": "uvx pre-commit run --all-files && ansible-lint && yamllint .",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Git: Create Feature Branch",
+      "type": "shell",
+      "command": "read -p 'Branch name (feat/): ' branch && git checkout -b feat/$branch develop",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     }
   ]
 }

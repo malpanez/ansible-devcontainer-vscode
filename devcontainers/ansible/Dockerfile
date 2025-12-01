@@ -46,13 +46,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv with pinned version for reproducibility
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://astral.sh/uv/${UV_VERSION}/install.sh | sh
 
 COPY pyproject.toml /tmp/pyproject.toml
 
+WORKDIR /tmp
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    cd /tmp \
-    && uv pip install --system . \
+    uv pip install --system . \
     && rm -f /tmp/pyproject.toml
 
 ARG USERNAME=vscode
