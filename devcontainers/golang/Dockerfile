@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG BASE_IMAGE=golang:1.25-alpine
+ARG BASE_IMAGE=golang:1.25.4-alpine
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE="unknown"
@@ -21,11 +21,12 @@ ENV UV_INSTALL_DIR=/usr/local/bin \
     GOPATH=/home/vscode/go
 
 RUN apk add --no-cache \
-      bash \
-      curl \
-      git \
-      sudo
+      bash=~5 \
+      curl=~8 \
+      git=~2 \
+      sudo=~1
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
 
 ARG USERNAME=vscode
