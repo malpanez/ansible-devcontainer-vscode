@@ -27,6 +27,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install system dependencies
 # Note: git is installed via apt (no feature git:1) to keep it simple
 # Note: NOT installing tini since we use --init in runArgs
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \

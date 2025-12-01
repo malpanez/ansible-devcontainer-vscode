@@ -23,6 +23,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel \
     TECTONIC_CACHE_DIR=/home/vscode/.cache/Tectonic
 
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
