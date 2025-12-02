@@ -694,9 +694,9 @@ pytest==9.0.1 \
     #   pytest-sugar
     #   pytest-testinfra
     #   pytest-xdist
-pytest-ansible==25.11.1 \
-    --hash=sha256:2d810bc6b1d35df6bcd5e6c3598af1b505e37bfd7d83a5915d8955fd9959916a \
-    --hash=sha256:f54101960cd4a00036dd9b3195ab4bee2abb5df5ac1a93a10d5c3c4c7131d9fb
+pytest-ansible==25.11.2 \
+    --hash=sha256:3c616e7a03ea170de0df439cae76f1143865f96a6f9f8d150e15d32bea7535fb \
+    --hash=sha256:75e6f812ff7682fb95ceee69e7edbce2fb8246142c32746012bc4036ed6a0143
     # via ansible-devcontainer
 pytest-cov==7.0.0 \
     --hash=sha256:33c97eda2e049a0c5298e91f519302a1334c26ac65c1a483d6206fd458361af1 \
