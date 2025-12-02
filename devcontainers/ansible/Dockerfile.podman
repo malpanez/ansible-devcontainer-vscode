@@ -102,6 +102,7 @@ RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.ansible \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/containers \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/containers \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/systemd/user \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible
 
 # Configure Podman storage for rootless
@@ -132,12 +133,8 @@ ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
 USER ${USERNAME}
 
-# Configure git and verify Podman
+# Configure git for user
 RUN git config --global init.defaultBranch main
-
-# Enable lingering for user (helps with systemd user services if needed)
-# This is optional but recommended for Podman rootless
-RUN mkdir -p /home/${USERNAME}/.config/systemd/user
 
 WORKDIR ${WORKSPACE}
 

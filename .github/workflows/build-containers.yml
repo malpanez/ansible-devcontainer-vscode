@@ -37,6 +37,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+      security-events: write
 
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
@@ -123,6 +124,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+      security-events: write
 
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
@@ -174,6 +176,23 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
+      - name: Scan base image with Trivy
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8  # 0.33.1
+        with:
+          version: v0.58.2
+          image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-base:main
+          format: sarif
+          output: trivy-base.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF for base
+        uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
+        if: always()
+        with:
+          sarif_file: trivy-base.sarif
+          category: trivy-base
+
   build-all:
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
     needs: build-base
@@ -184,6 +203,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+      security-events: write
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -264,3 +284,20 @@ jobs:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+      - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Trivy
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8  # 0.33.1
+        with:
+          version: v0.58.2
+          image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}:main
+          format: sarif
+          output: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF for ${{ matrix.stack }}${{ matrix.variant }}
+        uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
+          category: trivy-${{ matrix.stack }}${{ matrix.variant }}
