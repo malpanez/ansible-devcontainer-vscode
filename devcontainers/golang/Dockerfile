@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG BASE_IMAGE=golang:1.25.4-alpine
+ARG BASE_IMAGE=golang:1.25.4-alpine3.21
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE="unknown"
