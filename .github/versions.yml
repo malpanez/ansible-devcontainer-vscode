@@ -4,7 +4,7 @@
 
 # Infrastructure Tools
 terraform: "1.9.6"
-terragrunt: "0.67.1"  # Updated from 0.54.22
+terragrunt: "0.93.12"  # Updated from 0.67.1
 tflint: "0.54.0"      # Updated from 0.51.2
 sops: "3.9.3"         # Updated from 3.9.0
 age: "1.2.1"          # Updated from 1.1.1
