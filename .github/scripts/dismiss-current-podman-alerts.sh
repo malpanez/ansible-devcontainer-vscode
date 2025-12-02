@@ -3,6 +3,7 @@
 # These alerts are for Podman v5.0.0 but our Dockerfile uses v5.7.0
 # This is likely a Trivy version detection issue reading binary metadata
 
+# shellcheck disable=SC2034  # Some variables used in eval context
 set -euo pipefail
 
 REPO="${GITHUB_REPOSITORY:-malpanez/ansible-devcontainer-vscode}"

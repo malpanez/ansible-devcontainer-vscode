@@ -5,6 +5,7 @@
 # 2. Closing stale alerts that are no longer detected
 # 3. Adding comments to alerts with context
 
+# shellcheck disable=SC2034  # Some variables used in eval context
 set -euo pipefail
 
 # Configuration
@@ -65,6 +66,19 @@ log "Starting code scanning alert management for ${REPO}"
 log "Dry run mode: ${DRY_RUN}"
 log "Max alert age: ${MAX_ALERT_AGE_DAYS} days"
 echo ""
+
+# Check GitHub API rate limit
+check_rate_limit() {
+    local remaining
+    remaining=$(gh api rate_limit --jq '.rate.remaining' 2>/dev/null || echo "1000")
+    if [ "$remaining" -lt 10 ]; then
+        log_warning "GitHub API rate limit low: ${remaining} requests remaining"
+        log_warning "Consider waiting before running this script"
+    fi
+}
+
+log "Checking API rate limit..."
+check_rate_limit
 
 # Fetch all open alerts
 log "Fetching open code scanning alerts..."
@@ -147,10 +161,11 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
 
     # Rule 4: Base image vulnerabilities we can't immediately fix
     # (Uncomment and customize as needed)
+    # Note: Keep comment under 280 characters for GitHub API
     # if [[ "${LOCATION}" =~ ^usr/local/bin/podman ]] && [[ "${RULE_ID}" =~ ^CVE-202[0-3] ]]; then
     #     SHOULD_DISMISS=true
     #     DISMISS_REASON="used in tests"
-    #     DISMISS_COMMENT="Vulnerability in Podman binary copied from official image. Risk accepted for development environment. Will re-evaluate in next quarterly review."
+    #     DISMISS_COMMENT="Podman binary from official image. Risk accepted for dev env. Will review quarterly."
     #     log_warning "  → Marked for dismissal: Base image vulnerability"
     # fi
 
