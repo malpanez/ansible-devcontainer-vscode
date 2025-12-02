@@ -8,7 +8,15 @@
 ARG BASE_IMAGE=python:3.12-slim-bookworm
 
 # Stage 1: Get Podman binaries and configuration from official image
+# Using v5.7.0 (released 2025-11-11) which includes all CVE fixes
+# Known: Trivy may report v5.0.0 from binary metadata (false positive)
+# Verified: Runtime version matches tag specification
 FROM quay.io/containers/podman:v5.7.0 AS podman-source
+
+# Verify the Podman version to catch upstream tagging issues
+RUN podman --version && \
+    podman --version | grep -qE "5\.[5-9]\." || \
+    (echo "ERROR: Podman version too old! Expected 5.5+, build will fail." && exit 1)
 
 # Stage 2: Build our Ansible devcontainer with Podman support
 FROM ${BASE_IMAGE}

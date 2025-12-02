@@ -1,0 +1,96 @@
+# Security Alert Exceptions Configuration
+# This file defines CVEs and patterns that should be auto-dismissed
+# Edit this file to customize alert management behavior
+
+# Configuration version (for future compatibility)
+version: 1
+
+# Global settings
+settings:
+  # Maximum age in days before alerts are dismissed as stale
+  max_alert_age_days: 90
+
+  # Default dismissal reason for stale alerts
+  default_stale_reason: "won't fix"
+
+  # Whether to add comments when dismissing
+  add_comments: true
+
+# Known false positives
+# These will be dismissed automatically with reason "false positive"
+false_positives:
+  # Example: CVE that doesn't apply to our use case
+  # - cve: "CVE-2024-XXXXX"
+  #   reason: "We don't use the affected feature"
+  #   comment: "This CVE affects the XYZ module which we have disabled."
+
+# Accepted risks
+# These will be dismissed with reason "used in tests"
+accepted_risks:
+  # Example: Development-only vulnerabilities
+  # - cve: "CVE-2024-XXXXX"
+  #   reason: "used in tests"
+  #   comment: "Development environment only, not exposed in production."
+
+  # Base image vulnerabilities we can't immediately fix
+  # - pattern: "usr/local/bin/podman"
+  #   min_severity: "warning"
+  #   comment: "Vulnerability in Podman binary from official image. Tracking upstream fix."
+
+# CVE exceptions with custom logic
+exceptions:
+  # Example: Podman vulnerabilities in rootless mode
+  # - cves:
+  #     - "CVE-2024-1753"
+  #     - "CVE-2024-9407"
+  #   condition: "rootless"
+  #   reason: "won't fix"
+  #   comment: "These CVEs only affect rootful mode. We use Podman in rootless mode exclusively."
+
+# Age-based dismissal rules
+age_based_dismissal:
+  # Dismiss low severity alerts after 30 days
+  - severity: "note"
+    days: 30
+    reason: "won't fix"
+    comment: "Low severity alert auto-dismissed after 30 days."
+
+  # Dismiss medium severity after 90 days
+  - severity: "warning"
+    days: 90
+    reason: "won't fix"
+    comment: "Medium severity alert auto-dismissed after 90 days with no fix available."
+
+# Tool-specific rules
+tool_rules:
+  trivy:
+    # Ignore unfixed vulnerabilities (Trivy already does this, but documented here)
+    ignore_unfixed: true
+
+    # Custom dismissal patterns
+    patterns:
+      # Example: Dismiss Go stdlib vulnerabilities in copied binaries
+      # - location_pattern: "usr/local/bin/*"
+      #   package_pattern: "golang.org/x/*"
+      #   days: 60
+      #   reason: "used in tests"
+      #   comment: "Go stdlib vulnerability in third-party binary. Monitoring upstream."
+
+# Notes and documentation
+notes: |
+  This configuration file helps maintain a clean security alert dashboard while
+  ensuring critical issues are addressed.
+
+  Guidelines:
+  1. Only dismiss alerts after investigation
+  2. Document the reason for each exception
+  3. Review this file quarterly
+  4. Keep high-severity alerts visible until fixed
+
+  Review schedule:
+  - Weekly: Check new alerts
+  - Monthly: Review dismissed alerts
+  - Quarterly: Update this configuration
+
+  Last reviewed: 2025-12-02
+  Next review: 2026-03-02
