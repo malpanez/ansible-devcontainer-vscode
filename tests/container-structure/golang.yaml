@@ -1,0 +1,91 @@
+---
+schemaVersion: 2.0.0
+
+# File existence and permissions tests
+fileExistenceTests:
+  # Core Go toolchain
+  - name: 'Go binary exists'
+    path: '/usr/local/go/bin/go'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  - name: 'gofmt binary exists'
+    path: '/usr/local/go/bin/gofmt'
+    shouldExist: true
+
+  # uv package manager
+  - name: 'uv binary installed'
+    path: '/usr/local/bin/uv'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
+  # Pre-commit template
+  - name: 'Pre-commit config template exists'
+    path: '/usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml'
+    shouldExist: true
+
+  # Workspace directory
+  - name: 'Workspace directory exists'
+    path: '/workspace'
+    shouldExist: true
+    isDirectory: true
+
+# Command execution tests
+commandTests:
+  # Go version validation
+  - name: 'Go version matches expected'
+    command: 'go'
+    args: ['version']
+    expectedOutput: ['go1.25.4', 'linux']
+
+  # uv functionality
+  - name: 'uv is functional'
+    command: 'uv'
+    args: ['--version']
+    exitCode: 0
+
+  # bash shell available
+  - name: 'bash shell available'
+    command: 'bash'
+    args: ['--version']
+    expectedOutput: ['GNU bash']
+
+  # git installed
+  - name: 'git available'
+    command: 'git'
+    args: ['--version']
+    expectedOutput: ['git version']
+
+  # Workspace writable
+  - name: 'Workspace is writable'
+    command: 'sh'
+    args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
+    exitCode: 0
+
+  # Go can compile hello world
+  - name: 'Go can compile simple program'
+    command: 'sh'
+    args:
+      - '-c'
+      - 'echo "package main\nfunc main() {}" | go run -'
+    exitCode: 0
+
+# Metadata validation
+metadataTest:
+  labels:
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
+    - key: 'org.opencontainers.image.description'
+      value: 'Golang devcontainer with uv-driven pre-commit workflow'
+
+  env:
+    - key: 'DEVCONTAINER_STACK'
+      value: 'golang'
+    - key: 'WORKSPACE'
+      value: '/workspace'
+    - key: 'GOPATH'
+      value: '/home/vscode/go'
+
+  workdir: '/workspace'
+  cmd: ['/bin/bash']
+  user: 'vscode'
