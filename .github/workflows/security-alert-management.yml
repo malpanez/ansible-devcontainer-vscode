@@ -1,0 +1,154 @@
+---
+name: Security Alert Management
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (no actual dismissals)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      max_age_days:
+        description: 'Maximum alert age in days before dismissal'
+        required: false
+        default: '90'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  manage-alerts:
+    name: Manage Code Scanning Alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write  # Required to dismiss code scanning alerts
+      issues: write          # Optional: for creating tracking issues
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up environment variables
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "DRY_RUN=${{ github.event.inputs.dry_run }}" >> "$GITHUB_ENV"
+            echo "MAX_ALERT_AGE_DAYS=${{ github.event.inputs.max_age_days }}" >> "$GITHUB_ENV"
+          else
+            # Scheduled runs: default to dry_run=false for actual cleanup
+            echo "DRY_RUN=false" >> "$GITHUB_ENV"
+            echo "MAX_ALERT_AGE_DAYS=90" >> "$GITHUB_ENV"
+          fi
+
+      - name: Display configuration
+        run: |
+          echo "Configuration:"
+          echo "  Dry Run: ${DRY_RUN}"
+          echo "  Max Alert Age: ${MAX_ALERT_AGE_DAYS} days"
+          echo "  Trigger: ${{ github.event_name }}"
+
+      - name: Run alert management script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/manage-code-scanning-alerts.sh
+
+      - name: Generate summary report
+        if: always()
+        run: |
+          echo "## Security Alert Management Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger**: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Dry Run**: ${DRY_RUN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Max Alert Age**: ${MAX_ALERT_AGE_DAYS} days" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Timestamp**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Get current alert count
+          OPEN_ALERTS=$(gh api repos/${{ github.repository }}/code-scanning/alerts \
+            --jq '[.[] | select(.state == "open")] | length')
+          echo "- **Current Open Alerts**: ${OPEN_ALERTS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "> **Note**: This was a dry run. No alerts were actually dismissed." >> "$GITHUB_STEP_SUMMARY"
+            echo "> Run manually with \`dry_run: false\` to execute dismissals." >> "$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  alert-report:
+    name: Generate Alert Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Generate alert statistics
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "# Security Alert Statistics" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Get all alerts
+          ALERTS=$(gh api repos/${{ github.repository }}/code-scanning/alerts)
+
+          # Count by state
+          OPEN=$(echo "$ALERTS" | jq '[.[] | select(.state == "open")] | length')
+          FIXED=$(echo "$ALERTS" | jq '[.[] | select(.state == "fixed")] | length')
+          DISMISSED=$(echo "$ALERTS" | jq '[.[] | select(.state == "dismissed")] | length')
+          TOTAL=$(echo "$ALERTS" | jq 'length')
+
+          echo "## Overall Statistics" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| State | Count |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🔴 Open | ${OPEN} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Fixed | ${FIXED} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🚫 Dismissed | ${DISMISSED} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 📊 Total | ${TOTAL} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Break down open alerts by severity
+          if [ "${OPEN}" -gt 0 ]; then
+            echo "## Open Alerts by Severity" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+
+            CRITICAL=$(echo "$ALERTS" | jq '[.[] | select(.state == "open" and .rule.severity == "critical")] | length')
+            HIGH=$(echo "$ALERTS" | jq '[.[] | select(.state == "open" and .rule.severity == "error")] | length')
+            MEDIUM=$(echo "$ALERTS" | jq '[.[] | select(.state == "open" and .rule.severity == "warning")] | length')
+            LOW=$(echo "$ALERTS" | jq '[.[] | select(.state == "open" and .rule.severity == "note")] | length')
+
+            echo "| Severity | Count |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 🔴 Critical | ${CRITICAL} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 🟠 High | ${HIGH} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 🟡 Medium | ${MEDIUM} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 🟢 Low | ${LOW} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+
+            # List open alerts
+            echo "## Open Alerts Details" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "$ALERTS" | jq -r '.[] | select(.state == "open") |
+              "- [\(.rule.id)](\(.html_url)) - \(.rule.severity) - \(.tool.name) - Created: \(.created_at)"' \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "🎉 **No open alerts!** All security issues resolved or dismissed." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
