@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG PYTHON_IMAGE=python:3.12.12-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12.12-slim-bookworm@sha256:5621ae4640bf259c8a9f09c513cd6c80fc14b3fab3d9cf99f3227637cdf78525
 FROM ${PYTHON_IMAGE}
 
 # BuildKit platform arguments
