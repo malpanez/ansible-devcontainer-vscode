@@ -8,9 +8,9 @@ ansible-builder==3.1.1 \
     --hash=sha256:9d88bc15acc7d31056d0c51914a6102dac8e5ad73f9f2d35ba98378c89714ed2 \
     --hash=sha256:a8246022edb92ca27ea95e87c7af30bcb2752f108dcc75fbf96e77196dff1072
     # via ansible-navigator
-ansible-compat==25.11.0 \
-    --hash=sha256:b9e6655d8f4942c427a39fa1df6697830d987fe5d311bc7be2b2f81c1edd48f5 \
-    --hash=sha256:e6f013b8a7d1fd87a9624b9dc125e4e76a61eb90680800cb4119d97d8ce63ae7
+ansible-compat==25.12.0 \
+    --hash=sha256:322ccc7002030a91588d1fdba21e934703d64736f0e483dc6afe8ecd93a75614 \
+    --hash=sha256:d38a149c5f95bb0d529c3b5e5fa3200b26f5e938ec7c31d8bb01d87c1f634410
     # via
     #   ansible-lint
     #   molecule
@@ -28,9 +28,9 @@ ansible-lint==25.11.1 \
     --hash=sha256:f81946a540dc6b4b0cb5a8b050ab3c67c2b29a12aa0a0ba8dae03a9d44670f19 \
     --hash=sha256:f9d7ce3877eeda5c39ee70acf9b88677732fea4cfc28a005c014dfaaa8678c85
     # via ansible-navigator
-ansible-navigator==25.11.0 \
-    --hash=sha256:3cf4841045025f9f3f737233d4d32a0ad7ef388e5804f4d2a22813c3f52be198 \
-    --hash=sha256:dc40d8e7582765bc66339cd88213ba2c5f7ae477a311a83b552746b43715e31c
+ansible-navigator==25.12.0 \
+    --hash=sha256:6628a5cc1b5a7c2a0ad86ca3df43df7432e51ee9b1fa44f2c443d60eb90f4463 \
+    --hash=sha256:8bacb0dbcd8d594682641b40622deb42c2e4f861b2a7c407caa062ee7c30225a
     # via ansible-devcontainer
 ansible-runner==2.4.2 \
     --hash=sha256:0bde6cb39224770ff49ccdc6027288f6a98f4ed2ea0c64688b31217033221893 \
