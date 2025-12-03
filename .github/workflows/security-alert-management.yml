@@ -74,7 +74,8 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Get current alert count
-          OPEN_ALERTS=$(gh api repos/${{ github.repository }}/code-scanning/alerts --jq '[.[] | select(.state == "open")] | length')
+          OPEN_ALERTS=$(gh api repos/${{ github.repository }}/code-scanning/alerts \
+            --jq '[.[] | select(.state == "open")] | length')
           echo "- **Current Open Alerts**: ${OPEN_ALERTS}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -144,7 +145,10 @@ jobs:
             # List open alerts
             echo "## Open Alerts Details" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "$ALERTS" | jq -r '.[] | select(.state == "open") | "- [\(.rule.id)](\(.html_url)) - \(.rule.severity) - \(.tool.name) - Created: \(.created_at)"' >> "$GITHUB_STEP_SUMMARY"
+            echo "$ALERTS" | jq -r '.[] | select(.state == "open") |
+              "- [\(.rule.id)](\(.html_url)) - \(.rule.severity) - \(.tool.name) - Created: \(.created_at)"' \
+              >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "🎉 **No open alerts!** All security issues have been resolved or dismissed." >> "$GITHUB_STEP_SUMMARY"
+            echo "🎉 **No open alerts!** All security issues resolved or dismissed." \
+              >> "$GITHUB_STEP_SUMMARY"
           fi
