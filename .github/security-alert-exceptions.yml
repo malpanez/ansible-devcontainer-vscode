@@ -28,15 +28,56 @@ false_positives:
 # Accepted risks
 # These will be dismissed with reason "used in tests"
 accepted_risks:
-  # Example: Development-only vulnerabilities
-  # - cve: "CVE-2024-XXXXX"
-  #   reason: "used in tests"
-  #   comment: "Development environment only, not exposed in production."
-
-  # Base image vulnerabilities we can't immediately fix
-  # - pattern: "usr/local/bin/podman"
-  #   min_severity: "warning"
-  #   comment: "Vulnerability in Podman binary from official image. Tracking upstream fix."
+  # Go stdlib and vendor binary CVEs
+  # These are pre-compiled binaries from upstream that we don't control
+  # Impact: LOW - Development environment only, limited attack surface
+  # Review: Quarterly or when upstream releases updates
+  vendor_binary_cves:
+    description: "CVEs in vendored binaries (age, sops, terragrunt, terraform, tflint, podman)"
+    rationale: "Development environment only. Binaries downloaded from upstream vendors. Limited attack surface."
+    review_frequency: "Quarterly"
+    affected_binaries:
+      - "usr/local/bin/age"
+      - "usr/local/bin/age-keygen"
+      - "usr/local/bin/sops"
+      - "usr/local/bin/terragrunt"
+      - "usr/local/bin/terraform"
+      - "usr/local/bin/tflint"
+      - "usr/local/bin/podman"
+    cves:
+      # golang.org/x/crypto CVEs
+      - "CVE-2025-58181"  # SSH GSSAPI (MEDIUM)
+      - "CVE-2025-47914"  # SSH Agent (MEDIUM)
+      # net/* CVEs
+      - "CVE-2025-61725"  # net/mail CPU exhaustion (MEDIUM)
+      - "CVE-2025-61724"  # net/textproto CPU exhaustion (MEDIUM)
+      # encoding/* CVEs
+      - "CVE-2025-61723"  # encoding/pem quadratic (MEDIUM)
+      - "CVE-2025-58185"  # encoding/asn1 exhaustion (HIGH)
+      # crypto/* CVEs
+      - "CVE-2025-58189"  # crypto/tls ALPN (MEDIUM)
+      - "CVE-2025-58188"  # crypto/x509 DSA panic (MEDIUM)
+      - "CVE-2025-58187"  # crypto/x509 name constraints (HIGH)
+      # net/http CVEs
+      - "CVE-2025-58186"  # cookie header DoS (HIGH)
+      # archive/tar CVEs
+      - "CVE-2025-58183"  # unbounded allocation (HIGH)
+      # net/url CVEs
+      - "CVE-2025-47912"  # IPv6 validation (MEDIUM)
+      # Additional age/age-keygen CVEs
+      - "CVE-2024-45336"  # age vendor binary
+      - "CVE-2024-45341"  # age vendor binary
+      - "CVE-2025-0913"   # age vendor binary
+      - "CVE-2025-22866"  # age vendor binary
+      - "CVE-2025-22869"  # age vendor binary (HIGH)
+      - "CVE-2025-22871"  # age vendor binary
+      - "CVE-2025-4673"   # age vendor binary
+      - "CVE-2025-47906"  # age vendor binary
+      - "CVE-2025-47907"  # age vendor binary (HIGH)
+      # Additional tool CVEs
+      - "CVE-2025-47910"  # terragrunt vendor binary
+      - "CVE-2025-52881"  # podman vendor binary (HIGH)
+      - "CVE-2025-46394"  # BusyBox in golang image (LOW)
 
 # CVE exceptions with custom logic
 exceptions:
