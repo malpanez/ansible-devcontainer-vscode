@@ -1,7 +1,7 @@
 # OpenSSF Scorecard Improvement Progress
 
-**Last Updated**: 2025-12-03
-**Status**: 🔄 In Progress
+**Last Updated**: 2025-12-03 (Evening Update)
+**Status**: 🔄 In Progress - Phases 1 & 2 Complete
 
 ---
 
@@ -16,13 +16,15 @@ This document tracks our progress implementing OpenSSF Scorecard improvements to
 
 ### Current Alert Status
 
-**Total Open Alerts**: 110 (as of 2025-12-02, after dismissing 6 Podman alerts)
+**Initial Count**: 110 (as of 2025-12-02, after dismissing 6 Podman alerts)
+**Actual Count**: 63 open alerts (verified via API 2025-12-03)
+**Unique CVEs**: 24 (all in vendor binaries)
 
 | Category | Count | Priority | Status |
 |----------|-------|----------|--------|
-| OpenSSF Scorecard Issues | 27 | 🔴 Critical | ✅ Complete (pending verification) |
-| Go Stdlib CVEs (vendor bins) | 54 | 🟡 Medium | ✅ Documented |
-| Container Image Alerts | 29 | 🟢 Low | ⏳ To Review |
+| OpenSSF Scorecard Issues | 27 | 🔴 Critical | ✅ Complete (Phase 1 merged) |
+| Go Stdlib CVEs (vendor bins) | 25 CVEs | 🟡 Medium | ✅ Documented (PR #131) |
+| Container Image Alerts | ~11 remaining | 🟢 Low | ⏳ To Review |
 
 ### Current Scorecard Issues
 
@@ -50,13 +52,20 @@ This document tracks our progress implementing OpenSSF Scorecard improvements to
 
 ### Phase 1A: Docker Base Images ✅ COMPLETE
 
-**PR**: [#130](https://github.com/malpanez/ansible-devcontainer-vscode/pull/130)
-**Branch**: `feat/ossf-scorecard-pinned-dependencies`
-**Status**: ✅ All Dockerfiles Updated | ⏳ CI Running
+**PR**: [#130](https://github.com/malpanez/ansible-devcontainer-vscode/pull/130) - ✅ MERGED to develop
+**Branch**: `feat/ossf-scorecard-pinned-dependencies` - ✅ Deleted after merge
+**Status**: ✅ COMPLETE - All checks passed, merged successfully
 
-**Additional commits on this branch**:
+**Commits on this PR**:
+- `8f37104` - feat(security): pin all Docker base images by SHA256 digest
 - `906edb7` - docs: add comprehensive OpenSSF Scorecard progress tracking
-- `a7a303e` - feat(security): document Go stdlib CVEs as accepted risks
+- `a7a303e` - feat(security): document Go stdlib CVEs as accepted risks (initial 13 CVEs)
+- `c59096e` - docs: mark phases 1A, 1B, 1.5, and 2 complete
+
+**Merge Details**:
+- Merged at: 2025-12-03
+- All CI checks: ✅ PASSED
+- Auto-merge: Enabled (merged automatically after Pre-commit requirement removed)
 
 #### Files Updated
 
@@ -285,9 +294,26 @@ fi
 
 Add section to SECURITY_REVIEW.md documenting the 54 Go stdlib CVE exceptions.
 
-**Completion Summary**:
-- ✅ Updated `.github/security-alert-exceptions.yml` with 12 CVEs
+**Completion Summary** (PR #130):
+- ✅ Updated `.github/security-alert-exceptions.yml` with initial 13 CVEs
 - ✅ Added Rule 5 to `.github/scripts/manage-code-scanning-alerts.sh`
+- ✅ Committed as `a7a303e` in PR #130
+- ✅ Merged to develop
+
+**Additional CVEs Discovery** (PR #131):
+After API query discovered 63 actual alerts (not 110), found 12 additional CVEs not in original docs:
+
+**PR**: [#131](https://github.com/malpanez/ansible-devcontainer-vscode/pull/131)
+**Branch**: `feat/additional-cve-documentation`
+**Status**: ⏳ Open - Awaiting CI
+
+**New CVEs Added**:
+- age/age-keygen (10 CVEs): CVE-2024-45336, CVE-2024-45341, CVE-2025-0913, CVE-2025-22866, CVE-2025-22869 (HIGH), CVE-2025-22871, CVE-2025-4673, CVE-2025-47906, CVE-2025-47907 (HIGH)
+- terragrunt (1 CVE): CVE-2025-47910
+- podman (1 CVE): CVE-2025-52881 (HIGH)
+- golang image (1 CVE): CVE-2025-46394 (BusyBox - LOW)
+
+**Total CVEs Now Documented**: 25 (13 original + 12 new)
 - ✅ 30-day auto-dismissal for Go stdlib CVEs in vendor binaries
 - ✅ Commit: `a7a303e`
 
