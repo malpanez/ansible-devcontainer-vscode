@@ -20,8 +20,8 @@ This document tracks our progress implementing OpenSSF Scorecard improvements to
 
 | Category | Count | Priority | Status |
 |----------|-------|----------|--------|
-| OpenSSF Scorecard Issues | 27 | 🔴 Critical | ⏳ In Progress |
-| Go Stdlib CVEs (vendor bins) | 54 | 🟡 Medium | ⏳ To Document |
+| OpenSSF Scorecard Issues | 27 | 🔴 Critical | ✅ Complete (pending verification) |
+| Go Stdlib CVEs (vendor bins) | 54 | 🟡 Medium | ✅ Documented |
 | Container Image Alerts | 29 | 🟢 Low | ⏳ To Review |
 
 ### Current Scorecard Issues
@@ -29,12 +29,12 @@ This document tracks our progress implementing OpenSSF Scorecard improvements to
 1. **Pinned-Dependencies** (20 alerts) - CRITICAL
    - Issue: Docker base images not pinned by digest
    - Issue: GitHub Actions not pinned by commit SHA
-   - Status: ✅ Phase 1A Complete (Docker images) | ⏳ Phase 1B Pending (Actions)
+   - Status: ✅ Phase 1A Complete (Docker images) | ✅ Phase 1B Complete (Actions already pinned)
 
 2. **Token-Permissions** (7 alerts) - CRITICAL
    - Issue: Workflows missing explicit `permissions:` declarations
    - Affected: 6 workflows (auto-merge, cleanup-ghcr, dependency-refresh, promote-to-main, quality, release)
-   - Status: ⏳ Not Started
+   - Status: ✅ Complete (all 13 workflows have explicit permissions)
 
 3. **Branch-Protection** - IMPORTANT
    - Issue: Not enough required reviewers, no branch protection rules
@@ -53,6 +53,10 @@ This document tracks our progress implementing OpenSSF Scorecard improvements to
 **PR**: [#130](https://github.com/malpanez/ansible-devcontainer-vscode/pull/130)
 **Branch**: `feat/ossf-scorecard-pinned-dependencies`
 **Status**: ✅ All Dockerfiles Updated | ⏳ CI Running
+
+**Additional commits on this branch**:
+- `906edb7` - docs: add comprehensive OpenSSF Scorecard progress tracking
+- `a7a303e` - feat(security): document Go stdlib CVEs as accepted risks
 
 #### Files Updated
 
@@ -86,11 +90,13 @@ grep -r "FROM [^@]*$" devcontainers/ --include="Dockerfile*" | grep -v "AS " | g
 
 ---
 
-### Phase 1B: GitHub Actions ⏳ TODO
+### Phase 1B: GitHub Actions ✅ COMPLETE
 
 **Objective**: Pin all GitHub Actions to commit SHAs instead of tags
 
-**Status**: Not Started
+**Status**: ✅ Complete - All actions already pinned (verified 2025-12-03)
+
+**Verification**: Audited all 13 workflows - all actions use commit SHAs with version comments.
 
 #### Actions to Pin
 
@@ -143,10 +149,10 @@ Actual workflow files in the repository:
 
 ---
 
-## Phase 1.5: Token Permissions ⏳ TODO
+## Phase 1.5: Token Permissions ✅ COMPLETE
 
-**Status**: Not Started
-**Priority**: 🔴 Critical (7 alerts)
+**Status**: ✅ Complete (verified 2025-12-03)
+**Priority**: 🔴 Critical (7 alerts) - RESOLVED
 
 ### Problem
 
@@ -188,10 +194,10 @@ permissions:
 
 ---
 
-## Phase 2: Document Go Stdlib CVEs ⏳ TODO
+## Phase 2: Document Go Stdlib CVEs ✅ COMPLETE
 
-**Status**: Not Started
-**Priority**: 🟡 Medium (54 alerts)
+**Status**: ✅ Complete (2025-12-03)
+**Priority**: 🟡 Medium (54 alerts) - DOCUMENTED
 
 ### Problem
 
@@ -279,7 +285,13 @@ fi
 
 Add section to SECURITY_REVIEW.md documenting the 54 Go stdlib CVE exceptions.
 
-**Estimated Effort**: 1 hour
+**Completion Summary**:
+- ✅ Updated `.github/security-alert-exceptions.yml` with 12 CVEs
+- ✅ Added Rule 5 to `.github/scripts/manage-code-scanning-alerts.sh`
+- ✅ 30-day auto-dismissal for Go stdlib CVEs in vendor binaries
+- ✅ Commit: `a7a303e`
+
+**Estimated Effort**: 1 hour → **Actual: 15 minutes**
 
 ---
 
