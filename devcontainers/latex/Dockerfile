@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 ARG TECTONIC_VERSION=0.15.0
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
 
 ARG TECTONIC_VERSION
 ARG TARGETARCH
