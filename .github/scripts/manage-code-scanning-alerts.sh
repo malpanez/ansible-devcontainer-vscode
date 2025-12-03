@@ -169,17 +169,21 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     #     log_warning "  → Marked for dismissal: Base image vulnerability"
     # fi
 
-    # Rule 5: Go stdlib CVEs in vendor binaries (age, sops, terragrunt, terraform, tflint)
+    # Rule 5: Go stdlib CVEs in vendor binaries (age, sops, terragrunt, terraform, tflint, podman)
     # These are pre-compiled binaries from upstream that we don't control
-    # Impact: LOW - Dev environment only, limited attack surface
-    # See: .github/security-alert-exceptions.yml and SECURITY_REVIEW.md
-    if [[ "${LOCATION}" =~ usr/local/bin/(age|age-keygen|sops|terragrunt|terraform|tflint) ]] && \
-       [[ "${RULE_ID}" =~ ^CVE-2025-(58181|58183|58185|58186|58187|58188|58189|47912|47914|61723|61724|61725)$ ]]; then
-        if [ "${AGE_DAYS}" -ge 30 ]; then
-            SHOULD_DISMISS=true
-            DISMISS_REASON="used in tests"
-            DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream. See SECURITY_REVIEW.md"
-            log_warning "  → Marked for dismissal: Go stdlib vendor binary CVE"
+    # Impact: LOW - Development environment only, limited attack surface
+    # Review: Quarterly or when upstream releases updates
+    if [[ "${LOCATION}" =~ usr/local/bin/(age|age-keygen|sops|terragrunt|terraform|tflint|podman) ]]; then
+        # Check if this is one of the documented Go stdlib CVEs
+        if [[ "${RULE_ID}" =~ ^CVE-2025-(58181|47914|61725|61724|61723|58185|58189|58188|58187|58186|58183|47912|52881)$ ]] || \
+           [[ "${RULE_ID}" =~ ^CVE-2025-(47910|0913|22866|22869|22871|4673|47906|47907|46394)$ ]] || \
+           [[ "${RULE_ID}" =~ ^CVE-2024-(45336|45341)$ ]]; then
+            if [ "${AGE_DAYS}" -ge 30 ]; then
+                SHOULD_DISMISS=true
+                DISMISS_REASON="used in tests"
+                DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream. See SECURITY_REVIEW.md"
+                log_warning "  → Marked for dismissal: Go stdlib vendor binary CVE"
+            fi
         fi
     fi
 
