@@ -338,6 +338,25 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 - Use the shipped `.secrets.baseline` and `pre-commit` hooks to catch accidental leaks before pushing.
 - Populate GitHub repository secrets (e.g. `TF_PM_TOKEN_ID`, `TF_PM_TOKEN_SECRET`) before enabling Terraform plans in CI.
 
+## Security & Code Scanning
+
+This repository implements comprehensive security scanning and automated alert management:
+
+- 🔒 **Trivy Scanning**: All container images scanned for CVEs during build
+- 📊 **SARIF Upload**: Security findings integrated into GitHub Security tab
+- 🤖 **Automated Alert Management**: Weekly cleanup of stale/false-positive alerts
+- 📝 **Security Review**: Detailed analysis in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md)
+
+**For security reports**: See [`SECURITY.md`](SECURITY.md) for responsible disclosure guidelines.
+
+**Alert Management**:
+- Automated workflow runs weekly to clean up stale alerts (90+ days old)
+- Manual trigger available via GitHub Actions → "Security Alert Management"
+- Custom dismissal rules in [`.github/scripts/manage-code-scanning-alerts.sh`](.github/scripts/manage-code-scanning-alerts.sh)
+- Configuration file: [`.github/security-alert-exceptions.yml`](.github/security-alert-exceptions.yml)
+
+See [`.github/scripts/README.md`](.github/scripts/README.md) for automation details and usage.
+
 ## Documentation
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) – visual architecture diagrams (Mermaid) showing container build hierarchy, CI/CD pipeline, dependency management flow, and security scanning strategy.
