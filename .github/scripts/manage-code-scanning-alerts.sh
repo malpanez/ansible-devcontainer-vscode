@@ -169,6 +169,20 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     #     log_warning "  → Marked for dismissal: Base image vulnerability"
     # fi
 
+    # Rule 5: Go stdlib CVEs in vendor binaries (age, sops, terragrunt, terraform, tflint)
+    # These are pre-compiled binaries from upstream that we don't control
+    # Impact: LOW - Dev environment only, limited attack surface
+    # See: .github/security-alert-exceptions.yml and SECURITY_REVIEW.md
+    if [[ "${LOCATION}" =~ usr/local/bin/(age|age-keygen|sops|terragrunt|terraform|tflint) ]] && \
+       [[ "${RULE_ID}" =~ ^CVE-2025-(58181|58183|58185|58186|58187|58188|58189|47912|47914|61723|61724|61725)$ ]]; then
+        if [ "${AGE_DAYS}" -ge 30 ]; then
+            SHOULD_DISMISS=true
+            DISMISS_REASON="used in tests"
+            DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream. See SECURITY_REVIEW.md"
+            log_warning "  → Marked for dismissal: Go stdlib vendor binary CVE"
+        fi
+    fi
+
     # Execute dismissal
     if [ "${SHOULD_DISMISS}" = true ]; then
         if [ "${DRY_RUN}" = "true" ]; then
