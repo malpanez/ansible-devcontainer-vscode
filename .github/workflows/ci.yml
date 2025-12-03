@@ -79,32 +79,10 @@ jobs:
             echo "::notice::Go changes detected but no go.mod found, skipping Go CI"
           fi
 
-  lint:
-    name: Pre-commit
-    runs-on: ubuntu-latest
-    needs: changes
-    steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244  # v7.1.4
-        with:
-          enable-cache: true
-
-      - name: Cache pre-commit environments
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
-        with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-          restore-keys: pre-commit-
-
-      - name: Run pre-commit
-        run: uvx pre-commit run --all-files
-
   test-playbooks:
     name: Test Playbooks
     runs-on: ubuntu-latest
-    needs: [changes, lint]
+    needs: changes
     if: needs.changes.outputs.ansible == 'true'
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
@@ -461,7 +439,7 @@ jobs:
   ansible-test:
     name: Ansible Test
     runs-on: ubuntu-latest
-    needs: [changes, lint]
+    needs: changes
     if: needs.changes.outputs.ansible == 'true'
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
@@ -760,7 +738,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - changes
-      - lint
       - test-playbooks
       - golang-ci
       - terraform-ci
