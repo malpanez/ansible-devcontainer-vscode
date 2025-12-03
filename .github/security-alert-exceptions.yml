@@ -28,15 +28,41 @@ false_positives:
 # Accepted risks
 # These will be dismissed with reason "used in tests"
 accepted_risks:
-  # Example: Development-only vulnerabilities
-  # - cve: "CVE-2024-XXXXX"
-  #   reason: "used in tests"
-  #   comment: "Development environment only, not exposed in production."
-
-  # Base image vulnerabilities we can't immediately fix
-  # - pattern: "usr/local/bin/podman"
-  #   min_severity: "warning"
-  #   comment: "Vulnerability in Podman binary from official image. Tracking upstream fix."
+  # Go stdlib CVEs in vendor binaries (age, sops, terragrunt, terraform, tflint)
+  # These are pre-compiled binaries from upstream that we don't control
+  # Impact: LOW - Development environment only, limited attack surface
+  # Review: Quarterly or when upstream releases updates
+  go_stdlib_vendor_binaries:
+    description: "Go stdlib CVEs in vendored binaries we don't compile"
+    rationale: "Development environment only. Binaries downloaded from upstream vendors. Limited attack surface (SSH server CVEs don't apply, DoS requires malicious input)."
+    review_frequency: "Quarterly"
+    affected_binaries:
+      - "usr/local/bin/age"
+      - "usr/local/bin/age-keygen"
+      - "usr/local/bin/sops"
+      - "usr/local/bin/terragrunt"
+      - "usr/local/bin/terraform"
+      - "usr/local/bin/tflint"
+    cves:
+      # golang.org/x/crypto CVEs
+      - "CVE-2025-58181"  # SSH GSSAPI authentication validation (MEDIUM)
+      - "CVE-2025-47914"  # SSH Agent message size validation (MEDIUM)
+      # net/mail, net/textproto CVEs
+      - "CVE-2025-61725"  # net/mail ParseAddress CPU exhaustion (MEDIUM)
+      - "CVE-2025-61724"  # net/textproto ReadResponse CPU exhaustion (MEDIUM)
+      # encoding CVEs
+      - "CVE-2025-61723"  # encoding/pem quadratic complexity (MEDIUM)
+      - "CVE-2025-58185"  # encoding/asn1 unbounded memory exhaustion (HIGH)
+      # crypto CVEs
+      - "CVE-2025-58189"  # crypto/tls ALPN protocol (HIGH)
+      - "CVE-2025-58188"  # crypto/x509 DSA signature panic (HIGH)
+      - "CVE-2025-58187"  # crypto/x509 name constraint checking panic (HIGH)
+      # net/http CVEs
+      - "CVE-2025-58186"  # net/http cookie header DoS (HIGH)
+      # archive/tar CVEs
+      - "CVE-2025-58183"  # archive/tar unbounded allocation (HIGH)
+      # net/url CVEs
+      - "CVE-2025-47912"  # net/url IPv6 validation (MEDIUM)
 
 # CVE exceptions with custom logic
 exceptions:
