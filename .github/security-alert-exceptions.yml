@@ -1,3 +1,4 @@
+---
 # Security Alert Exceptions Configuration
 # This file defines CVEs and patterns that should be auto-dismissed
 # Edit this file to customize alert management behavior
