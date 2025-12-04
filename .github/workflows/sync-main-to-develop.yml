@@ -15,6 +15,8 @@ jobs:
   sync:
     name: Sync Main to Develop
     runs-on: ubuntu-latest
+    # Only run on main branch (prevents false failures on feature branches)
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
