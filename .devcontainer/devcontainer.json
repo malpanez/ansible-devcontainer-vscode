@@ -73,7 +73,7 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; pre-commit install --install-hooks || true"
+    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; sudo apt-get update && sudo apt-get install -y gh make yamllint || true; uvx pre-commit install --install-hooks || true"
   ],
   "portsAttributes": {
     "8080": {
