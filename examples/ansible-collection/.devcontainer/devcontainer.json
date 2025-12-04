@@ -1,0 +1,57 @@
+{
+  "name": "Ansible Collection Development",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
+
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.ansibleLint.enabled": true,
+        "ansible.ansibleLint.path": "/usr/local/bin/ansible-lint",
+        "yaml.schemas": {
+          "https://raw.githubusercontent.com/ansible/schemas/main/f/ansible.json": [
+            "*.yml",
+            "*.yaml"
+          ]
+        },
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        },
+        "[yaml]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2,
+          "editor.quickSuggestions": {
+            "other": true,
+            "comments": false,
+            "strings": true
+          },
+          "editor.autoIndent": "advanced"
+        }
+      },
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "samuelcolvin.jinjahtml",
+        "eamodio.gitlens",
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
+  ],
+
+  "postCreateCommand": "pre-commit install --install-hooks && [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true",
+
+  "remoteUser": "vscode"
+}
