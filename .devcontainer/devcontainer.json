@@ -24,6 +24,10 @@
         "tamasfe.even-better-toml",
         "eamodio.gitlens"
       ],
+      "openFiles": [
+        "README.md",
+        "docs/QUICKSTART.md"
+      ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "ansible.python.interpreterPath": "/usr/local/bin/python",
@@ -69,8 +73,18 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; pre-commit install --install-hooks || true"
+    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; sudo apt-get update && sudo apt-get install -y gh make yamllint || true; uvx pre-commit install --install-hooks || true"
   ],
+  "portsAttributes": {
+    "8080": {
+      "label": "Application",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Development Server",
+      "onAutoForward": "notify"
+    }
+  },
   "forwardPorts": [8080, 3000],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

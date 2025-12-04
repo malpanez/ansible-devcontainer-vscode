@@ -5,6 +5,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
 [![Code Quality](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml)
 [![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)
+[![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github)](https://codespaces.new/malpanez/ansible-devcontainer-vscode)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](https://github.com/malpanez/ansible-devcontainer-vscode/issues)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
@@ -45,6 +46,16 @@ Modern, reproducible infrastructure development environments powered by VS Code 
 
 ## Quick Start
 
+### Option 1: GitHub Codespaces (Fastest - No Setup Required)
+
+Launch in your browser with one click:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/malpanez/ansible-devcontainer-vscode)
+
+**Ready in 30-60 seconds** - No local installation needed!
+
+### Option 2: Local Dev Container
+
 ```bash
 # inside WSL2 or any terminal with Docker + VS Code available
 git clone https://github.com/malpanez/ansible-devcontainer-vscode.git
@@ -52,6 +63,7 @@ cd ansible-devcontainer-vscode
 
 # Pick the stack you need (defaults to Ansible if you skip this step)
 ./scripts/use-devcontainer.sh terraform   # or ansible | golang | latex
+# Or use: make switch-terraform
 
 code .
 
