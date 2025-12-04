@@ -66,6 +66,7 @@
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
   "remoteUser": "vscode",
+  "updateContentCommand": "mkdir -p /workspace/.cache/pre-commit && chown -R vscode:vscode /workspace/.cache",
   "postCreateCommand": "true",
   "forwardPorts": [8080, 3000],
   "workspaceFolder": "/workspace",
