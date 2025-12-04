@@ -102,10 +102,16 @@ git commit -m "feat: add CIS compliance checks"
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
 
+  "updateContentCommand": [
+    "bash",
+    "-c",
+    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
+  ],
+
   "postCreateCommand": [
     "bash",
-    "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "-c",
+    "pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
   ],
 
   "remoteUser": "vscode"
@@ -159,12 +165,18 @@ git commit -m "feat: add CIS compliance checks"
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
+  "updateContentCommand": [
+    "bash", "-c",
+    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
+  ],
   "postCreateCommand": [
-    "bash", "-lc",
-    "sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks"
+    "bash", "-c",
+    "pre-commit install --install-hooks || true"
   ]
 }
 ```
+
+**IMPORTANTE**: Usa `updateContentCommand` (ejecuta como root) en lugar de `postCreateCommand` con sudo, para evitar problemas de permisos en diferentes entornos.
 
 ### "Pre-commit hooks not running"
 

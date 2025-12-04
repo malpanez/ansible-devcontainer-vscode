@@ -116,10 +116,16 @@ git commit -m "feat: add VPC security group"
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
 
+  "updateContentCommand": [
+    "bash",
+    "-c",
+    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
+  ],
+
   "postCreateCommand": [
     "bash",
-    "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; terraform init || true"
+    "-c",
+    "pre-commit install --install-hooks || true; terraform init || true"
   ],
 
   "remoteUser": "vscode"
@@ -257,12 +263,18 @@ SKIP=terraform_trivy git commit -m "feat: quick change"
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
+  "updateContentCommand": [
+    "bash", "-c",
+    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
+  ],
   "postCreateCommand": [
-    "bash", "-lc",
-    "sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks"
+    "bash", "-c",
+    "pre-commit install --install-hooks || true"
   ]
 }
 ```
+
+**IMPORTANTE**: Usa `updateContentCommand` (ejecuta como root) en lugar de `postCreateCommand` con sudo, para evitar problemas de permisos en diferentes entornos.
 
 ### "Trivy muy lento"
 
