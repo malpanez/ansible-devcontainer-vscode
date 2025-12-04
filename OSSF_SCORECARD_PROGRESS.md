@@ -480,41 +480,52 @@ Branch protection now enforces:
 
 ---
 
-## Phase 5: Review Remaining Container Alerts ⏳ TODO
+## Phase 5: Review Remaining Container Alerts ✅ COMPLETE
 
-**Status**: ⏳ Not Started
-**Priority**: 🟢 Low (11 alerts remaining)
+**Status**: ✅ Complete (2025-12-04)
+**Priority**: 🟢 Low (5 Scorecard alerts remaining)
 
 ### Problem
 
-After documenting 25 CVEs in vendor binaries (age, sops, terragrunt, terraform, tflint, podman), approximately 11 container image alerts remain.
+After documenting 27 CVEs in vendor binaries (age, sops, terragrunt, terraform, tflint, podman, BusyBox), review remaining alerts and address actionable CVEs.
 
-### Current Status
+### Actions Taken
 
-- **Total alerts**: 63 (verified via API 2025-12-03)
-- **Documented CVEs**: 25 (in vendor binaries)
-- **Podman false positives**: 6 (dismissed)
-- **Remaining**: ~11 alerts to review
+#### 1. Alert Cleanup (2025-12-04)
+- Dismissed 78 documented vendor binary CVE alerts
+- Updated `.github/security-alert-exceptions.yml` with 2 new BusyBox CVEs:
+  - CVE-2025-46394 (BusyBox tar - LOW)
+  - CVE-2024-58251 (BusyBox netstat - MEDIUM)
 
-### Implementation Plan
+#### 2. Fixed CVE-2025-8869 (pip symbolic link extraction)
+**Location**: [devcontainers/base/Dockerfile:56-57](devcontainers/base/Dockerfile#L56-L57)
 
-1. **Query remaining alerts**
-   ```bash
-   gh api repos/malpanez/ansible-devcontainer-vscode/code-scanning/alerts \
-     --jq '.[] | select(.state == "open") | {number, rule_id: .rule.id, severity: .rule.security_severity_level}'
-   ```
+Added pip upgrade to fix CVE-2025-8869:
+```dockerfile
+# Upgrade pip to latest (fixes CVE-2025-8869 in pip 25.0.1 → 25.3+)
+RUN python -m pip install --no-cache-dir --upgrade pip
+```
 
-2. **Categorize alerts**
-   - Container base image CVEs
-   - Tool-specific CVEs
-   - False positives
+**Impact**: Fixes MEDIUM severity CVE in pip package manager across all Python-based containers (ansible, terraform, base).
 
-3. **Document or dismiss**
-   - Add to `.github/security-alert-exceptions.yml` if accepted risk
-   - Update automation rules if needed
-   - Dismiss false positives with justification
+#### 3. Final Alert Status
+After cleanup, remaining **5 open alerts** (all expected):
+- **4 Scorecard checks** (LOW priority - informational):
+  - CodeReviewID (HIGH) - Score: 0/10 (awaiting Scorecard cache refresh after PR template added)
+  - MaintainedID (HIGH) - Score: 0/10 (requires consistent commit activity)
+  - FuzzingID (MEDIUM) - Score: 0/10 (no fuzzing infrastructure)
+  - CIIBestPracticesID (LOW) - Score: 0/10 (no CII badge claimed)
+- **1 CVE alert**:
+  - CVE-2025-8869 (pip) - Will resolve after container rebuild with upgraded pip
 
-**Estimated Effort**: 1-2 hours
+### Summary
+
+**Total Alerts Dismissed**: 78 (72 vendor binary Go stdlib + 6 BusyBox)
+**Documented CVEs**: 27 (in `.github/security-alert-exceptions.yml`)
+**CVEs Fixed**: 1 (pip CVE-2025-8869)
+**Remaining**: 5 (4 Scorecard + 1 awaiting rebuild)
+
+**Estimated Effort**: 1-2 hours → **Actual: 1 hour**
 
 ---
 
@@ -567,23 +578,47 @@ After documenting 25 CVEs in vendor binaries (age, sops, terragrunt, terraform, 
 
 ### Remaining Work ⏳
 
-8. ⏳ Phase 5: Review ~11 remaining container alerts (LOW priority)
-9. ⏳ Verify OpenSSF Scorecard score improvement
+8. ✅ Phase 5: Review remaining container alerts (COMPLETE)
+9. ✅ Verify OpenSSF Scorecard score improvement (COMPLETE - 6.1/10)
 10. ⏳ Document maintenance procedures
 11. ⏳ Create security runbook
 
 ---
 
-## Scorecard Target
+## Scorecard Results
 
-### Current Score
-*TODO: Run scorecard and record baseline*
+### Final Score: 6.1/10 ✅
+**Verified**: 2025-12-04
+**Report**: https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode
 
-### Target Score
-- **Pinned-Dependencies**: 10/10 (from ~5/10)
-- **Branch-Protection**: 8/10 (from ~3/10)
-- **Code-Review**: 7/10 (from ~2/10)
-- **Overall**: Improve from ~4/10 to ~7/10
+### Perfect Scores (10/10) ✅
+- **Vulnerabilities**: No known unfixed vulnerabilities
+- **Security-Policy**: SECURITY.md properly configured
+- **Packaging**: Published packages properly configured
+- **License**: Apache-2.0 license detected
+- **Dependency-Update-Tool**: Renovate properly configured
+- **CI-Tests**: Comprehensive CI tests present
+- **Binary-Artifacts**: No binary artifacts committed
+
+### Good Scores (7/10) ✅
+- **Branch-Protection**: 7/10 (required checks, dismiss stale reviews)
+- **Dangerous-Workflow**: 7/10 (untrusted code checkout patterns detected)
+- **Pinned-Dependencies**: 7/10 (some dependencies not fully pinned)
+- **SAST**: 7/10 (CodeQL enabled)
+
+### Low Scores - Accepted ⚠️
+- **Code-Review**: 0/10 (recently added PR template, awaiting cache refresh)
+- **Maintained**: 0/10 (requires consistent commit activity over 90 days)
+- **Fuzzing**: 0/10 (no fuzzing infrastructure - not applicable for infrastructure project)
+- **CII-Best-Practices**: 0/10 (no badge claimed - not pursuing)
+
+### Contributors: 3/10 ⚠️
+- Single active contributor (personal project)
+
+### Improvement from Baseline
+- **Starting Score**: ~4/10 (estimated)
+- **Final Score**: 6.1/10
+- **Improvement**: +2.1 points (52% increase)
 
 ### How to Check Score
 
@@ -606,5 +641,5 @@ scorecard --repo=github.com/malpanez/ansible-devcontainer-vscode
 
 ---
 
-*Last updated: 2025-12-03*
-*Next review: After PR #130 merge*
+*Last updated: 2025-12-04*
+*Next review: Quarterly (2026-03-04)*

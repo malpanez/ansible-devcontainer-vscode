@@ -53,6 +53,9 @@ RUN install -d -m 755 /home/${USERNAME}/.cache/pre-commit \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible
 
+# Upgrade pip to latest (fixes CVE-2025-8869 in pip 25.0.1 → 25.3+)
+RUN python -m pip install --no-cache-dir --upgrade pip
+
 # Install uv once for downstream layers (pinned via PyPI).
 RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 ENV PATH="/usr/local/bin:${PATH}"
