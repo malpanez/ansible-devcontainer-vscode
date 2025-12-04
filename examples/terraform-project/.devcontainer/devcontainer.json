@@ -1,0 +1,45 @@
+{
+  "name": "Terraform Project Development",
+  "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
+
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terraform.languageServer.enable": true,
+        "terraform.codelens.enabled": true,
+        "terraform.experimentalFeatures.prefillRequiredFields": true,
+        "[terraform]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "editor.formatOnSave": true,
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        },
+        "[terraform-vars]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "editor.formatOnSave": true
+        }
+      },
+      "extensions": [
+        "hashicorp.terraform",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "github.vscode-github-actions"
+      ]
+    }
+  },
+
+  "mounts": [
+    "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly",
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
+  ],
+
+  "postCreateCommand": "pre-commit install --install-hooks && terraform init",
+
+  "remoteUser": "vscode"
+}
