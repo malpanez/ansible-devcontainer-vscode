@@ -6,7 +6,9 @@
     "--dns=1.0.0.1"
   ],
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "customizations": {
     "vscode": {
@@ -61,20 +63,15 @@
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume"
   ],
-  "containerEnv": {
-    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
-  },
   "remoteEnv": {
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
     "TF_IN_AUTOMATION": "1",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
   "remoteUser": "vscode",
-  "postCreateCommand": [
-    "bash",
-    "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; sudo apt-get update && sudo apt-get install -y gh make yamllint || true; uvx pre-commit install --install-hooks || true"
-  ],
+  "updateContentCommand": "mkdir -p /workspace/.cache && chown -R vscode:vscode /workspace/.cache",
+  "postCreateCommand": "uvx pre-commit install --install-hooks || true",
   "portsAttributes": {
     "8080": {
       "label": "Application",
