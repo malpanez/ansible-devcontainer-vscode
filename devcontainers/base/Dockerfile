@@ -16,7 +16,7 @@ ENV UV_LINK_MODE=copy
 ARG UV_VERSION=0.9.13
 
 # Common system packages used across Python-based stacks.
-# hadolint ignore=DL3008
+# hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     apt-get update \
@@ -35,6 +35,20 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (gh) to avoid DevContainer features rebuild
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && apt-get autoremove -y --purge \
+    && apt-get clean
 
 # Configure non-root workspace user.
 ARG USERNAME=vscode
