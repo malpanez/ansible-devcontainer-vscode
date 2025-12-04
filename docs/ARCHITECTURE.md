@@ -237,21 +237,23 @@ graph TD
     style J fill:#fff3e0
 ```
 
-### Current Versions (as of latest update)
+### Current Versions (as of December 2025)
 
 | Tool | Version | Update Strategy |
 |------|---------|----------------|
-| Python | 3.12 | Major version pinned, patch auto-update |
-| Go | 1.23 | Minor version pinned, patch auto-update |
-| Terraform | 1.9.6 | Patch version pinned, manual minor updates |
-| Terragrunt | 0.67.1 | Minor auto-update |
-| TFLint | 0.54.0 | Minor auto-update |
-| SOPS | 3.9.3 | Minor auto-update |
-| age | 1.2.1 | Minor auto-update |
-| Tectonic | 0.15.0 | Minor auto-update |
-| Ansible | 9.13.0 | Locked via pyproject.toml |
-| uv | 0.4.21 | Pinned in base image |
-| Podman | 5.3.1 | From official Podman image |
+| Python | 3.12.12 | Patch version pinned in base image |
+| Go | 1.25 | Minor version pinned, patch auto-update |
+| Terraform | 1.14.0 | Patch version pinned, manual minor updates |
+| Terragrunt | 0.93.11 | Minor auto-update via Renovate |
+| TFLint | 0.60.0 | Minor auto-update via Renovate |
+| SOPS | 3.11.0 | Minor auto-update via Renovate |
+| age | 1.2.1 | Minor auto-update via Renovate |
+| Tectonic | 0.15.0 | Minor auto-update via Renovate |
+| Ansible | 9.14.0 | Locked via pyproject.toml + uv.lock |
+| uv | 0.9.13 | Pinned in base image |
+| AWS CLI | v2 (latest) | Auto-update from official installer |
+| github-cli (gh) | latest | Auto-update from apt repository |
+| Podman | 5.7.0 | From official Podman image |
 
 ## Security Scanning Flow
 
@@ -288,7 +290,7 @@ I -->|No| K[Document in .trivyignore<br/>with tracking URL]
 
 **Example:**
 ```
-# Terragrunt v0.67.1 - Waiting for upstream fix
+# Terragrunt v0.93.11 - Waiting for upstream fix
 # https://github.com/gruntwork-io/terragrunt/issues/XXXX
 CVE-2024-XXXXX
 ```

@@ -1,5 +1,5 @@
 {
-  "name": "Terraform Project Development",
+  "name": "Terraform Project Development (Fast - No Build)",
   "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
 
   "containerEnv": {
@@ -37,16 +37,10 @@
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
   ],
 
-  "updateContentCommand": [
-    "bash",
-    "-c",
-    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
-  ],
-
   "postCreateCommand": [
     "bash",
-    "-c",
-    "pre-commit install --install-hooks || true; terraform init || true"
+    "-lc",
+    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; terraform init || true"
   ],
 
   "remoteUser": "vscode"
