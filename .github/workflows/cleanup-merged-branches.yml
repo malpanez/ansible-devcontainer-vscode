@@ -1,0 +1,115 @@
+---
+name: Cleanup Merged Branches
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no deletions)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Delete Merged Branches
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete merged branch
+        if: github.event_name == 'pull_request'
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+
+          echo "🔍 PR merged: $BRANCH_NAME → $BASE_BRANCH"
+
+          # Skip protected branches
+          if [[ "$BRANCH_NAME" == "main" ]] || [[ "$BRANCH_NAME" == "develop" ]]; then
+            echo "⚠️  Skipping protected branch: $BRANCH_NAME"
+            exit 0
+          fi
+
+          # Delete the branch
+          echo "🗑️  Deleting merged branch: $BRANCH_NAME"
+          git push origin --delete "$BRANCH_NAME" || echo "⚠️  Branch already deleted or error occurred"
+
+          echo "✅ Branch cleanup complete"
+
+      - name: Cleanup old merged branches
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "🔍 Finding branches merged into main..."
+
+          DRY_RUN="${{ inputs.dry_run }}"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "🔍 DRY RUN MODE - No branches will be deleted"
+          fi
+
+          # Get all remote branches merged into main
+          git fetch origin main
+          MERGED_BRANCHES=$(git branch -r --merged origin/main | \
+            grep -v "origin/main" | \
+            grep -v "origin/develop" | \
+            grep -v "origin/HEAD" | \
+            sed 's|origin/||' || true)
+
+          if [ -z "$MERGED_BRANCHES" ]; then
+            echo "✅ No merged branches to clean up"
+            exit 0
+          fi
+
+          echo ""
+          echo "📋 Branches merged into main:"
+          echo "$MERGED_BRANCHES"
+          echo ""
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            COUNT=$(echo "$MERGED_BRANCHES" | wc -l)
+            echo "Would delete $COUNT branches (dry run)"
+            exit 0
+          fi
+
+          # Delete each merged branch
+          echo "$MERGED_BRANCHES" | while read -r branch; do
+            branch=$(echo "$branch" | xargs)  # trim whitespace
+            if [ -n "$branch" ]; then
+              echo "🗑️  Deleting: $branch"
+              git push origin --delete "$branch" || echo "⚠️  Could not delete $branch"
+            fi
+          done
+
+          echo ""
+          echo "✅ Cleanup complete"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Branch Cleanup Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "- **Trigger**: PR merge" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Branch**: \`${{ github.event.pull_request.head.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Merged into**: \`${{ github.event.pull_request.base.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- **Trigger**: Manual workflow dispatch" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Dry run**: ${{ inputs.dry_run }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check job logs for details" >> "$GITHUB_STEP_SUMMARY"
