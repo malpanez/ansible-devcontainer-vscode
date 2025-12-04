@@ -7,6 +7,45 @@
 
 This report identifies branches that can be safely deleted after verifying their content has been merged into main.
 
+## Branch Lifecycle Visualization
+
+```mermaid
+graph TD
+    A[Feature Branch Created] --> B{Development Active?}
+    B -->|Yes| C[Commits Added]
+    B -->|No| D[Stale Branch]
+
+    C --> E[PR Created]
+    E --> F[PR Review]
+    F --> G{Approved?}
+
+    G -->|Yes| H[PR Merged to Main]
+    G -->|No| I[Changes Requested]
+
+    H --> J[cleanup-merged-branches.yml]
+    J --> K{Protected Branch?}
+
+    K -->|No| L[Auto-Delete Branch]
+    K -->|Yes| M[Keep Branch]
+
+    D --> N[Manual Review Needed]
+    I --> O[Update & Re-review]
+    O --> F
+
+    L --> P[✅ Cleaned]
+    N --> Q[Manual Cleanup<br/>or Keep]
+
+    style H fill:#e8f5e9
+    style L fill:#e8f5e9
+    style D fill:#fff3e0
+    style P fill:#e8f5e9
+```
+
+**Legend:**
+- 🟢 Green: Successfully merged and cleaned
+- 🟡 Yellow: Needs manual review
+- ⚪ White: Active development
+
 ## Branches Ready for Deletion
 
 ### Already Merged (Content in Main)
