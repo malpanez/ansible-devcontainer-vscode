@@ -2,6 +2,36 @@
 
 This is a template for using malpanez devcontainers with your Terraform projects.
 
+## 🤖 For AI Assistants / LLMs
+
+**Want to use an LLM to set this up?** Copy the full prompt from [PROMPT_FOR_LLM.md](PROMPT_FOR_LLM.md) and paste it into Claude, ChatGPT, or any AI assistant.
+
+The prompt includes:
+- Complete setup instructions
+- Explanation of pre-commit hooks (fmt, validate, tflint, trivy, terraform-docs)
+- SOPS + age secret management guide
+- TFLint customization for different cloud providers
+- Why these containers are production-ready
+- Comparison with official Terraform image
+- How features work (pull vs build)
+
+## ⚡ Performance Note
+
+This template uses **direct pull** (no build) for maximum speed (~30 seconds).
+
+**Why?** git, github-cli, and aws-cli are already in the base image, so we don't need DevContainer features that would trigger a rebuild (2-5 minutes).
+
+**If you need additional tools** (Azure CLI, GCP CLI, Docker-in-Docker), see [DEVCONTAINER_FEATURES_EXPLAINED.md](../DEVCONTAINER_FEATURES_EXPLAINED.md) for how to add features.
+
+**Example** (add to devcontainer.json for Azure):
+```json
+"features": {
+  "ghcr.io/devcontainers/features/azure-cli:1": {}
+}
+```
+
+**Alternative**: Use `devcontainer-fast.json` (identical to default, kept for reference).
+
 ## Quick Start
 
 1. **Copy `.devcontainer/` to your project**:

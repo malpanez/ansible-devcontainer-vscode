@@ -1,5 +1,5 @@
 {
-  "name": "Terraform Project Development",
+  "name": "Terraform Project Development (Fast - No Build)",
   "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
 
   "containerEnv": {
