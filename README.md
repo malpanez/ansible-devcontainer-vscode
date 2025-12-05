@@ -5,16 +5,18 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
 [![Code Quality](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml)
 [![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)
+[![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github)](https://codespaces.new/malpanez/ansible-devcontainer-vscode)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](https://github.com/malpanez/ansible-devcontainer-vscode/issues)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 [![uv](https://img.shields.io/badge/uv-ready-00A3FF)](https://github.com/astral-sh/uv)
 
 **Tool Versions:**
-[![Terraform](https://img.shields.io/badge/terraform-1.9.6-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Go](https://img.shields.io/badge/go-1.23-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![Ansible](https://img.shields.io/badge/ansible-9.x-EE0000?logo=ansible)](https://www.ansible.com/)
+[![Terraform](https://img.shields.io/badge/terraform-1.14.0-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![Python](https://img.shields.io/badge/python-3.12.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Ansible](https://img.shields.io/badge/ansible-9.14.0-EE0000?logo=ansible)](https://www.ansible.com/)
+[![uv](https://img.shields.io/badge/uv-0.9.13-00A3FF)](https://github.com/astral-sh/uv)
 
 Modern, reproducible infrastructure development environments powered by VS Code Dev Containers and the `uv` Python toolchain. Open the repository in VS Code, pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in a container, and you are ready to lint, test, and ship automation from any platform (Windows + WSL2, macOS, or Linux).
 
@@ -44,6 +46,16 @@ Modern, reproducible infrastructure development environments powered by VS Code 
 
 ## Quick Start
 
+### Option 1: GitHub Codespaces (Fastest - No Setup Required)
+
+Launch in your browser with one click:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/malpanez/ansible-devcontainer-vscode)
+
+**Ready in 30-60 seconds** - No local installation needed!
+
+### Option 2: Local Dev Container
+
 ```bash
 # inside WSL2 or any terminal with Docker + VS Code available
 git clone https://github.com/malpanez/ansible-devcontainer-vscode.git
@@ -51,6 +63,7 @@ cd ansible-devcontainer-vscode
 
 # Pick the stack you need (defaults to Ansible if you skip this step)
 ./scripts/use-devcontainer.sh terraform   # or ansible | golang | latex
+# Or use: make switch-terraform
 
 code .
 
@@ -158,11 +171,18 @@ All Python dependencies for the Ansible stack are declared in `pyproject.toml` a
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Terraform | `1.9.x` | Terraform Dev Container pins `1.9.6`; CI tracks the latest patch in the 1.9 series. |
-| Terragrunt | `0.67.x` | Installed globally in the Terraform container for Terragrunt workflows. |
-| TFLint | `0.54.x` | Available in the Terraform container; initialise rules with `tflint --init`. |
-| Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans. |
-| Ansible | `9.13.0` | Locked in `uv.lock` via `pyproject.toml`; smoke playbooks enforce the version. |
+| Python | `3.12.12` | Base image for Ansible and base layers |
+| uv | `0.9.13` | Fast Python package manager (10-100x faster than pip) |
+| Ansible | `9.14.0` | Locked in `uv.lock` via `pyproject.toml`; smoke playbooks enforce the version |
+| Terraform | `1.14.0` | Pinned in Terraform Dev Container Dockerfile |
+| Terragrunt | `0.93.11` | Installed globally in the Terraform container for Terragrunt workflows |
+| TFLint | `0.60.0` | Available in the Terraform container; initialise rules with `tflint --init` |
+| SOPS | `3.11.0` | Secret encryption tool (Terraform container) |
+| age | `1.2.1` | Modern encryption tool for SOPS (Terraform container) |
+| AWS CLI | `v2` (latest) | Pre-installed in Terraform container to avoid DevContainer features rebuild |
+| github-cli (gh) | latest | Pre-installed in all containers to avoid DevContainer features rebuild |
+| Go | `1.25` | Golang container base image |
+| Checkov | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans |
 
 Update this table whenever you bump toolchains so contributors stay aligned with CI.
 
@@ -356,6 +376,33 @@ This repository implements comprehensive security scanning and automated alert m
 - Configuration file: [`.github/security-alert-exceptions.yml`](.github/security-alert-exceptions.yml)
 
 See [`.github/scripts/README.md`](.github/scripts/README.md) for automation details and usage.
+
+## Performance Optimizations
+
+Recent optimizations have significantly improved DevContainer startup times:
+
+- **⚡ Fast Startup**: Containers now start in ~30 seconds (previously 2-5 minutes)
+- **🚀 Direct Pull**: git, github-cli (gh), and AWS CLI v2 are pre-installed in base images, eliminating the need for DevContainer features that trigger rebuilds
+- **🔧 Pre-commit Permissions**: Fixed permission issues with gitleaks/Go cache by setting `PRE_COMMIT_HOME` and ensuring proper cache directory ownership
+
+### Using DevContainers in Your Projects
+
+Want to use these production-ready containers in your own Ansible or Terraform projects? See:
+
+- **[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)** - Complete integration guide with setup instructions, pre-commit hooks explanation, and troubleshooting
+- **[examples/](examples/)** - Ready-to-use templates for Ansible collections and Terraform projects
+  - [Ansible Collection Template](examples/ansible-collection/) - Includes [PROMPT_FOR_LLM.md](examples/ansible-collection/PROMPT_FOR_LLM.md) (copy-paste prompt for Claude/ChatGPT)
+  - [Terraform Project Template](examples/terraform-project/) - Includes [PROMPT_FOR_LLM.md](examples/terraform-project/PROMPT_FOR_LLM.md) (copy-paste prompt for Claude/ChatGPT)
+  - [DEVCONTAINER_FEATURES_EXPLAINED.md](examples/DEVCONTAINER_FEATURES_EXPLAINED.md) - Technical explanation of pull vs build behavior
+
+**Quick Setup** (one-line command):
+```bash
+# For Ansible Collections
+curl -fsSL https://raw.githubusercontent.com/malpanez/ansible-devcontainer-vscode/main/examples/ansible-collection/.devcontainer/devcontainer.json -o .devcontainer/devcontainer.json --create-dirs
+
+# For Terraform Projects
+curl -fsSL https://raw.githubusercontent.com/malpanez/ansible-devcontainer-vscode/main/examples/terraform-project/.devcontainer/devcontainer.json -o .devcontainer/devcontainer.json --create-dirs
+```
 
 ## Documentation
 

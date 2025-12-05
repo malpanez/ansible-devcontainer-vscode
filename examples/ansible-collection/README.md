@@ -2,6 +2,27 @@
 
 This is a template for using malpanez devcontainers with your Ansible collection.
 
+## 🤖 For AI Assistants / LLMs
+
+**Want to use an LLM to set this up?** Copy the full prompt from [PROMPT_FOR_LLM.md](PROMPT_FOR_LLM.md) and paste it into Claude, ChatGPT, or any AI assistant.
+
+The prompt includes:
+- Complete setup instructions
+- Explanation of pre-commit hooks
+- Troubleshooting guide
+- Why these containers are production-ready
+- Comparison with official Ansible image
+
+## ⚡ Performance Note
+
+This template uses **direct pull** (no build) for maximum speed (~30 seconds).
+
+**Why?** git and github-cli are already in the base image, so we don't need DevContainer features that would trigger a rebuild (2-5 minutes).
+
+**If you need additional tools** (Azure CLI, GCP CLI, Docker-in-Docker), see [DEVCONTAINER_FEATURES_EXPLAINED.md](../DEVCONTAINER_FEATURES_EXPLAINED.md) for how to add features without sacrificing too much speed.
+
+**Alternative**: Use `devcontainer-fast.json` (identical to default, kept for reference).
+
 ## Quick Start
 
 1. **Copy `.devcontainer/` to your collection**:
