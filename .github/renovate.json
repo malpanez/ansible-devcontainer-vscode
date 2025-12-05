@@ -1,86 +1,590 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "TOP 0.1% Renovate configuration - Enterprise-grade dependency management",
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
     ":semanticCommits",
-    ":semanticCommitScope(deps)"
+    ":semanticCommitScope(deps)",
+    ":combinePatchMinorReleases",
+    ":ignoreModulesAndTests",
+    ":autodetectPinVersions",
+    "docker:enableMajor",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests",
+    "group:monorepos",
+    "group:recommended",
+    "workarounds:all"
   ],
-  "schedule": ["before 5am on monday"],
-  "timezone": "UTC",
-  "assignees": ["@malpanez"],
-  "labels": ["dependencies"],
-  "automerge": true,
-  "automergeType": "pr",
-  "platformAutomerge": true,
+  "timezone": "Europe/Dublin",
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "assignees": [
+    "@malpanez"
+  ],
+  "reviewers": [
+    "@malpanez"
+  ],
+  "prConcurrentLimit": 8,
+  "prCreation": "not-pending",
+  "prHourlyLimit": 3,
+  "branchConcurrentLimit": 10,
+  "rebaseWhen": "behind-base-branch",
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitBody": "Automated dependency update by Renovate Bot.\n\nSee changelog: {{#if isGitHub}}{{sourceUrl}}/releases/tag/{{newVersion}}{{/if}}",
+  "rangeStrategy": "pin",
+  "separateMinorPatch": false,
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "updateNotScheduled": false,
   "ignorePaths": [
     ".venv/**",
     ".cache/**",
-    "collections/**"
+    "**/node_modules/**",
+    "**/vendor/**",
+    "**/__pycache__/**"
   ],
-  "packageRules": [
-    {
-      "description": "Auto-merge minor and patch updates for non-zero versions",
-      "matchUpdateTypes": ["minor", "patch"],
-      "matchCurrentVersion": "!/^0/",
-      "automerge": true
-    },
-    {
-      "description": "Group Ansible packages",
-      "groupName": "ansible packages",
-      "matchPackagePatterns": ["^ansible"],
-      "automerge": true
-    },
-    {
-      "description": "Group pytest packages",
-      "groupName": "testing packages",
-      "matchPackagePatterns": ["^pytest", "^molecule"],
-      "automerge": true
-    },
-    {
-      "description": "Group GitHub Actions updates",
-      "groupName": "GitHub Actions",
-      "matchManagers": ["github-actions"],
-      "automerge": true
-    },
-    {
-      "description": "Pin Terraform version (manual updates only)",
-      "matchPackageNames": ["hashicorp/terraform"],
-      "enabled": false
-    },
-    {
-      "description": "Require approval for major updates",
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "labels": ["dependencies", "major-update"]
-    },
-    {
-      "description": "Security updates auto-merge",
-      "matchDatasources": ["pypi", "docker"],
-      "matchUpdateTypes": ["patch"],
-      "vulnerabilityAlerts": {
-        "enabled": true
-      },
-      "automerge": true,
-      "labels": ["dependencies", "security"]
-    }
-  ],
-  "docker": {
-    "enabled": true,
-    "pinDigests": false
-  },
-  "python": {
-    "enabled": true
-  },
-  "pip_requirements": {
-    "fileMatch": ["^requirements.*\\.txt$"]
-  },
+  "ignoreDeps": [],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security"],
-    "automerge": true
+    "labels": [
+      "security",
+      "vulnerability",
+      "high-priority"
+    ],
+    "assignees": [
+      "@malpanez"
+    ],
+    "semanticCommitType": "fix",
+    "semanticCommitScope": "security",
+    "schedule": [
+      "at any time"
+    ],
+    "prPriority": 20
   },
-  "prConcurrentLimit": 10,
-  "prHourlyLimit": 2,
-  "branchConcurrentLimit": 5
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 3am on the first day of the month"
+    ],
+    "commitMessageAction": "refresh lock files",
+    "automerge": true,
+    "platformAutomerge": true
+  },
+  "packageRules": [
+    {
+      "description": "GitHub Actions - Auto-merge digest pins and minor/patch",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions",
+      "groupSlug": "github-actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "minimumReleaseAge": "3 days",
+      "internalChecksFilter": "strict",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "commitMessageTopic": "GitHub Actions {{depName}}",
+      "labels": [
+        "dependencies",
+        "github-actions",
+        "automerge"
+      ]
+    },
+    {
+      "description": "GitHub Actions - Major updates require manual review",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "github-actions",
+        "major-update",
+        "requires-review"
+      ],
+      "prPriority": 5
+    },
+    {
+      "description": "Docker base images - Highest priority, pin digests",
+      "matchFileNames": [
+        "devcontainers/base/**",
+        ".devcontainer/**"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "Docker base images",
+      "groupSlug": "docker-base",
+      "pinDigests": true,
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "prPriority": 10,
+      "minimumReleaseAge": "3 days",
+      "stabilityDays": 3,
+      "labels": [
+        "dependencies",
+        "docker",
+        "base-image"
+      ],
+      "commitMessagePrefix": "chore(docker-base):",
+      "automerge": false
+    },
+    {
+      "description": "Docker stack images - Group by stack",
+      "matchFileNames": [
+        "devcontainers/ansible/**",
+        "devcontainers/terraform/**",
+        "devcontainers/golang/**",
+        "devcontainers/latex/**"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "pinDigests": true,
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "minimumReleaseAge": "3 days",
+      "stabilityDays": 3,
+      "labels": [
+        "dependencies",
+        "docker"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Python - Ansible packages group",
+      "matchManagers": [
+        "pip_requirements",
+        "pip_setup",
+        "pipenv",
+        "poetry"
+      ],
+      "matchPackagePatterns": [
+        "^ansible"
+      ],
+      "groupName": "Ansible packages",
+      "groupSlug": "ansible",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "minimumReleaseAge": "3 days",
+      "labels": [
+        "dependencies",
+        "python",
+        "ansible",
+        "automerge"
+      ],
+      "commitMessagePrefix": "chore(ansible):"
+    },
+    {
+      "description": "Python - Testing packages group",
+      "matchManagers": [
+        "pip_requirements",
+        "pip_setup",
+        "pipenv",
+        "poetry"
+      ],
+      "matchPackagePatterns": [
+        "^pytest",
+        "^molecule",
+        "^testinfra",
+        "^coverage"
+      ],
+      "groupName": "Testing packages",
+      "groupSlug": "testing",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "labels": [
+        "dependencies",
+        "python",
+        "testing",
+        "automerge"
+      ],
+      "commitMessagePrefix": "chore(testing):"
+    },
+    {
+      "description": "Python - Linting packages group",
+      "matchManagers": [
+        "pip_requirements",
+        "pip_setup",
+        "pipenv",
+        "poetry"
+      ],
+      "matchPackagePatterns": [
+        "^ruff",
+        "^black",
+        "^mypy",
+        "^yamllint",
+        "^ansible-lint",
+        "^pre-commit"
+      ],
+      "groupName": "Linting packages",
+      "groupSlug": "linting",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "labels": [
+        "dependencies",
+        "python",
+        "linting",
+        "automerge"
+      ],
+      "commitMessagePrefix": "chore(linting):"
+    },
+    {
+      "description": "Python - All other packages minor/patch auto-merge",
+      "matchManagers": [
+        "pip_requirements",
+        "pip_setup",
+        "pipenv",
+        "poetry"
+      ],
+      "groupName": "Python dependencies",
+      "groupSlug": "python",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "matchCurrentVersion": "!/^0/",
+      "minimumReleaseAge": "3 days",
+      "labels": [
+        "dependencies",
+        "python",
+        "automerge"
+      ]
+    },
+    {
+      "description": "Python - Major updates require manual review",
+      "matchManagers": [
+        "pip_requirements",
+        "pip_setup",
+        "pipenv",
+        "poetry"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "python",
+        "major-update",
+        "requires-review"
+      ],
+      "prPriority": 3
+    },
+    {
+      "description": "Terraform - Pin provider versions (manual updates only)",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchPackageNames": [
+        "hashicorp/terraform"
+      ],
+      "enabled": false,
+      "description": "Terraform version pinned in Dockerfile ARG, update manually"
+    },
+    {
+      "description": "Terraform - Other dependencies",
+      "matchManagers": [
+        "terraform"
+      ],
+      "groupName": "Terraform dependencies",
+      "groupSlug": "terraform",
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "terraform"
+      ]
+    },
+    {
+      "description": "Go - Auto-merge minor/patch",
+      "matchManagers": [
+        "gomod"
+      ],
+      "groupName": "Go dependencies",
+      "groupSlug": "go",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "minimumReleaseAge": "3 days",
+      "labels": [
+        "dependencies",
+        "go",
+        "automerge"
+      ]
+    },
+    {
+      "description": "Go - Major updates require review",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "go",
+        "major-update"
+      ]
+    },
+    {
+      "description": "Security - CRITICAL severity, immediate action",
+      "matchDatasources": [
+        "docker",
+        "github-releases",
+        "github-tags",
+        "npm",
+        "pypi"
+      ],
+      "vulnerabilitySeverity": "critical",
+      "labels": [
+        "security",
+        "critical",
+        "emergency"
+      ],
+      "automerge": false,
+      "schedule": [
+        "at any time"
+      ],
+      "minimumReleaseAge": "0 days",
+      "prPriority": 30,
+      "assignees": [
+        "@malpanez"
+      ],
+      "reviewers": [
+        "@malpanez"
+      ]
+    },
+    {
+      "description": "Security - HIGH severity, high priority",
+      "matchDatasources": [
+        "docker",
+        "github-releases",
+        "github-tags",
+        "npm",
+        "pypi"
+      ],
+      "vulnerabilitySeverity": "high",
+      "labels": [
+        "security",
+        "high-priority"
+      ],
+      "automerge": false,
+      "schedule": [
+        "at any time"
+      ],
+      "minimumReleaseAge": "0 days",
+      "prPriority": 20
+    },
+    {
+      "description": "Security - MEDIUM severity, can auto-merge patch",
+      "matchDatasources": [
+        "docker",
+        "github-releases",
+        "github-tags",
+        "npm",
+        "pypi"
+      ],
+      "vulnerabilitySeverity": "medium",
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "labels": [
+        "security",
+        "medium-priority",
+        "automerge"
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "schedule": [
+        "at any time"
+      ],
+      "prPriority": 15
+    },
+    {
+      "description": "Pin Docker digests for reproducibility and security",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "pin",
+        "digest"
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "commitMessageExtra": "to {{newDigestShort}}",
+      "commitMessageTopic": "{{depName}} digest",
+      "labels": [
+        "dependencies",
+        "docker",
+        "digest",
+        "automerge"
+      ]
+    },
+    {
+      "description": "Development dependencies - Lower priority but auto-merge",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "prPriority": -1,
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "labels": [
+        "dependencies",
+        "dev",
+        "automerge"
+      ]
+    },
+    {
+      "description": "0.x versions - Treat minor as major",
+      "matchCurrentVersion": "/^0/",
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "unstable",
+        "requires-review"
+      ]
+    }
+  ],
+  "regexManagers": [
+    {
+      "description": "Update _VERSION variables in Dockerfiles",
+      "fileMatch": [
+        "(^|/)Dockerfile$",
+        "(^|/)Dockerfile\\.[^/]*$"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+(?:ENV|ARG)\\s+[A-Z_]+_VERSION=(?<currentValue>\\S+)"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    },
+    {
+      "description": "Update tool versions in shell scripts",
+      "fileMatch": [
+        "^scripts/.*\\.sh$"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+.*?_VERSION=['\"](?<currentValue>[^'\"]+)['\"]"
+      ]
+    },
+    {
+      "description": "Update versions in GitHub workflow env",
+      "fileMatch": [
+        "^\\.github/workflows/[^/]+\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*['\"]?(?<currentValue>[^'\"\\s]+)['\"]?"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Custom version detection for ARG statements",
+      "fileMatch": [
+        "(^|/)Dockerfile$"
+      ],
+      "matchStrings": [
+        "ARG\\s+(?<depName>[A-Z_]+)_VERSION=(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "hostRules": [
+    {
+      "description": "Docker Hub rate limiting workaround",
+      "matchHost": "docker.io",
+      "concurrentRequestLimit": 2
+    },
+    {
+      "description": "GitHub API rate limiting",
+      "matchHost": "api.github.com",
+      "concurrentRequestLimit": 5
+    }
+  ],
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+  "prBodyColumns": [
+    "Package",
+    "Type",
+    "Update",
+    "Change",
+    "Pending"
+  ],
+  "prBodyNotes": [
+    "",
+    "---",
+    "",
+    "### 🔒 Security & Quality Checks",
+    "",
+    "Before merging this PR, ensure:",
+    "- ✅ All CI checks pass (tests, linting, security scans)",
+    "- ✅ Review the changelog for breaking changes",
+    "- ✅ Check for security advisories or CVEs",
+    "- ✅ Verify compatibility with current codebase",
+    "",
+    "### 🤖 Automated by Renovate",
+    "",
+    "This PR was automatically created by [Renovate Bot](https://github.com/renovatebot/renovate).",
+    "Configuration: [`.github/renovate.json`](.github/renovate.json)",
+    "",
+    "**Auto-merge**: {{#if automerge}}✅ Enabled (will merge when CI passes){{else}}❌ Disabled (requires manual review){{/if}}"
+  ],
+  "prFooter": "---\n\n📊 **Dashboard**: [View all pending updates](https://github.com/{{repository}}/issues?q=is%3Aissue+is%3Aopen+label%3Arenovate)",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "📊 Renovate Dependency Dashboard",
+  "dependencyDashboardHeader": "This issue lists all pending dependency updates. Click a checkbox to trigger a new PR immediately.\n\n**Legend**: ✅ = automerge enabled | ⚠️ = requires review | 🔴 = security issue",
+  "dependencyDashboardApproval": false,
+  "dependencyDashboardAutoclose": true
 }

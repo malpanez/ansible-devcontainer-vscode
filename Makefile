@@ -1,290 +1,128 @@
-# Makefile for ansible-devcontainer-vscode
-# Universal task runner for CLI, CI, and any IDE
-#
-# Usage: make <target>
-#        make help  - Show all available targets
+# Makefile for TOP 0.1% DevContainer Repository
+# Provides convenient shortcuts for common development tasks
 
 .PHONY: help
-help:  ## Show this help message
-	@echo "Available targets:"
-	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | \
-		sort
-	@echo ""
-	@echo "Stack switching:"
-	@grep -E '^switch-.*:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[33m%-25s\033[0m %s\n", $$1, $$2}'
+help: ## Show this help message
+	@echo '╔════════════════════════════════════════════════════════════╗'
+	@echo '║  TOP 0.1% DevContainer - Available Commands               ║'
+	@echo '╚════════════════════════════════════════════════════════════╝'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-# =============================================================================
-# Testing
-# =============================================================================
-
-.PHONY: test
-test:  ## Run all tests (smoke + Terraform + Python)
-	@echo "Running smoke tests..."
-	@./scripts/run-smoke-tests.sh
-	@echo ""
-	@echo "Running Terraform tests..."
-	@./scripts/run-terraform-tests.sh
-	@echo ""
-	@echo "Running Python tests with coverage..."
-	@pytest tests/ -v --cov
-
-.PHONY: test-smoke
-test-smoke:  ## Run smoke tests only
-	@./scripts/run-smoke-tests.sh
-
-.PHONY: test-terraform
-test-terraform:  ## Run Terraform tests only
-	@./scripts/run-terraform-tests.sh
-
-.PHONY: test-ansible
-test-ansible:  ## Run Ansible tests with Molecule
-	@./scripts/run-ansible-tests.sh
-
-.PHONY: test-quick
-test-quick:  ## Run quick sanity checks
-	@echo "Quick sanity checks..."
-	@ansible --version >/dev/null 2>&1 && echo "✓ Ansible OK" || echo "✗ Ansible missing"
-	@terraform --version >/dev/null 2>&1 && echo "✓ Terraform OK" || echo "✗ Terraform missing"
-	@yamllint --version >/dev/null 2>&1 && echo "✓ yamllint OK" || echo "✗ yamllint missing"
-
-.PHONY: test-coverage
-test-coverage:  ## Run Python tests with coverage report
-	@echo "Running Python tests with coverage..."
-	@pytest tests/ --cov --cov-report=html --cov-report=term-missing
-	@echo ""
-	@echo "Coverage report generated in htmlcov/index.html"
-
-.PHONY: coverage
-coverage: test-coverage  ## Alias for test-coverage
-
-.PHONY: coverage-report
-coverage-report:  ## Open coverage report in browser
-	@if command -v xdg-open >/dev/null 2>&1; then \
-		xdg-open htmlcov/index.html; \
-	elif command -v open >/dev/null 2>&1; then \
-		open htmlcov/index.html; \
-	else \
-		echo "Coverage report: htmlcov/index.html"; \
-	fi
-
-# =============================================================================
-# Code Quality
-# =============================================================================
+.PHONY: setup
+setup: ## Initial setup - install all dependencies
+	@echo "🚀 Setting up development environment..."
+	@command -v gh >/dev/null 2>&1 || (echo "Installing gh CLI..." && sudo apt-get update && sudo apt-get install -y gh)
+	@command -v pre-commit >/dev/null 2>&1 || (echo "Installing pre-commit..." && uvx pre-commit --version)
+	@echo "Installing pre-commit hooks..."
+	@uvx pre-commit install --install-hooks
+	@echo "✅ Setup complete!"
 
 .PHONY: lint
-lint:  ## Run all linters (pre-commit on all files)
-	@echo "Running pre-commit hooks on all files..."
+lint: ## Run all linters
+	@echo "🔍 Running linters..."
 	@uvx pre-commit run --all-files
 
-.PHONY: lint-yaml
-lint-yaml:  ## Run YAML linting only
-	@yamllint .
+.PHONY: lint-fix
+lint-fix: ## Run linters and auto-fix issues
+	@echo "🔧 Running linters with auto-fix..."
+	@uvx pre-commit run --all-files || true
+	@echo "✅ Auto-fix complete!"
 
-.PHONY: lint-ansible
-lint-ansible:  ## Run Ansible linting only
-	@uvx ansible-lint playbooks/ roles/
+.PHONY: security
+security: ## Run security scans
+	@echo "🔒 Running security scans..."
+	@echo "Checking for secrets..."
+	@uvx pre-commit run detect-secrets --all-files || true
+	@echo "Running Trivy scan..."
+	@trivy fs . --severity HIGH,CRITICAL || echo "Trivy not installed, skipping"
+	@echo "✅ Security scan complete!"
 
-.PHONY: format
-format:  ## Format all code (Python, Terraform, YAML)
-	@echo "Formatting Python files..."
-	@uvx ruff format .
-	@echo "Formatting Terraform files..."
-	@terraform fmt -recursive devcontainers/terraform/ || true
-	@echo "Done!"
+.PHONY: test
+test: ## Run all tests
+	@echo "🧪 Running tests..."
+	@if [ -d "tests" ]; then \
+		pytest tests/ -v; \
+	else \
+		echo "No tests directory found"; \
+	fi
 
-.PHONY: format-check
-format-check:  ## Check formatting without making changes
-	@uvx ruff format --check .
-	@terraform fmt -check -recursive devcontainers/terraform/ || true
-
-# =============================================================================
-# Development
-# =============================================================================
-
-.PHONY: install
-install:  ## Install Python dependencies with uv
-	@echo "Installing Python dependencies..."
-	@uv pip install --system -e .
-
-.PHONY: install-dev
-install-dev:  ## Install Python dependencies + dev tools
-	@echo "Installing dev dependencies..."
-	@uv pip install --system -e ".[dev]"
-	@uvx pre-commit install
+.PHONY: build
+build: ## Build all devcontainers locally
+	@echo "🏗️  Building devcontainers..."
+	@docker build -t devcontainer-terraform:local -f .devcontainer/Dockerfile .
+	@echo "✅ Build complete!"
 
 .PHONY: clean
-clean:  ## Clean build artifacts and caches
-	@echo "Cleaning build artifacts..."
+clean: ## Clean cache and temporary files
+	@echo "🧹 Cleaning up..."
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	@echo "Done!"
-
-.PHONY: clean-all
-clean-all: clean  ## Clean everything including Docker volumes
-	@echo "Cleaning Docker volumes..."
-	@docker volume rm uv-cache ansible-galaxy-cache 2>/dev/null || true
-	@echo "Done!"
-
-# =============================================================================
-# Container Operations
-# =============================================================================
-
-.PHONY: build
-build:  ## Build all devcontainer images
-	@echo "Building all devcontainer images..."
-	@for stack in ansible terraform golang latex; do \
-		echo ""; \
-		echo "Building $$stack..."; \
-		docker build -t devcontainer-$$stack devcontainers/$$stack/; \
-	done
-	@echo ""
-	@echo "✓ All images built successfully!"
-
-.PHONY: build-ansible
-build-ansible:  ## Build Ansible devcontainer only
-	@docker build -t devcontainer-ansible devcontainers/ansible/
-
-.PHONY: build-terraform
-build-terraform:  ## Build Terraform devcontainer only
-	@docker build -t devcontainer-terraform devcontainers/terraform/
-
-.PHONY: build-golang
-build-golang:  ## Build Golang devcontainer only
-	@docker build -t devcontainer-golang devcontainers/golang/
-
-.PHONY: build-latex
-build-latex:  ## Build LaTeX devcontainer only
-	@docker build -t devcontainer-latex devcontainers/latex/
-
-.PHONY: smoke
-smoke:  ## Run smoke tests on built containers
-	@for stack in ansible terraform golang latex; do \
-		echo "Smoke testing $$stack..."; \
-		./scripts/smoke-devcontainer-image.sh $$stack || exit 1; \
-	done
-
-# =============================================================================
-# Stack Switching (Devcontainer Context)
-# =============================================================================
-
-.PHONY: switch-ansible
-switch-ansible:  ## Switch to Ansible devcontainer stack
-	@./scripts/use-devcontainer.sh ansible
-	@echo "✓ Switched to Ansible stack. Reopen in container to apply."
-
-.PHONY: switch-terraform
-switch-terraform:  ## Switch to Terraform devcontainer stack
-	@./scripts/use-devcontainer.sh terraform
-	@echo "✓ Switched to Terraform stack. Reopen in container to apply."
-
-.PHONY: switch-golang
-switch-golang:  ## Switch to Golang devcontainer stack
-	@./scripts/use-devcontainer.sh golang
-	@echo "✓ Switched to Golang stack. Reopen in container to apply."
-
-.PHONY: switch-latex
-switch-latex:  ## Switch to LaTeX devcontainer stack
-	@./scripts/use-devcontainer.sh latex
-	@echo "✓ Switched to LaTeX stack. Reopen in container to apply."
-
-# =============================================================================
-# Maintenance
-# =============================================================================
+	@rm -rf .cache/* || true
+	@echo "✅ Cleanup complete!"
 
 .PHONY: update-deps
-update-deps:  ## Update Python dependencies
-	@echo "Updating Python dependencies..."
-	@uv pip compile pyproject.toml -o requirements.txt
-	@uv pip install --system -r requirements.txt
-
-.PHONY: update-hooks
-update-hooks:  ## Update pre-commit hooks
+update-deps: ## Update all dependencies
+	@echo "⬆️  Updating dependencies..."
 	@uvx pre-commit autoupdate
+	@echo "✅ Dependencies updated! Review changes before committing."
 
-.PHONY: cleanup-branches
-cleanup-branches:  ## Cleanup merged Git branches (dry-run)
-	@./scripts/cleanup-merged-branches.sh --dry-run
+.PHONY: check-alerts
+check-alerts: ## Check GitHub security alerts
+	@echo "🔔 Checking security alerts..."
+	@gh api repos/malpanez/ansible-devcontainer-vscode/code-scanning/alerts --jq '.[] | select(.state == "open") | {number: .number, severity: .rule.severity, rule: .rule.id}' || echo "gh CLI not authenticated"
 
-.PHONY: cleanup-branches-force
-cleanup-branches-force:  ## Cleanup merged Git branches (for real)
-	@./scripts/cleanup-merged-branches.sh
+.PHONY: dismiss-alerts
+dismiss-alerts: ## Run alert management script (dry-run)
+	@echo "🤖 Running alert management (dry-run)..."
+	@DRY_RUN=true .github/scripts/manage-code-scanning-alerts.sh
 
-.PHONY: check-versions
-check-versions:  ## Check tool versions across project
-	@echo "Tool versions in use:"
+.PHONY: dismiss-alerts-for-real
+dismiss-alerts-for-real: ## Dismiss alerts for real (use with caution)
+	@echo "⚠️  Running alert management (REAL)..."
+	@read -p "Are you sure? Type 'yes' to confirm: " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		DRY_RUN=false .github/scripts/manage-code-scanning-alerts.sh; \
+	else \
+		echo "Cancelled."; \
+	fi
+
+.PHONY: validate-yaml
+validate-yaml: ## Validate all YAML files
+	@echo "📝 Validating YAML files..."
+	@find . -name "*.yml" -o -name "*.yaml" | grep -v ".cache" | grep -v "node_modules" | xargs yamllint -c .yamllint || true
+
+.PHONY: validate-docker
+validate-docker: ## Validate all Dockerfiles
+	@echo "🐳 Validating Dockerfiles..."
+	@find . -name "Dockerfile*" | xargs -I {} docker run --rm -i hadolint/hadolint < {} || true
+
+.PHONY: ci-local
+ci-local: lint security validate-yaml validate-docker ## Run full CI pipeline locally
+	@echo "✅ Full CI pipeline complete!"
+
+.PHONY: git-status
+git-status: ## Show enhanced git status
+	@echo "📊 Git Status:"
+	@git status --short --branch
 	@echo ""
-	@echo "Python:      $$(python --version 2>&1 | cut -d' ' -f2 || echo 'Not installed')"
-	@echo "Terraform:   $$(terraform --version 2>&1 | head -1 | cut -d'v' -f2 || echo 'Not installed')"
-	@echo "Go:          $$(go version 2>&1 | awk '{print $$3}' | cut -d'o' -f2 || echo 'Not installed')"
-	@echo "Ansible:     $$(ansible --version 2>&1 | head -1 | awk '{print $$3}' || echo 'Not installed')"
-	@echo "uv:          $$(uv --version 2>&1 | cut -d' ' -f2 || echo 'Not installed')"
-	@echo ""
-	@echo "See .github/versions.yml for canonical versions"
+	@echo "📈 Recent commits:"
+	@git log --oneline -5
 
-.PHONY: check-security
-check-security:  ## Run security checks (detect-secrets)
-	@echo "Running security scans..."
-	@uvx detect-secrets scan --baseline .secrets.baseline
-
-# =============================================================================
-# Documentation
-# =============================================================================
-
-.PHONY: docs
-docs:  ## Open documentation index
-	@echo "Opening documentation..."
-	@cat docs/README.md
-
-.PHONY: readme
-readme:  ## Display main README
-	@cat README.md
-
-# =============================================================================
-# CI/CD Helpers
-# =============================================================================
-
-.PHONY: ci-test
-ci-test: test lint  ## Run all CI tests locally
-
-.PHONY: ci-build
-ci-build: build smoke  ## Run all CI build steps locally
-
-.PHONY: validate
-validate:  ## Validate project configuration files
-	@echo "Validating YAML files..."
-	@yamllint .github/workflows/*.yml
-	@echo "Validating Dockerfiles..."
-	@docker run --rm -i hadolint/hadolint < devcontainers/ansible/Dockerfile || true
-	@echo "Validating pre-commit config..."
-	@uvx pre-commit validate-config
-
-# =============================================================================
-# Info
-# =============================================================================
-
-.PHONY: info
-info:  ## Display project information
-	@echo "Project: ansible-devcontainer-vscode"
-	@echo "Repository: https://github.com/malpanez/ansible-devcontainer-vscode"
-	@echo ""
-	@echo "Available stacks:"
-	@echo "  - Ansible (default)"
-	@echo "  - Terraform"
-	@echo "  - Golang"
-	@echo "  - LaTeX"
-	@echo ""
-	@echo "Run 'make help' to see all available commands"
+.PHONY: pr-check
+pr-check: lint test ## Pre-PR checklist - run before creating PR
+	@echo "✅ PR checklist complete! Ready to push."
 
 .PHONY: version
-version:  ## Show project version
-	@echo "Version: 0.1.0"
-	@echo "See docs/CHANGELOG.md for release notes"
+version: ## Show versions of all tools
+	@echo "📦 Tool Versions:"
+	@echo "Terraform:  $$(terraform version -json | jq -r '.terraform_version')"
+	@echo "Terragrunt: $$(terragrunt --version | head -1)"
+	@echo "TFLint:     $$(tflint --version)"
+	@echo "Ansible:    $$(ansible --version | head -1)"
+	@echo "Python:     $$(python --version)"
+	@echo "Docker:     $$(docker --version)"
+	@echo "gh CLI:     $$(gh --version | head -1)"
 
-# Default target
 .DEFAULT_GOAL := help

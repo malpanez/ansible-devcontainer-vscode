@@ -1,80 +1,93 @@
-## Summary
+# Pull Request
 
-<!-- Brief description of what this PR does -->
+## 📝 Description
 
-## Type of Change
+<!-- Provide a brief description of the changes -->
 
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
-- [ ] Dependency update
-- [ ] Security fix
-- [ ] Refactoring (no functional changes)
+## 🔗 Related Issues
 
-## Changes Made
+<!-- Link any related issues using #issue_number -->
 
-<!-- List the main changes made in this PR -->
+Fixes #
+Related to #
 
--
--
--
+## 🎯 Type of Change
 
-## Testing
+<!-- Mark with an `x` all that apply -->
 
-<!-- Describe the tests you ran and how to reproduce them -->
+- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
+- [ ] ✨ New feature (non-breaking change which adds functionality)
+- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] 📝 Documentation update
+- [ ] ♻️ Refactoring (no functional changes)
+- [ ] 🎨 Style/formatting changes
+- [ ] ✅ Test updates
+- [ ] 🔧 CI/CD changes
+- [ ] 🔒 Security fix
 
-- [ ] Tested locally
-- [ ] CI passes
-- [ ] Containers build successfully
+## 📋 Checklist
 
-## Checklist
+<!-- Mark completed items with an `x` -->
 
-### Code Quality
-- [ ] Code follows project style guidelines
-- [ ] Self-review completed
-- [ ] Comments added for complex logic
-- [ ] No unnecessary console.logs or debug code
-- [ ] No hardcoded secrets or credentials
+- [ ] My code follows the project's style guidelines
+- [ ] I have performed a self-review of my code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings or errors
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
+- [ ] Any dependent changes have been merged and published
+- [ ] I have checked my code and corrected any misspellings
+- [ ] I have run pre-commit hooks locally (`pre-commit run --all-files`)
 
-### Security
-- [ ] No new security vulnerabilities introduced
-- [ ] Input validation added where needed
-- [ ] No SQL injection, XSS, or command injection risks
-- [ ] Secrets properly managed (not hardcoded)
+## 🧪 Testing
 
-### Documentation
-- [ ] README updated (if needed)
-- [ ] Code comments added
-- [ ] CHANGELOG updated (if applicable)
+<!-- Describe the tests you ran to verify your changes -->
 
-### Dependencies
-- [ ] New dependencies justified and documented
-- [ ] No vulnerable dependencies added
-- [ ] Lockfiles updated (uv.lock, package-lock.json, etc.)
+### Test Configuration
 
-### Containers (if applicable)
-- [ ] Dockerfile changes tested
-- [ ] Multi-arch builds work (amd64/arm64)
-- [ ] No unnecessary layers added
-- [ ] Security scan passes (Trivy)
+- **DevContainer Stack**: <!-- Terraform / Ansible / Golang / LaTeX / Base -->
+- **Host OS**: <!-- macOS / Linux / Windows (WSL2) -->
+- **Docker Version**: <!-- Output of `docker --version` -->
 
-## Related Issues
+### Test Steps
 
-<!-- Link related issues: Fixes #123, Closes #456 -->
+1. 
+2. 
+3. 
 
-## Additional Notes
+### Test Results
 
-<!-- Any additional information reviewers should know -->
+<!-- Paste relevant test output or screenshots -->
+
+```
+# Test output here
+```
+
+## 📸 Screenshots (if applicable)
+
+<!-- Add screenshots to help explain your changes -->
+
+## 🔍 Additional Notes
+
+<!-- Any additional information that reviewers should know -->
 
 ---
 
-**For Reviewers:**
+## 🤖 Automated Checks
 
-Please verify:
-1. Code quality and style consistency
-2. Test coverage is adequate
-3. Documentation is complete and accurate
-4. Security considerations addressed
-5. No breaking changes (or properly documented)
-6. CI/CD passes all checks
+<!-- These will be filled automatically by CI -->
+
+- CI Build: <!-- Will be checked by GitHub Actions -->
+- Security Scan: <!-- Will be checked by Trivy -->
+- Linting: <!-- Will be checked by pre-commit -->
+
+## 👀 Reviewers
+
+<!-- Tag specific reviewers if needed -->
+
+/cc @malpanez
+
+---
+
+**By submitting this PR, I confirm that my contribution is made under the terms of the Apache-2.0 license.**
