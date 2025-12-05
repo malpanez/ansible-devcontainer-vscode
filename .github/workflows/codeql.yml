@@ -40,8 +40,7 @@ jobs:
         include:
           - language: python
             build-mode: none
-          - language: javascript-typescript
-            build-mode: none
+          # Note: javascript-typescript removed - repository is primarily Python/YAML/Bash
           # Add more languages as needed:
           # - language: go
           #   build-mode: autobuild
