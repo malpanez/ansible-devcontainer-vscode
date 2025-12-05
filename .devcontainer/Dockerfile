@@ -10,6 +10,7 @@ ARG TARGETPLATFORM
 ARG TERRAGRUNT_VERSION
 ARG TFLINT_VERSION
 
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache/apt \
     apt-get update \
