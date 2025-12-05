@@ -168,6 +168,116 @@
         "reveal": "always",
         "panel": "new"
       }
+    },
+    {
+      "label": "Switch Devcontainer: Ansible",
+      "type": "shell",
+      "command": "./scripts/use-devcontainer.sh ansible",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Switch Devcontainer: Terraform",
+      "type": "shell",
+      "command": "./scripts/use-devcontainer.sh terraform",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Switch Devcontainer: Golang",
+      "type": "shell",
+      "command": "./scripts/use-devcontainer.sh golang",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Switch Devcontainer: LaTeX",
+      "type": "shell",
+      "command": "./scripts/use-devcontainer.sh latex",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Cleanup Merged Branches",
+      "type": "shell",
+      "command": "./scripts/cleanup-merged-branches.sh --dry-run",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Run Smoke Tests",
+      "type": "shell",
+      "command": "./scripts/run-smoke-tests.sh",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Run Terraform Tests",
+      "type": "shell",
+      "command": "./scripts/run-terraform-tests.sh",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Build All Devcontainers",
+      "type": "shell",
+      "command": "for stack in ansible terraform golang latex; do echo \"Building $stack...\"; ./scripts/smoke-devcontainer-image.sh --stack $stack --build; done",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Update Tool Versions in README",
+      "type": "shell",
+      "command": "echo 'Check and update tool versions in README.md:' && grep -E '(Terraform|Python|Go|Ansible|uv).*badge' README.md",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Check OpenSSF Scorecard",
+      "type": "shell",
+      "command": "echo 'Opening OpenSSF Scorecard...' && python3 -m webbrowser 'https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode'",
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
     }
   ]
 }

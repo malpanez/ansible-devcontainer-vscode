@@ -44,5 +44,80 @@
     }
   },
 
-  "dev.containers.dockerPath": "podman"
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.tabSize": 2
+  },
+
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.tabSize": 2
+  },
+
+  "[markdown]": {
+    "editor.formatOnSave": true,
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+
+  "[dockerfile]": {
+    "editor.defaultFormatter": "ms-azuretools.vscode-docker",
+    "editor.tabSize": 2
+  },
+
+  // Git settings
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+  "git.pruneOnFetch": true,
+
+  // Search exclusions
+  "search.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/.cache": true,
+    "**/collections/ansible_collections": true,
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/uv.lock": true,
+    "**/.terraform": true,
+    "**/.terraform.lock.hcl": false
+  },
+
+  // File exclusions
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true
+  },
+
+  // Terminal settings
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.scrollback": 10000,
+
+  // GitHub Copilot (if available)
+  "github.copilot.enable": {
+    "*": true,
+    "yaml": true,
+    "plaintext": false,
+    "markdown": true
+  },
+
+  // Terraform specific
+  "terraform.languageServer.enable": true,
+  "terraform.codelens.enabled": true,
+
+  // Container settings (use docker or podman)
+  "dev.containers.dockerPath": "docker"
 }
