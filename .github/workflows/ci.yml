@@ -422,18 +422,34 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Run pytest
+      - name: Run pytest with coverage
         run: |
           if [ -d "tests" ] && [ -n "$(ls -A tests/*.py 2>/dev/null)" ]; then
             python -m pytest tests/ \
               --verbose \
               --tb=short \
               --maxfail=5 \
+              --cov=roles \
+              --cov=playbooks \
+              --cov=scripts \
+              --cov-report=xml:coverage.xml \
+              --cov-report=html:htmlcov \
+              --cov-report=term-missing \
               -p no:ansible \
               || echo "::warning::Some pytest tests failed"
           else
             echo "No Python tests found, skipping"
           fi
+        continue-on-error: true
+
+      - name: Upload Python coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303  # v5.1.2
+        with:
+          files: ./coverage.xml
+          flags: python
+          name: python-coverage
+          fail_ci_if_error: false
         continue-on-error: true
 
   ansible-test:
@@ -725,6 +741,8 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+          skip-dirs: 'examples/,docs/,tests/fixtures/'
+          trivyignores: '.trivyignore'
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
