@@ -1,4 +1,4 @@
-# EditorConfig helps maintain consistent coding styles
+# EditorConfig for cross-editor consistency
 # https://editorconfig.org
 
 root = true
@@ -15,15 +15,6 @@ indent_size = 2
 indent_size = 4
 max_line_length = 120
 
-[*.{yml,yaml}]
-indent_size = 2
-
-[*.{tf,tfvars}]
-indent_size = 2
-
-[*.{hcl}]
-indent_size = 2
-
 [*.go]
 indent_style = tab
 indent_size = 4
@@ -32,17 +23,20 @@ indent_size = 4
 trim_trailing_whitespace = false
 max_line_length = off
 
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{tf,tfvars,hcl}]
+indent_size = 2
+
+[*.{json,jsonc}]
+indent_size = 2
+
 [*.sh]
 indent_size = 2
 
 [Makefile]
 indent_style = tab
 
-[{package.json,*.json}]
-indent_size = 2
-
-[Dockerfile*]
-indent_size = 2
-
-[*.toml]
+[*.tex]
 indent_size = 2

@@ -1,0 +1,204 @@
+# .gitattributes - Cross-platform Git configuration
+# Ensures consistent line endings and diff handling across Windows, macOS, and Linux
+#
+# References:
+# - https://git-scm.com/docs/gitattributes
+# - https://www.kernel.org/pub/software/scm/git/docs/gitattributes.html
+
+# =============================================================================
+# Auto-detect text files and normalize line endings to LF on commit
+# =============================================================================
+* text=auto
+
+# =============================================================================
+# Shell Scripts - MUST use LF (critical for WSL2/Linux execution)
+# =============================================================================
+*.sh text eol=lf
+*.bash text eol=lf
+
+# =============================================================================
+# Configuration Files - Force LF
+# =============================================================================
+
+# YAML (Ansible, workflows, configs)
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# JSON
+*.json text eol=lf
+
+# TOML (uv, Rust configs)
+*.toml text eol=lf
+
+# Dockerfiles
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# Makefiles (tabs required, LF line endings)
+Makefile text eol=lf
+*.mk text eol=lf
+
+# EditorConfig
+.editorconfig text eol=lf
+
+# Git files
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.gitmodules text eol=lf
+
+# =============================================================================
+# Programming Languages
+# =============================================================================
+
+# Python - Use LF, enable Python diff driver
+*.py text eol=lf diff=python
+*.pyi text eol=lf diff=python
+*.pyx text eol=lf diff=python
+
+# Go
+*.go text eol=lf diff=golang
+
+# Terraform/HCL
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.hcl text eol=lf
+
+# JavaScript/TypeScript
+*.js text eol=lf
+*.ts text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
+
+# Web files
+*.html text eol=lf diff=html
+*.css text eol=lf
+*.scss text eol=lf
+
+# =============================================================================
+# Documentation
+# =============================================================================
+
+# Markdown - Enable markdown diff
+*.md text eol=lf diff=markdown
+*.markdown text eol=lf diff=markdown
+
+# Text files
+*.txt text eol=lf
+*.rst text eol=lf
+
+# LaTeX
+*.tex text eol=lf diff=tex
+*.bib text eol=lf
+
+# =============================================================================
+# Binary Files - Never modify
+# =============================================================================
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.webp binary
+
+# Fonts
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.tgz binary
+*.bz2 binary
+*.7z binary
+*.rar binary
+
+# Documents
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# Executables
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.app binary
+
+# Container images
+*.oci binary
+
+# =============================================================================
+# Generated Files - Treat as generated (GitHub linguist)
+# =============================================================================
+
+# Lockfiles - Mark as generated to collapse in diffs
+uv.lock linguist-generated=true
+package-lock.json linguist-generated=true
+yarn.lock linguist-generated=true
+poetry.lock linguist-generated=true
+Pipfile.lock linguist-generated=true
+Cargo.lock linguist-generated=true
+go.sum linguist-generated=true
+
+# Terraform
+.terraform.lock.hcl linguist-generated=true
+
+# Build outputs
+*.min.js linguist-generated=true
+*.min.css linguist-generated=true
+
+# =============================================================================
+# Archive Handling - Enable better diff for compressed files
+# =============================================================================
+
+# TAR archives
+*.tar diff=tar
+*.tar.gz diff=tar
+*.tgz diff=tar
+*.tar.bz2 diff=tar
+*.tar.xz diff=tar
+
+# ZIP archives
+*.zip diff=zip
+
+# =============================================================================
+# Special Cases
+# =============================================================================
+
+# Windows-specific files (if needed)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Ansible inventory files (often without extension)
+inventory/* text eol=lf
+
+# SSH config files
+**/ssh/config text eol=lf
+
+# Systemd service files
+*.service text eol=lf
+
+# =============================================================================
+# Exclude from exports
+# =============================================================================
+
+# Don't include these in git archive/export
+.gitattributes export-ignore
+.gitignore export-ignore
+.github export-ignore
+.vscode export-ignore
+.devcontainer export-ignore
+tests export-ignore
+*.test.* export-ignore
