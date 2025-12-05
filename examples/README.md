@@ -42,10 +42,6 @@ cp examples/terraform-project/.tflint.hcl /path/to/your/module/
 cp examples/terraform-project/.terraform-docs.yml /path/to/your/module/
 ```
 
-### 3. Mixed IaC Project (Coming Soon)
-
-**Best for**: Projects using both Ansible + Terraform
-
 ---
 
 ## Quick Start
