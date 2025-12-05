@@ -1,4 +1,4 @@
-# EditorConfig for cross-editor consistency
+# EditorConfig for TOP 0.1% codebase consistency
 # https://editorconfig.org
 
 root = true
@@ -11,32 +11,38 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
 
-[*.py]
+[*.{py,pyi}]
 indent_size = 4
 max_line_length = 120
 
-[*.go]
+[*.{sh,bash}]
+indent_size = 2
+max_line_length = 120
+
+[*.{go}]
 indent_style = tab
 indent_size = 4
+
+[*.{tf,tfvars,hcl}]
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_size = 2
+max_line_length = 120
+
+[*.{json,jsonc}]
+indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
 max_line_length = off
 
-[*.{yml,yaml}]
-indent_size = 2
-
-[*.{tf,tfvars,hcl}]
-indent_size = 2
-
-[*.{json,jsonc}]
-indent_size = 2
-
-[*.sh]
-indent_size = 2
-
 [Makefile]
 indent_style = tab
 
-[*.tex]
+[{package.json,*.lock}]
 indent_size = 2
+
+[.github/workflows/*.{yml,yaml}]
+indent_size = 2
+max_line_length = off

@@ -1,24 +1,46 @@
 ---
+# TOP 0.1% Pre-commit Configuration
+# Ensures code quality, security, and consistency across all commits
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        name: Trim Trailing Whitespace
       - id: end-of-file-fixer
+        name: Fix End of Files
       - id: check-yaml
+        name: Check YAML Syntax
+        args: ['--unsafe']  # Allow custom YAML tags
+      - id: check-json
+        name: Check JSON Syntax
+      - id: check-toml
+        name: Check TOML Syntax
       - id: check-added-large-files
+        name: Check for Large Files
+        args: ['--maxkb=1000']
       - id: check-merge-conflict
+        name: Check for Merge Conflicts
+      - id: detect-private-key
+        name: Detect Private Keys
+      - id: check-case-conflict
+        name: Check Case Conflicts
+      - id: mixed-line-ending
+        name: Fix Mixed Line Endings
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.37.1
     hooks:
       - id: yamllint
+        name: Lint YAML Files
         args: ['-c', '.yamllint']
 
   - repo: https://github.com/ansible/ansible-lint
     rev: v25.9.2
     hooks:
       - id: ansible-lint
+        name: Lint Ansible Files
         files: \.(yaml|yml)$
         language_version: python3.12
         args:
@@ -31,13 +53,61 @@ repos:
     rev: v0.14.3
     hooks:
       - id: ruff
+        name: Ruff Linter
         args: ["--fix", "--exit-non-zero-on-fix"]
       - id: ruff-format
+        name: Ruff Formatter
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
       - id: detect-secrets
+        name: Detect Secrets
         args:
           - "--baseline"
           - ".secrets.baseline"
+        exclude: package-lock.json
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: ShellCheck
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        name: Hadolint (Dockerfile Linter)
+
+  - repo: https://github.com/terraform-linters/tflint
+    rev: v0.54.0
+    hooks:
+      - id: tflint
+        name: TFLint (Terraform Linter)
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+      - id: terraform_fmt
+        name: Terraform Format
+      - id: terraform_validate
+        name: Terraform Validate
+      - id: terraform_tflint
+        name: Terraform TFLint
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: Prettier (Format JSON, Markdown, YAML)
+        types_or: [json, markdown]
+        exclude: ^(package-lock\.json|\.vscode/|\.github/workflows/)
+
+# Configuration
+default_language_version:
+  python: python3.12
+  node: system
+
+fail_fast: false  # Continue checking all hooks even if one fails
+minimum_pre_commit_version: '3.0.0'

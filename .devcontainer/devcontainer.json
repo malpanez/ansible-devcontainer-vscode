@@ -1,5 +1,5 @@
 {
-  "name": "Terraform DevOps Environment",
+  "name": "Terraform DevOps Environment - TOP 0.1%",
   "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
   "runArgs": [
     "--dns=1.1.1.1",
@@ -22,11 +22,14 @@
         "samuelcolvin.jinjahtml",
         "ms-azuretools.vscode-docker",
         "tamasfe.even-better-toml",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "github.vscode-github-actions",
+        "github.vscode-pull-request-github",
+        "editorconfig.editorconfig",
+        "streetsidesoftware.code-spell-checker"
       ],
       "openFiles": [
-        "README.md",
-        "docs/QUICKSTART.md"
+        "README.md"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
@@ -73,8 +76,9 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; sudo apt-get update && sudo apt-get install -y gh make yamllint || true; uvx pre-commit install --install-hooks || true"
+    "set -euo pipefail; echo '🚀 Setting up TOP 0.1% DevContainer...'; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; uvx pre-commit install --install-hooks || true; echo '✅ DevContainer ready! All tools pre-installed in image.'"
   ],
+  "postStartCommand": "echo '💡 DevContainer started. Tools: terraform, terragrunt, tflint, ansible, gh, make, jq'",
   "portsAttributes": {
     "8080": {
       "label": "Application",

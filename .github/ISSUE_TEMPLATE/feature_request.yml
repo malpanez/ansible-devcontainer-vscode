@@ -1,48 +1,22 @@
-name: Feature Request
+name: ✨ Feature Request
 description: Suggest a new feature or enhancement
 title: "[Feature]: "
-labels: ["enhancement", "needs-triage"]
-assignees: []
+labels: ["enhancement", "needs-review"]
+assignees:
+  - malpanez
 
 body:
   - type: markdown
     attributes:
       value: |
-        ## Thanks for suggesting a feature!
-
-        Before submitting, please:
-        - Search existing issues and [ROADMAP.md](https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/ROADMAP.md) to avoid duplicates
-        - Check if this might already be in development
-        - Consider if this fits the project scope (devcontainer automation for infrastructure tools)
-
-  - type: dropdown
-    id: category
-    attributes:
-      label: Feature Category
-      description: What type of feature is this?
-      options:
-        - New devcontainer stack (e.g., Rust, Java, Node.js)
-        - Enhancement to existing stack (Ansible/Terraform/Golang/LaTeX)
-        - New tool in existing stack
-        - Workflow/CI improvement
-        - Documentation improvement
-        - Performance optimization
-        - Developer experience (DX)
-        - Security enhancement
-        - Testing improvement
-        - Other
-    validations:
-      required: true
+        Thanks for suggesting a feature! Please describe your idea below.
 
   - type: textarea
     id: problem
     attributes:
       label: Problem Statement
-      description: What problem does this feature solve? Who experiences this problem?
-      placeholder: |
-        As a [role], I want [feature] so that [benefit].
-
-        Currently, [describe the pain point or limitation]...
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm always frustrated when...
     validations:
       required: true
 
@@ -50,17 +24,8 @@ body:
     id: solution
     attributes:
       label: Proposed Solution
-      description: How would you like this feature to work?
-      placeholder: |
-        The feature should:
-        1. ...
-        2. ...
-        3. ...
-
-        Example usage:
-        ```bash
-        make new-command
-        ```
+      description: Describe the solution you'd like
+      placeholder: I would like to see...
     validations:
       required: true
 
@@ -68,126 +33,50 @@ body:
     id: alternatives
     attributes:
       label: Alternatives Considered
-      description: What other solutions or workarounds have you considered?
-      placeholder: |
-        - Considered using [tool X] but it doesn't...
-        - Tried workaround Y but it's not ideal because...
-        - Could manually do Z but would prefer automation
-    validations:
-      required: false
-
-  - type: textarea
-    id: benefits
-    attributes:
-      label: Benefits
-      description: Why is this valuable? Who benefits and how?
-      placeholder: |
-        This would:
-        - ✅ Benefit 1: ...
-        - ✅ Benefit 2: ...
-        - ✅ Benefit 3: ...
-
-        Impact:
-        - Speed up development by X%
-        - Reduce onboarding time
-        - Improve security posture
-    validations:
-      required: true
-
-  - type: textarea
-    id: example
-    attributes:
-      label: Example / Mockup
-      description: Show an example of how this would work (code, commands, screenshots, etc.)
-      placeholder: |
-        ```yaml
-        # Example devcontainer.json change
-        {
-          "features": {
-            "ghcr.io/devcontainers/features/new-tool:1": {}
-          }
-        }
-        ```
-
-        Or attach mockups/screenshots
-      render: markdown
-    validations:
-      required: false
+      description: Describe alternatives you've considered
+      placeholder: Alternatively, we could...
 
   - type: dropdown
-    id: willingness
+    id: category
     attributes:
-      label: Willingness to Contribute
-      description: Are you willing to help implement this feature?
+      label: Feature Category
       options:
-        - "Yes, I can submit a PR"
-        - "Yes, with guidance"
-        - "No, just suggesting"
-        - "Unsure"
+        - DevContainer Configuration
+        - CI/CD Workflows
+        - Security & Scanning
+        - Tool/Package Addition
+        - Documentation
+        - Performance
+        - Other
     validations:
       required: true
 
   - type: dropdown
     id: priority
     attributes:
-      label: Priority (your perspective)
+      label: Priority
       description: How important is this feature to you?
       options:
-        - "Critical - blocking my work"
-        - "High - would significantly improve workflow"
-        - "Medium - nice to have"
-        - "Low - minor improvement"
+        - Low - Nice to have
+        - Medium - Would improve my workflow
+        - High - Critical for my use case
     validations:
       required: true
-
-  - type: textarea
-    id: impact
-    attributes:
-      label: Impact Assessment
-      description: Who else might benefit? How many users would this help?
-      placeholder: |
-        - All Ansible stack users (estimate: 70% of users)
-        - Windows users specifically
-        - Enterprise users behind corporate proxies
-        - New contributors
-    validations:
-      required: false
-
-  - type: dropdown
-    id: breaking
-    attributes:
-      label: Breaking Change?
-      description: Would this require breaking changes to existing workflows?
-      options:
-        - "No - fully backward compatible"
-        - "Maybe - needs discussion"
-        - "Yes - would break existing setups"
-        - "Unknown"
-    validations:
-      required: true
-
-  - type: checkboxes
-    id: checklist
-    attributes:
-      label: Checklist
-      description: Please confirm the following
-      options:
-        - label: I have searched existing issues and this is not a duplicate
-          required: true
-        - label: This feature aligns with the project scope (infrastructure devcontainers)
-          required: true
-        - label: I have provided clear problem statement and proposed solution
-          required: true
-        - label: I have considered the impact on existing users
-          required: false
 
   - type: textarea
     id: additional
     attributes:
       label: Additional Context
-      description: Any other information, links, references
-      placeholder: |
-        - Related issues: #123, #456
-        - Similar implementations: [project X](https://...)
-        - Reference documentation: [link](https://)
-        - Community discussion: [link](https://)
+      description: Add any other context, screenshots, or examples
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: This feature aligns with the project's goals
+          required: true
+        - label: I am willing to contribute a PR for this feature
+          required: false
