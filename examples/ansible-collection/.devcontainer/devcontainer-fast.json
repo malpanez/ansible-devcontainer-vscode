@@ -1,0 +1,60 @@
+{
+  "name": "Ansible Collection Development (Fast - No Build)",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
+
+  "containerEnv": {
+    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.ansibleLint.enabled": true,
+        "ansible.ansibleLint.path": "/usr/local/bin/ansible-lint",
+        "yaml.schemas": {
+          "https://raw.githubusercontent.com/ansible/schemas/main/f/ansible.json": [
+            "*.yml",
+            "*.yaml"
+          ]
+        },
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        },
+        "[yaml]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2,
+          "editor.quickSuggestions": {
+            "other": true,
+            "comments": false,
+            "strings": true
+          },
+          "editor.autoIndent": "advanced"
+        }
+      },
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "samuelcolvin.jinjahtml",
+        "eamodio.gitlens",
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
+  ],
+
+  "postCreateCommand": [
+    "bash",
+    "-lc",
+    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+  ],
+
+  "remoteUser": "vscode"
+}

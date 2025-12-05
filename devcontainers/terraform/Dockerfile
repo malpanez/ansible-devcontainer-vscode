@@ -64,7 +64,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=terraform \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
-# hadolint ignore=DL3008
+# Install system dependencies
+# Note: git, github-cli (gh), and aws-cli installed to avoid DevContainer features rebuild
+# hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -77,7 +79,34 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Install GitHub CLI (gh) to avoid DevContainer features rebuild
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv package manager
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+
+# Install AWS CLI v2 to avoid DevContainer features rebuild
+# https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+ARG TARGETARCH
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) AWS_ARCH="x86_64" ;; \
+      arm64) AWS_ARCH="aarch64" ;; \
+      *) echo "Arquitectura no soportada: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli \
+    && rm -rf /tmp/awscliv2.zip /tmp/aws
 
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terragrunt /usr/local/bin/terragrunt

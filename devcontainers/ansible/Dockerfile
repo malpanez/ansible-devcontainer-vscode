@@ -25,9 +25,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
 # Install system dependencies
-# Note: git is installed via apt (no feature git:1) to keep it simple
+# Note: git and github-cli (gh) installed via apt to avoid DevContainer features rebuild
 # Note: NOT installing tini since we use --init in runArgs
-# hadolint ignore=DL3008
+# hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -44,6 +44,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libssl-dev \
       python3-dev \
       pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (gh) to avoid DevContainer features rebuild
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv with pinned version for reproducibility
