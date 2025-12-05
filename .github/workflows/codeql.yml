@@ -1,0 +1,98 @@
+---
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Weekly on Monday at 6 AM UTC (after Renovate runs)
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      pull-requests: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          # Add more languages as needed:
+          # - language: go
+          #   build-mode: autobuild
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        with:
+          fetch-depth: 2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: +security-extended,security-and-quality
+          # Custom query packs for enhanced security scanning
+          # packs: security-extended,security-and-quality
+
+      # If build-mode is manual, add build steps here
+      # - name: Build
+      #   run: |
+      #     make build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
+        with:
+          category: "/language:${{ matrix.language }}"
+          upload: true
+          # Adjust severity threshold as needed
+          # fail-build: true
+          # severity-threshold: medium
+
+  codeql-summary:
+    name: CodeQL Summary
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## CodeQL Analysis Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "CodeQL security analysis has completed." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Status**: ${{ needs.analyze.result }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Review results in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check status
+        if: needs.analyze.result == 'failure'
+        run: |
+          echo "::error::CodeQL analysis failed"
+          exit 1
