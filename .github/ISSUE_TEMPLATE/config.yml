@@ -1,31 +1,12 @@
 ---
 blank_issues_enabled: false
-
 contact_links:
-  - name: 📚 Documentation
-    url: https://github.com/malpanez/ansible-devcontainer-vscode/tree/main/docs
-    about: Browse comprehensive documentation before filing an issue
-
-  - name: 🚀 Quick Start Guide
-    url: https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/docs/QUICKSTART.md
-    about: Step-by-step guide to get started
-
-  - name: 🔧 Troubleshooting Guide
-    url: https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/docs/TROUBLESHOOTING.md
-    about: Common issues and solutions
-
-  - name: 🤝 Contributing Guide
-    url: https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/docs/CONTRIBUTING.md
-    about: Learn how to contribute to the project
-
-  - name: 💬 GitHub Discussions
+  - name: 💬 Discussions
     url: https://github.com/malpanez/ansible-devcontainer-vscode/discussions
-    about: Ask questions and discuss ideas with the community
-
-  - name: 🗺️ Roadmap
-    url: https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/ROADMAP.md
-    about: See what's planned for future releases
-
-  - name: 🔒 Security Policy
-    url: https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/SECURITY.md
-    about: Report security vulnerabilities privately
+    about: Ask questions, share ideas, and discuss with the community
+  - name: 📖 Documentation
+    url: https://github.com/malpanez/ansible-devcontainer-vscode#readme
+    about: Read the project documentation
+  - name: 🔒 Security Issue
+    url: mailto:alpanez.alcalde@gmail.com
+    about: Report security vulnerabilities privately via email

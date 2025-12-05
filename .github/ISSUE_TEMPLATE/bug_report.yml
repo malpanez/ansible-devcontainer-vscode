@@ -1,41 +1,22 @@
-name: Bug Report
+name: 🐛 Bug Report
 description: Report a bug or unexpected behavior
 title: "[Bug]: "
 labels: ["bug", "needs-triage"]
-assignees: []
+assignees:
+  - malpanez
 
 body:
   - type: markdown
     attributes:
       value: |
-        ## Thanks for taking the time to report a bug!
-
-        Before submitting, please:
-        - Search existing issues to avoid duplicates
-        - Review [TROUBLESHOOTING.md](https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/docs/TROUBLESHOOTING.md)
-        - Check [CONTRIBUTING.md](https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/docs/CONTRIBUTING.md#common-setup-issues) for common issues
-
-  - type: dropdown
-    id: stack
-    attributes:
-      label: Which devcontainer stack?
-      description: Which stack are you using?
-      options:
-        - Ansible
-        - Terraform
-        - Golang
-        - LaTeX
-        - Multiple stacks
-        - Not using devcontainer
-    validations:
-      required: true
+        Thanks for taking the time to report a bug! Please fill out the information below to help us fix it.
 
   - type: textarea
     id: description
     attributes:
       label: Bug Description
-      description: A clear and concise description of the bug
-      placeholder: What happened? What did you expect to happen?
+      description: A clear and concise description of what the bug is
+      placeholder: Tell us what went wrong
     validations:
       required: true
 
@@ -43,17 +24,11 @@ body:
     id: reproduction
     attributes:
       label: Steps to Reproduce
-      description: Detailed steps to reproduce the behavior
+      description: Steps to reproduce the behavior
       placeholder: |
-        1. Clone repository
-        2. Open in VS Code
-        3. Reopen in container
-        4. Run command `...`
-        5. See error
-      value: |
-        1.
-        2.
-        3.
+        1. Open devcontainer
+        2. Run command '...'
+        3. See error
     validations:
       required: true
 
@@ -61,8 +36,8 @@ body:
     id: expected
     attributes:
       label: Expected Behavior
-      description: What should have happened?
-      placeholder: The command should complete successfully...
+      description: What you expected to happen
+      placeholder: It should...
     validations:
       required: true
 
@@ -70,115 +45,62 @@ body:
     id: actual
     attributes:
       label: Actual Behavior
-      description: What actually happened? Include error messages.
-      placeholder: |
-        Error: Cannot connect to Docker daemon
-        ...
+      description: What actually happened
+      placeholder: Instead it...
     validations:
       required: true
 
   - type: dropdown
-    id: platform
+    id: stack
     attributes:
-      label: Platform
-      description: What platform are you running on?
+      label: Which DevContainer Stack?
       options:
-        - Windows 10/11 + WSL2
-        - Windows 10/11 (native Docker)
-        - macOS (Intel)
-        - macOS (Apple Silicon / M1/M2/M3)
-        - Linux (Ubuntu/Debian)
-        - Linux (Fedora/RHEL/CentOS)
-        - Linux (Arch)
-        - Linux (Other)
-        - GitHub Codespaces
+        - Terraform (.devcontainer)
+        - Ansible (devcontainers/ansible)
+        - Golang (devcontainers/golang)
+        - LaTeX (devcontainers/latex)
+        - Base (devcontainers/base)
+        - Other
     validations:
       required: true
 
   - type: input
-    id: docker-version
+    id: version
     attributes:
-      label: Docker Version
-      description: Output of `docker --version`
-      placeholder: "Docker version 24.0.7, build afdd53b"
+      label: Version/Tag
+      description: Which version are you using? (latest, specific tag, commit SHA)
+      placeholder: "latest / v1.2.3 / abc123"
     validations:
       required: true
 
-  - type: input
-    id: vscode-version
+  - type: dropdown
+    id: os
     attributes:
-      label: VS Code Version
-      description: Output of `code --version` or check Help → About
-      placeholder: "1.85.0"
+      label: Host Operating System
+      options:
+        - macOS
+        - Windows (WSL2)
+        - Linux
+        - Other
     validations:
-      required: false
-
-  - type: input
-    id: devcontainer-version
-    attributes:
-      label: Dev Containers Extension Version
-      description: Check Extensions → Dev Containers → version
-      placeholder: "0.321.0"
-    validations:
-      required: false
+      required: true
 
   - type: textarea
     id: logs
     attributes:
       label: Relevant Logs
-      description: Include relevant logs (container build logs, VS Code logs, command output)
-      placeholder: |
-        Paste logs here...
+      description: Please copy and paste any relevant log output
       render: shell
-    validations:
-      required: false
-
-  - type: textarea
-    id: config
-    attributes:
-      label: Configuration
-      description: Any relevant configuration (proxy settings, custom devcontainer.json changes, etc.)
-      placeholder: |
-        - Corporate proxy: http://proxy.corp.com:8080
-        - Modified devcontainer.json to add extension...
-      render: markdown
-    validations:
-      required: false
-
-  - type: dropdown
-    id: attempted-solutions
-    attributes:
-      label: Have you tried the troubleshooting guide?
-      description: |
-        See [CONTRIBUTING.md#common-setup-issues](https://github.com/malpanez/ansible-devcontainer-vscode/blob/main/docs/CONTRIBUTING.md#common-setup-issues)
-      options:
-        - "Yes, tried troubleshooting - issue persists"
-        - "No, haven't checked yet"
-    validations:
-      required: true
+      placeholder: Paste logs here
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Checklist
-      description: Please confirm the following
+      label: Pre-submission Checklist
       options:
-        - label: I have searched existing issues and this is not a duplicate
+        - label: I have searched existing issues to avoid duplicates
           required: true
         - label: I have provided all requested information
           required: true
-        - label: I am using the latest version from main or a recent release
+        - label: I am using the latest version
           required: false
-        - label: I can reproduce this consistently
-          required: false
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional Context
-      description: Any other information that might be helpful
-      placeholder: |
-        - Screenshots
-        - Related issues
-        - Workarounds attempted
-        - Impact/urgency
