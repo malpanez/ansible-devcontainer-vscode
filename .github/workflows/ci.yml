@@ -42,6 +42,8 @@ jobs:
         id: filter
         with:
           filters: |
+            # Note: .devcontainer/ (repo's dev environment) is intentionally excluded
+            # Only devcontainers/ (published stacks) triggers devcontainer builds
             ansible:
               - 'playbooks/**'
               - 'roles/**'
@@ -61,7 +63,6 @@ jobs:
               - 'devcontainers/terraform/**'
             devcontainer:
               - 'devcontainers/**'
-              - '.devcontainer/**'
             scripts:
               - 'scripts/**'
             python:
