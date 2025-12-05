@@ -1,0 +1,217 @@
+name: Devcontainer Issue
+description: Report a problem specific to devcontainer build or startup
+title: "[Devcontainer]: "
+labels: ["devcontainer", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Devcontainer-Specific Issue
+
+        Use this template for issues related to:
+        - Container build failures
+        - Container startup problems
+        - Image pull issues
+        - Feature installation problems
+        - postCreateCommand failures
+
+        For general bugs, use the [Bug Report](https://github.com/malpanez/ansible-devcontainer-vscode/issues/new?template=bug_report.yml) template instead.
+
+  - type: dropdown
+    id: stack
+    attributes:
+      label: Which devcontainer stack?
+      description: Which stack is affected?
+      options:
+        - Ansible
+        - Terraform
+        - Golang
+        - LaTeX
+        - Base image
+        - All stacks
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What type of devcontainer issue?
+      options:
+        - Build failure (container won't build)
+        - Startup failure (container builds but won't start)
+        - Image pull failure (can't download from GHCR)
+        - Feature installation failure
+        - postCreateCommand failure
+        - Performance issue (slow build/startup)
+        - Volume/mount issue
+        - Permission/ownership problem
+        - Network/proxy issue
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: Clear description of the problem
+      placeholder: When I try to build the Ansible devcontainer...
+    validations:
+      required: true
+
+  - type: textarea
+    id: build-logs
+    attributes:
+      label: Build Logs
+      description: |
+        **Required for build failures**. Include complete build output.
+        - VS Code: View → Output → select "Dev Containers"
+        - CLI: `devcontainer build --workspace-folder .` output
+      placeholder: |
+        Paste complete build logs here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: container-logs
+    attributes:
+      label: Container Logs
+      description: |
+        For startup/runtime issues.
+        Run: `docker logs <container-id>`
+      placeholder: |
+        Paste container logs here...
+      render: shell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: image-source
+    attributes:
+      label: Image Source
+      description: How are you running the devcontainer?
+      options:
+        - Prebuilt image from GHCR (default)
+        - Building from Dockerfile locally
+        - Custom image (modified Dockerfile)
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: What platform are you using?
+      options:
+        - Windows 10/11 + WSL2 + Docker Desktop
+        - Windows 10/11 (native Docker)
+        - macOS (Intel) + Docker Desktop
+        - macOS (Apple Silicon) + Docker Desktop
+        - Linux (Docker Engine)
+        - Linux (Podman)
+        - GitHub Codespaces
+    validations:
+      required: true
+
+  - type: input
+    id: docker-version
+    attributes:
+      label: Docker/Container Runtime Version
+      description: Run `docker --version` or `podman --version`
+      placeholder: "Docker version 24.0.7, build afdd53b"
+    validations:
+      required: true
+
+  - type: input
+    id: buildkit-version
+    attributes:
+      label: BuildKit Version (if known)
+      description: Run `docker buildx version`
+      placeholder: "github.com/docker/buildx v0.12.0"
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Additional environment information
+      placeholder: |
+        - Behind corporate proxy: Yes/No
+        - VPN connected: Yes/No
+        - Antivirus software: [name]
+        - Available disk space: [amount]
+        - Available RAM: [amount]
+      render: markdown
+    validations:
+      required: false
+
+  - type: textarea
+    id: modifications
+    attributes:
+      label: Custom Modifications
+      description: Have you modified any devcontainer files?
+      placeholder: |
+        - devcontainer.json: Added extension X
+        - Dockerfile: Installed package Y
+        - .env file: Set proxy variables
+        - (none - using defaults)
+      render: markdown
+    validations:
+      required: false
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      description: Can you reproduce this consistently?
+      options:
+        - "Yes - happens every time"
+        - "Sometimes - intermittent"
+        - "No - happened once"
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workarounds Attempted
+      description: What have you tried?
+      placeholder: |
+        - Rebuilt with --no-cache
+        - Pulled latest image
+        - Checked Docker resources (increased memory to 8GB)
+        - Disabled proxy
+        - Ran `docker system prune`
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm
+      options:
+        - label: I have included complete build/container logs
+          required: false
+        - label: I have checked disk space and Docker resources
+          required: false
+        - label: I have tried rebuilding with --no-cache
+          required: false
+        - label: I am using the latest version of the devcontainer definition
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other relevant information
+      placeholder: |
+        - Error started after: ...
+        - Works on different machine: ...
+        - Related PRs/commits: ...

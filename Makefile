@@ -28,8 +28,8 @@ test:  ## Run all tests (smoke + Terraform + Python)
 	@echo "Running Terraform tests..."
 	@./scripts/run-terraform-tests.sh
 	@echo ""
-	@echo "Running Python tests..."
-	@pytest tests/ -v
+	@echo "Running Python tests with coverage..."
+	@pytest tests/ -v --cov
 
 .PHONY: test-smoke
 test-smoke:  ## Run smoke tests only
@@ -49,6 +49,26 @@ test-quick:  ## Run quick sanity checks
 	@ansible --version >/dev/null 2>&1 && echo "✓ Ansible OK" || echo "✗ Ansible missing"
 	@terraform --version >/dev/null 2>&1 && echo "✓ Terraform OK" || echo "✗ Terraform missing"
 	@yamllint --version >/dev/null 2>&1 && echo "✓ yamllint OK" || echo "✗ yamllint missing"
+
+.PHONY: test-coverage
+test-coverage:  ## Run Python tests with coverage report
+	@echo "Running Python tests with coverage..."
+	@pytest tests/ --cov --cov-report=html --cov-report=term-missing
+	@echo ""
+	@echo "Coverage report generated in htmlcov/index.html"
+
+.PHONY: coverage
+coverage: test-coverage  ## Alias for test-coverage
+
+.PHONY: coverage-report
+coverage-report:  ## Open coverage report in browser
+	@if command -v xdg-open >/dev/null 2>&1; then \
+		xdg-open htmlcov/index.html; \
+	elif command -v open >/dev/null 2>&1; then \
+		open htmlcov/index.html; \
+	else \
+		echo "Coverage report: htmlcov/index.html"; \
+	fi
 
 # =============================================================================
 # Code Quality
