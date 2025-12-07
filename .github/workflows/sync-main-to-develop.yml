@@ -54,6 +54,15 @@ jobs:
             exit 0
           fi
 
+          # Check if main is behind develop (history divergence)
+          AHEAD=$(git rev-list --count main..develop)
+          if [ "$AHEAD" -gt 0 ]; then
+            echo "⚠️ Histories have diverged (develop is $AHEAD ahead, $BEHIND behind)"
+            echo "This usually means history was rewritten. Skipping sync to avoid conflicts."
+            echo "Please manually verify the branches are in the desired state."
+            exit 0
+          fi
+
           # Try to merge main into develop
           echo "Merging main into develop..."
           if git merge main --no-edit; then
