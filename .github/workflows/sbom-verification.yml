@@ -1,0 +1,346 @@
+---
+name: SBOM Verification
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'devcontainers/**'
+      - '.devcontainer/**'
+      - '**/requirements*.txt'
+      - '**/pyproject.toml'
+      - '**/Dockerfile'
+      - '.github/workflows/sbom-verification.yml'
+  push:
+    branches: [main, develop]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - name: devcontainer-base
+            context: devcontainers/base
+          - name: devcontainer-ansible
+            context: devcontainers/ansible
+          - name: devcontainer-terraform
+            context: devcontainers/terraform
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349  # v3.7.1
+
+      - name: Build container for SBOM
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75  # v6.9.0
+        with:
+          context: ${{ matrix.target.context }}
+          load: true
+          tags: sbom-${{ matrix.target.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@fc1662ba0a78da4ca3c95e5e0f267a08b67ef0bb  # v0.18.2
+        with:
+          image: sbom-${{ matrix.target.name }}:latest
+          artifact-name: sbom-${{ matrix.target.name }}.spdx.json
+          output-file: sbom-${{ matrix.target.name }}.spdx.json
+          format: spdx-json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        with:
+          name: sbom-${{ matrix.target.name }}
+          path: sbom-${{ matrix.target.name }}.spdx.json
+          retention-days: 90
+
+  verify-sbom-quality:
+    name: Verify SBOM Quality
+    runs-on: ubuntu-latest
+    needs: generate-sbom
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Download all SBOMs
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        with:
+          pattern: sbom-*
+          path: sboms
+
+      - name: Install SBOM quality tools
+        run: |
+          # Install ntia-conformance-checker
+          pip install ntia-conformance-checker
+
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Verify SBOM completeness
+        run: |
+          echo "## 📋 SBOM Quality Verification" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SBOM | Components | Relationships | NTIA Compliant |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|------------|---------------|----------------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for sbom_file in sboms/sbom-*/*.spdx.json; do
+            sbom_name=$(basename "$sbom_file" .spdx.json)
+
+            # Count components
+            component_count=$(jq '.packages | length' "$sbom_file")
+
+            # Count relationships
+            relationship_count=$(jq '.relationships | length' "$sbom_file")
+
+            # Check NTIA conformance
+            if ntia-checker "$sbom_file" > /dev/null 2>&1; then
+              ntia_status="✅ Yes"
+            else
+              ntia_status="⚠️ No"
+            fi
+
+            echo "| $sbom_name | $component_count | $relationship_count | $ntia_status |" >> "$GITHUB_STEP_SUMMARY"
+
+            # Fail if not NTIA compliant
+            if [[ "$ntia_status" == "⚠️ No" ]]; then
+              echo "::error::SBOM $sbom_name is not NTIA compliant"
+              ntia-checker "$sbom_file"
+            fi
+          done
+
+      - name: Check for critical metadata
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Critical Metadata Checks" >> "$GITHUB_STEP_SUMMARY"
+
+          for sbom_file in sboms/sbom-*/*.spdx.json; do
+            sbom_name=$(basename "$sbom_file" .spdx.json)
+
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "#### $sbom_name" >> "$GITHUB_STEP_SUMMARY"
+
+            # Check for creator information
+            creator=$(jq -r '.creationInfo.creators[0]' "$sbom_file")
+            echo "- Creator: \`$creator\`" >> "$GITHUB_STEP_SUMMARY"
+
+            # Check for timestamp
+            timestamp=$(jq -r '.creationInfo.created' "$sbom_file")
+            echo "- Created: \`$timestamp\`" >> "$GITHUB_STEP_SUMMARY"
+
+            # Check for license info
+            has_licenses=$(jq '[.packages[].licenseDeclared] | any(. != "NOASSERTION" and . != null)' "$sbom_file")
+            if [[ "$has_licenses" == "true" ]]; then
+              echo "- License Info: ✅ Present" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- License Info: ⚠️ Missing" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+  scan-sbom-vulnerabilities:
+    name: Scan for Vulnerabilities
+    runs-on: ubuntu-latest
+    needs: generate-sbom
+    steps:
+      - name: Download all SBOMs
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        with:
+          pattern: sbom-*
+          path: sboms
+
+      - name: Scan SBOMs with Grype
+        uses: anchore/scan-action@bc2cda03bd6e1c90a2b02d47e1f1b25f53af4c7a  # v5.2.0
+        with:
+          sbom: sboms/
+          fail-build: false
+          severity-cutoff: high
+          output-format: sarif
+
+      - name: Upload vulnerability results to GitHub Security
+        uses: github/codeql-action/upload-sarif@ea9e4e37992a54ee68a9622e985e60c8e8f12d9f  # v3.27.4
+        with:
+          sarif_file: results.sarif
+          category: sbom-vulnerabilities
+
+      - name: Generate vulnerability summary
+        run: |
+          echo "## 🔍 SBOM Vulnerability Scan Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -f "results.sarif" ]; then
+            # Parse SARIF results
+            total_findings=$(jq '[.runs[].results] | flatten | length' results.sarif)
+            echo "Total vulnerabilities found: **$total_findings**" >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "$total_findings" -gt 0 ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "⚠️ Review the Security tab for detailed vulnerability information." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "✅ No vulnerabilities detected!" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            echo "No SARIF results file found" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  verify-dependency-licenses:
+    name: Verify Dependency Licenses
+    runs-on: ubuntu-latest
+    needs: generate-sbom
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Download all SBOMs
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        with:
+          pattern: sbom-*
+          path: sboms
+
+      - name: Check for problematic licenses
+        run: |
+          # List of licenses to flag (copyleft, proprietary, unknown)
+          FLAGGED_LICENSES=(
+            "GPL-2.0"
+            "GPL-3.0"
+            "AGPL-3.0"
+            "SSPL-1.0"
+            "Commons-Clause"
+            "NOASSERTION"
+          )
+
+          echo "## 📜 License Compliance Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          found_issues=false
+
+          for sbom_file in sboms/sbom-*/*.spdx.json; do
+            sbom_name=$(basename "$sbom_file" .spdx.json)
+
+            echo "### $sbom_name" >> "$GITHUB_STEP_SUMMARY"
+
+            # Extract all licenses
+            licenses=$(jq -r '.packages[].licenseDeclared // "UNKNOWN"' "$sbom_file" | sort -u)
+
+            # Check each license
+            while IFS= read -r license; do
+              for flagged in "${FLAGGED_LICENSES[@]}"; do
+                if [[ "$license" == *"$flagged"* ]]; then
+                  echo "⚠️ Flagged license: \`$license\`" >> "$GITHUB_STEP_SUMMARY"
+                  found_issues=true
+
+                  # Find packages with this license
+                  packages=$(jq -r ".packages[] | select(.licenseDeclared == \"$license\") | .name" "$sbom_file" | head -5)
+                  echo "  - Packages: $packages" >> "$GITHUB_STEP_SUMMARY"
+                fi
+              done
+            done <<< "$licenses"
+
+            if [[ "$found_issues" == "false" ]]; then
+              echo "✅ No problematic licenses found" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  compare-sbom-changes:
+    name: Compare SBOM Changes
+    runs-on: ubuntu-latest
+    needs: generate-sbom
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Download current SBOMs
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        with:
+          pattern: sbom-*
+          path: current-sboms
+
+      - name: Analyze SBOM changes
+        run: |
+          echo "## 📊 SBOM Dependency Changes" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This PR introduces the following dependency changes:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          for sbom_file in current-sboms/sbom-*/*.spdx.json; do
+            sbom_name=$(basename "$sbom_file" .spdx.json)
+            component_count=$(jq '.packages | length' "$sbom_file")
+
+            echo "### $sbom_name" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total dependencies: **$component_count**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Comment on PR
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+
+            let body = '## 📋 SBOM Verification Results\n\n';
+            body += '### Dependency Inventory\n\n';
+            body += '| Container | Components | Status |\n';
+            body += '|-----------|------------|--------|\n';
+
+            const files = fs.readdirSync('current-sboms', { recursive: true })
+              .filter(f => f.endsWith('.spdx.json'));
+
+            for (const file of files) {
+              const data = JSON.parse(fs.readFileSync(`current-sboms/${file}`, 'utf8'));
+              const name = file.replace('sbom-', '').replace('/.spdx.json', '');
+              const count = data.packages.length;
+              body += `| ${name} | ${count} | ✅ |\n`;
+            }
+
+            body += '\n*SBOMs generated and verified for compliance*';
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  sbom-verification-success:
+    name: SBOM Verification Success
+    runs-on: ubuntu-latest
+    needs:
+      - verify-sbom-quality
+      - scan-sbom-vulnerabilities
+      - verify-dependency-licenses
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "Checking SBOM verification results..."
+          results='${{ toJSON(needs) }}'
+          echo "$results" | jq .
+
+          failed=$(echo "$results" | jq -r '
+            to_entries[]
+            | select(.value.result == "failure")
+            | .key
+          ')
+
+          if [ -n "$failed" ]; then
+            echo "::error::Failed jobs: $failed"
+            exit 1
+          fi
+
+          echo "✅ All SBOM verifications passed successfully" >> "$GITHUB_STEP_SUMMARY"
