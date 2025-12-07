@@ -1,0 +1,31 @@
+---
+name: LM Studio Local
+version: 0.0.1
+schema: v1
+
+models:
+  - name: Qwen2.5 Coder 7B (LM Studio)
+    provider: openai
+    model: qwen2.5-coder-7b-instruct
+    apiBase: http://host.docker.internal:1234/v1
+    apiKey: lm-studio
+    roles: [chat, edit, apply]
+    defaultCompletionOptions:
+      temperature: 0.1
+      maxTokens: 2048
+    requestOptions:
+      timeout: 300000
+      # Streaming habilitado para respuestas más rápidas y reactivas
+
+  - name: Qwen2.5 Coder 7B (LM Studio / DevContainer)
+    provider: openai
+    model: qwen2.5-coder-7b-instruct
+    apiBase: http://host.docker.internal:1234/v1
+    apiKey: lm-studio
+    roles: [chat, edit, apply]
+    defaultCompletionOptions:
+      temperature: 0.1
+      maxTokens: 4096
+    requestOptions:
+      timeout: 300000
+      # Streaming habilitado para mejor UX

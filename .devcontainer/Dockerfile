@@ -99,6 +99,11 @@ RUN terraform version && \
     make --version && \
     jq --version
 
+# Create cache directories with proper permissions
+# Ensure .local exists and has correct ownership before creating subdirectories
+RUN mkdir -p /home/vscode/.local/share/uv /home/vscode/.cache/pre-commit /home/vscode/.cache/uv && \
+    chown -R vscode:vscode /home/vscode/.local /home/vscode/.cache
+
 USER vscode
 
 # Configure git defaults

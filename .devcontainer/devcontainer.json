@@ -54,7 +54,9 @@
           "editor.formatOnSave": true,
           "editor.tabSize": 2
         },
-        "editor.rulers": [120],
+        "editor.rulers": [
+          120
+        ],
         "files.trimTrailingWhitespace": true,
         "files.insertFinalNewline": true
       }
@@ -76,7 +78,7 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; echo '🚀 Setting up TOP 0.1% DevContainer...'; sudo mkdir -p /home/vscode/.cache/pre-commit /workspace/.cache; sudo chown -R vscode:vscode /home/vscode/.cache /workspace/.cache; uvx pre-commit install --install-hooks || true; echo '✅ DevContainer ready! All tools pre-installed in image.'"
+    "set -euo pipefail; echo '🚀 Setting up TOP 0.1% DevContainer...'; mkdir -p /workspace/.cache; uvx pre-commit install --install-hooks || true; echo '✅ DevContainer ready! All tools pre-installed in image.'"
   ],
   "postStartCommand": "echo '💡 DevContainer started. Tools: terraform, terragrunt, tflint, ansible, gh, make, jq'",
   "portsAttributes": {
@@ -89,7 +91,10 @@
       "onAutoForward": "notify"
     }
   },
-  "forwardPorts": [8080, 3000],
+  "forwardPorts": [
+    8080,
+    3000
+  ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
