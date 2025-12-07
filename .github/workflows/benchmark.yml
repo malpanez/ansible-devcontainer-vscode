@@ -1,0 +1,333 @@
+---
+name: Performance Benchmarks
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'devcontainers/**'
+      - '.devcontainer/**'
+      - 'Dockerfile'
+      - '.github/workflows/benchmark.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'devcontainers/**'
+      - '.devcontainer/**'
+      - 'Dockerfile'
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Monday at 6 AM UTC
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BENCHMARK_ITERATIONS: 3
+  BENCHMARK_RESULTS_DIR: benchmark-results
+
+jobs:
+  container-startup-benchmark:
+    name: Container Startup Time
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container:
+          - name: ansible
+            path: devcontainers/ansible
+          - name: terraform
+            path: devcontainers/terraform
+          - name: base
+            path: devcontainers/base
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349  # v3.7.1
+
+      - name: Build container
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75  # v6.9.0
+        with:
+          context: ${{ matrix.container.path }}
+          load: true
+          tags: benchmark-${{ matrix.container.name }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Benchmark container startup
+        id: benchmark
+        run: |
+          echo "Running ${{ env.BENCHMARK_ITERATIONS }} iterations..."
+          total_time=0
+
+          for i in $(seq 1 ${{ env.BENCHMARK_ITERATIONS }}); do
+            echo "Iteration $i/${{ env.BENCHMARK_ITERATIONS }}"
+
+            # Measure startup time
+            start_time=$(date +%s%N)
+            docker run --rm benchmark-${{ matrix.container.name }}:test echo "Ready" > /dev/null 2>&1
+            end_time=$(date +%s%N)
+
+            # Calculate time in milliseconds
+            elapsed=$((($end_time - $start_time) / 1000000))
+            echo "  Time: ${elapsed}ms"
+            total_time=$((total_time + elapsed))
+          done
+
+          # Calculate average
+          avg_time=$((total_time / ${{ env.BENCHMARK_ITERATIONS }}))
+          echo "average_ms=${avg_time}" >> "$GITHUB_OUTPUT"
+          echo "### Container: ${{ matrix.container.name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Average startup time: **${avg_time}ms**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Store benchmark result
+        run: |
+          mkdir -p ${{ env.BENCHMARK_RESULTS_DIR }}
+          cat > ${{ env.BENCHMARK_RESULTS_DIR }}/${{ matrix.container.name }}.json <<EOF
+          {
+            "container": "${{ matrix.container.name }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "average_startup_ms": ${{ steps.benchmark.outputs.average_ms }},
+            "iterations": ${{ env.BENCHMARK_ITERATIONS }}
+          }
+          EOF
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        with:
+          name: benchmark-${{ matrix.container.name }}
+          path: ${{ env.BENCHMARK_RESULTS_DIR }}/${{ matrix.container.name }}.json
+          retention-days: 90
+
+  build-time-benchmark:
+    name: Build Time Benchmark
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container:
+          - name: ansible
+            path: devcontainers/ansible
+          - name: terraform
+            path: devcontainers/terraform
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349  # v3.7.1
+
+      - name: Benchmark build time (cold cache)
+        id: cold-build
+        run: |
+          start_time=$(date +%s%N)
+          docker buildx build \
+            --tag benchmark-build-${{ matrix.container.name }}:cold \
+            --load \
+            --no-cache \
+            ${{ matrix.container.path }}
+          end_time=$(date +%s%N)
+
+          elapsed=$((($end_time - $start_time) / 1000000000))
+          echo "cold_build_seconds=${elapsed}" >> "$GITHUB_OUTPUT"
+          echo "Cold build time: **${elapsed}s**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Benchmark build time (warm cache)
+        id: warm-build
+        run: |
+          start_time=$(date +%s%N)
+          docker buildx build \
+            --tag benchmark-build-${{ matrix.container.name }}:warm \
+            --load \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            ${{ matrix.container.path }}
+          end_time=$(date +%s%N)
+
+          elapsed=$((($end_time - $start_time) / 1000000000))
+          echo "warm_build_seconds=${elapsed}" >> "$GITHUB_OUTPUT"
+          echo "Warm build time: **${elapsed}s**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Store benchmark results
+        run: |
+          mkdir -p ${{ env.BENCHMARK_RESULTS_DIR }}
+          cat > ${{ env.BENCHMARK_RESULTS_DIR }}/${{ matrix.container.name }}-build.json <<EOF
+          {
+            "container": "${{ matrix.container.name }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "cold_build_seconds": ${{ steps.cold-build.outputs.cold_build_seconds }},
+            "warm_build_seconds": ${{ steps.warm-build.outputs.warm_build_seconds }}
+          }
+          EOF
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        with:
+          name: benchmark-build-${{ matrix.container.name }}
+          path: ${{ env.BENCHMARK_RESULTS_DIR }}/${{ matrix.container.name }}-build.json
+          retention-days: 90
+
+  resource-usage-benchmark:
+    name: Resource Usage Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349  # v3.7.1
+
+      - name: Build main devcontainer
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75  # v6.9.0
+        with:
+          context: .devcontainer
+          load: true
+          tags: benchmark-devcontainer:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Measure container resource usage
+        id: resources
+        run: |
+          # Start container in background
+          CONTAINER_ID=$(docker run -d benchmark-devcontainer:test sleep 30)
+
+          # Wait for container to stabilize
+          sleep 5
+
+          # Get resource stats
+          STATS=$(docker stats --no-stream --format "{{.MemUsage}}\t{{.CPUPerc}}" "$CONTAINER_ID")
+          MEM_USAGE=$(echo "$STATS" | awk '{print $1}')
+          CPU_USAGE=$(echo "$STATS" | awk '{print $3}')
+
+          # Stop container
+          docker stop "$CONTAINER_ID" > /dev/null
+
+          echo "memory_usage=${MEM_USAGE}" >> "$GITHUB_OUTPUT"
+          echo "cpu_usage=${CPU_USAGE}" >> "$GITHUB_OUTPUT"
+
+          echo "### Resource Usage" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Memory: **${MEM_USAGE}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CPU: **${CPU_USAGE}**" >> "$GITHUB_STEP_SUMMARY"
+
+  compare-with-baseline:
+    name: Compare with Baseline
+    runs-on: ubuntu-latest
+    needs: [container-startup-benchmark, build-time-benchmark]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Download all benchmark results
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        with:
+          pattern: benchmark-*
+          path: current-results
+
+      - name: Compare with baseline
+        run: |
+          echo "## 📊 Performance Benchmark Comparison" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Startup Times" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Container | Current | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|---------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for file in current-results/benchmark-*/*.json; do
+            if [[ "$file" != *"-build.json" ]]; then
+              container=$(jq -r '.container' "$file")
+              time=$(jq -r '.average_startup_ms' "$file")
+              echo "| $container | ${time}ms | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Build Times" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Container | Cold Build | Warm Build |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|------------|------------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for file in current-results/benchmark-build-*/*-build.json; do
+            container=$(jq -r '.container' "$file")
+            cold=$(jq -r '.cold_build_seconds' "$file")
+            warm=$(jq -r '.warm_build_seconds' "$file")
+            echo "| $container | ${cold}s | ${warm}s |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const results = [];
+
+            // Read all benchmark files
+            const files = fs.readdirSync('current-results', { recursive: true })
+              .filter(f => f.endsWith('.json'));
+
+            for (const file of files) {
+              const data = JSON.parse(fs.readFileSync(`current-results/${file}`, 'utf8'));
+              results.push(data);
+            }
+
+            // Create comment body
+            let body = '## 📊 Performance Benchmark Results\n\n';
+            body += '### Container Startup Times\n\n';
+            body += '| Container | Average Time |\n';
+            body += '|-----------|-------------|\n';
+
+            results
+              .filter(r => r.average_startup_ms)
+              .forEach(r => {
+                body += `| ${r.container} | ${r.average_startup_ms}ms |\n`;
+              });
+
+            body += '\n### Build Times\n\n';
+            body += '| Container | Cold Build | Warm Build |\n';
+            body += '|-----------|------------|------------|\n';
+
+            results
+              .filter(r => r.cold_build_seconds)
+              .forEach(r => {
+                body += `| ${r.container} | ${r.cold_build_seconds}s | ${r.warm_build_seconds}s |\n`;
+              });
+
+            // Post comment
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  benchmark-success:
+    name: Benchmark Success
+    runs-on: ubuntu-latest
+    needs: [container-startup-benchmark, build-time-benchmark, resource-usage-benchmark]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "Checking benchmark results..."
+          results='${{ toJSON(needs) }}'
+          echo "$results" | jq .
+
+          failed=$(echo "$results" | jq -r '
+            to_entries[]
+            | select(.value.result == "failure")
+            | .key
+          ')
+
+          if [ -n "$failed" ]; then
+            echo "::error::Failed jobs: $failed"
+            exit 1
+          fi
+
+          echo "✅ All benchmarks completed successfully" >> "$GITHUB_STEP_SUMMARY"
