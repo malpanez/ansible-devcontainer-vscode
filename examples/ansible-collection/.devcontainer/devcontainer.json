@@ -1,13 +1,18 @@
 {
   "name": "Ansible Collection Development",
   "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
-
-  "containerEnv": {
-    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
-  },
+  "remoteUser": "vscode",
 
   "customizations": {
     "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "samuelcolvin.jinjahtml",
+        "eamodio.gitlens",
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ],
       "settings": {
         "ansible.python.interpreterPath": "/usr/local/bin/python",
         "ansible.validation.enabled": true,
@@ -34,15 +39,7 @@
           },
           "editor.autoIndent": "advanced"
         }
-      },
-      "extensions": [
-        "redhat.ansible",
-        "redhat.vscode-yaml",
-        "samuelcolvin.jinjahtml",
-        "eamodio.gitlens",
-        "ms-python.python",
-        "charliermarsh.ruff"
-      ]
+      }
     }
   },
 
@@ -50,17 +47,8 @@
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
   ],
 
-  "updateContentCommand": [
-    "bash",
-    "-c",
-    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
-  ],
+  "postCreateCommand": "uvx pre-commit install --install-hooks && ansible-galaxy collection install -r requirements.yml || true",
 
-  "postCreateCommand": [
-    "bash",
-    "-c",
-    "pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
-  ],
-
-  "remoteUser": "vscode"
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
