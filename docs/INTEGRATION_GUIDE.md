@@ -159,42 +159,36 @@ Use the terraform container - it includes both toolsets.
 
 ## Configuration Examples
 
-### Example 1: Ansible Collection (malpanez.security)
+### Example 1: Ansible Collection (Recommended Configuration)
 
 **.devcontainer/devcontainer.json**:
 ```json
 {
-  "name": "malpanez.security Collection",
+  "name": "Ansible Development",
   "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
-
-  "features": {
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
-  },
+  "remoteUser": "vscode",
 
   "customizations": {
     "vscode": {
-      "settings": {
-        "ansible.python.interpreterPath": "/usr/local/bin/python",
-        "ansible.validation.enabled": true,
-        "ansible.validation.lint.enabled": true
-      },
       "extensions": [
         "redhat.ansible",
         "redhat.vscode-yaml",
-        "samuelcolvin.jinjahtml",
-        "eamodio.gitlens"
-      ]
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.validation.lint.path": "/usr/local/bin/ansible-lint"
+      }
     }
   },
 
-  "mounts": [
-    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
-  ],
+  "postCreateCommand": "uvx pre-commit install --install-hooks && ansible-galaxy collection install -r requirements.yml || true",
 
-  "postCreateCommand": "pre-commit install && ansible-galaxy collection install -r requirements.yml",
-
-  "remoteUser": "vscode"
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
 ```
 
