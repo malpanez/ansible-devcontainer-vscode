@@ -106,7 +106,9 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
 # Configure Podman for rootless operation
 # Set up storage driver (overlay with fuse-overlayfs) and runtime
 RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.ansible \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/containers \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/containers \
