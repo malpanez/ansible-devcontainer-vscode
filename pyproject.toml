@@ -51,7 +51,7 @@ addopts = [
   "--cov-report=xml:coverage.xml",
   "--cov-report=term-missing:skip-covered",
   "--cov-branch",
-  "--cov-fail-under=60",
+  "--cov-fail-under=95",
 ]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
