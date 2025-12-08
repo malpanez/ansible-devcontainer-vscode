@@ -6,6 +6,8 @@ ARG TERRAFORM_VERSION=1.9.6
 ARG TERRAGRUNT_VERSION=0.67.1
 # renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.54.0
+# Base image for final stage (must be before first FROM for multi-platform builds)
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 
 FROM --platform=$BUILDPLATFORM hashicorp/terraform:${TERRAFORM_VERSION} AS terraform-cli
 
@@ -48,7 +50,6 @@ RUN set -eux; \
     chmod +x /usr/local/bin/tflint; \
     /usr/local/bin/tflint --version
 
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="alpanez.alcalde@gmail.com"
