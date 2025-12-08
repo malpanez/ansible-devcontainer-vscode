@@ -23,6 +23,12 @@ on:
     paths:
       - 'devcontainers/**'
       - '.github/workflows/build-containers.yml'
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - 'devcontainers/**'
+      - '.github/workflows/build-containers.yml'
 
 permissions:
   contents: read
@@ -116,7 +122,10 @@ jobs:
           push-to-registry: true
 
   build-base:
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name != 'workflow_dispatch' && github.event_name != 'pull_request') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'all')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -194,7 +203,10 @@ jobs:
           category: trivy-base
 
   build-all:
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.stack == 'all'
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name != 'workflow_dispatch' && github.event_name != 'pull_request') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'all')
     needs: build-base
     runs-on: ubuntu-latest
     timeout-minutes: 60
