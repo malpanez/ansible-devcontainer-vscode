@@ -1,0 +1,114 @@
+---
+name: Pre-commit Quality Gate
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        with:
+          fetch-depth: 0  # Fetch all history for proper diff
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349  # v3.7.1
+
+      - name: Build devcontainer
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75  # v6.9.0
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: precommit-devcontainer:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run pre-commit on all files
+        if: github.event_name == 'push'
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            --user vscode \
+            precommit-devcontainer:local \
+            bash -c "git config --global --add safe.directory /workspace && uvx pre-commit run --all-files --show-diff-on-failure"
+
+      - name: Run pre-commit on changed files
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            --user vscode \
+            precommit-devcontainer:local \
+            bash -c "
+              git config --global --add safe.directory /workspace
+              git fetch origin ${{ github.base_ref }}
+              MERGE_BASE=\$(git merge-base origin/${{ github.base_ref }} HEAD)
+              uvx pre-commit run --from-ref \"\$MERGE_BASE\" --to-ref HEAD --show-diff-on-failure
+            "
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## Pre-commit Quality Gate Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ All pre-commit checks passed!" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ Pre-commit checks failed. Please fix the issues and commit again." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "To run pre-commit locally:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+            echo "uvx pre-commit run --all-files" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Comment on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const body = `## ❌ Pre-commit Quality Gate Failed
+
+            The pre-commit checks have failed. Please fix the issues and push again.
+
+            ### How to fix:
+
+            1. **Run pre-commit locally**:
+               \`\`\`bash
+               uvx pre-commit run --all-files
+               \`\`\`
+
+            2. **Auto-fix issues** (if possible):
+               Many hooks auto-fix issues. Just commit the changes they make.
+
+            3. **Review the logs** above for specific failures.
+
+            ### Running in DevContainer:
+            All tools are pre-installed in the devcontainer. Just run the command above.
+            `;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
