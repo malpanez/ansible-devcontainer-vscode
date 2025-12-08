@@ -19,3 +19,15 @@
 # Reason: No fix available / Transitive dependency / False positive
 # Plan: Monitor for updates
 # Expires: 2025-01-15
+
+# CVE-2024-45337 - golang.org/x/crypto (transitive dependency in age binary)
+# Affected: age v1.2.1 (latest version as of 2025-12-07)
+# Reason: Transitive dependency in pre-compiled age/age-keygen binaries
+#         Age is a file encryption tool, not used for SSH server operations
+#         The vulnerability is in SSH server code (ServerConfig.PublicKeyCallback)
+#         which is not relevant to age's file encryption use case
+# Risk: Low - age doesn't use the vulnerable SSH server functionality
+# Plan: Monitor age releases for updated golang.org/x/crypto dependency
+#       https://github.com/FiloSottile/age/releases
+# Expires: 2025-03-01
+CVE-2024-45337

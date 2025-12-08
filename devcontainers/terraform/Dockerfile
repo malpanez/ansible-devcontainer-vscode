@@ -126,7 +126,9 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
 
 RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/terraform
 
 COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/terraform/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml

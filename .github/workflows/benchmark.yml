@@ -55,7 +55,8 @@ jobs:
       - name: Build container
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75  # v6.9.0
         with:
-          context: ${{ matrix.container.path }}
+          context: .
+          file: ${{ matrix.container.path }}/Dockerfile
           load: true
           tags: benchmark-${{ matrix.container.name }}:test
           cache-from: type=gha
@@ -133,7 +134,8 @@ jobs:
             --tag benchmark-build-${{ matrix.container.name }}:cold \
             --load \
             --no-cache \
-            ${{ matrix.container.path }}
+            --file ${{ matrix.container.path }}/Dockerfile \
+            .
           end_time=$(date +%s%N)
 
           elapsed=$((($end_time - $start_time) / 1000000000))
@@ -149,7 +151,8 @@ jobs:
             --load \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
-            ${{ matrix.container.path }}
+            --file ${{ matrix.container.path }}/Dockerfile \
+            .
           end_time=$(date +%s%N)
 
           elapsed=$((($end_time - $start_time) / 1000000000))
@@ -190,7 +193,8 @@ jobs:
       - name: Build main devcontainer
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75  # v6.9.0
         with:
-          context: .devcontainer
+          context: .
+          file: .devcontainer/Dockerfile
           load: true
           tags: benchmark-devcontainer:test
           cache-from: type=gha
