@@ -22,7 +22,7 @@ jobs:
   cleanup:
     name: Delete Merged Branches
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim  # Lightweight runner: git commands and branch deletion
     steps:
       - name: Checkout repository
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
