@@ -31,3 +31,46 @@
 #       https://github.com/FiloSottile/age/releases
 # Expires: 2025-03-01
 CVE-2024-45337
+
+# CVE-2025-61727 - stdlib v1.25.4 in Podman v5.7.0 binary (MEDIUM severity)
+# Affected: /usr/local/bin/podman copied from quay.io/containers/podman:v5.7.0
+# Reason: Pre-compiled binary from upstream - cannot patch ourselves
+#         Podman v5.7.0 is the latest stable release as of 2025-12-08
+#         Waiting for upstream to publish patched version with Go 1.24.11 or 1.25.5
+# Risk: Medium - Binary is used for container management, not directly exposed
+# Plan: Monitor Podman releases for updated Go stdlib dependency
+#       https://github.com/containers/podman/releases
+# Expires: 2025-04-01
+CVE-2025-61727
+
+# CVE-2025-61729 - stdlib v1.25.4 in Podman v5.7.0 binary (HIGH severity)
+# Affected: /usr/local/bin/podman copied from quay.io/containers/podman:v5.7.0
+# Reason: Pre-compiled binary from upstream - cannot patch ourselves
+#         Podman v5.7.0 is the latest stable release as of 2025-12-08
+#         Waiting for upstream to publish patched version with Go 1.24.11 or 1.25.5
+# Risk: High - Binary is used for container management
+# Plan: Monitor Podman releases for updated Go stdlib dependency
+#       https://github.com/containers/podman/releases
+# Expires: 2025-04-01
+CVE-2025-61729
+
+# CVE-2025-66506 - github.com/sigstore/fulcio v1.7.1 in Podman v5.7.0 binary (HIGH severity)
+# Affected: /usr/local/bin/podman copied from quay.io/containers/podman:v5.7.0
+# Reason: Pre-compiled binary from upstream - cannot patch ourselves
+#         Podman v5.7.0 is the latest stable release as of 2025-12-08
+#         Waiting for upstream to publish patched version with fulcio 1.8.3+
+# Risk: High - Related to Sigstore signing, used in container verification
+# Plan: Monitor Podman releases for updated sigstore/fulcio dependency
+#       https://github.com/containers/podman/releases
+# Expires: 2025-04-01
+CVE-2025-66506
+
+# CVE-2025-66564 - github.com/sigstore/timestamp-authority v1.2.9 in tflint binary (HIGH severity)
+# Affected: /usr/local/bin/tflint installed via uv tool
+# Reason: Pre-compiled binary from terraform-linters/tflint - cannot patch ourselves
+#         Waiting for upstream to publish patched version with timestamp-authority 2.0.3+
+# Risk: High - Related to Sigstore timestamp verification in Terraform linting
+# Plan: Monitor tflint releases for updated sigstore/timestamp-authority dependency
+#       https://github.com/terraform-linters/tflint/releases
+# Expires: 2025-04-01
+CVE-2025-66564
