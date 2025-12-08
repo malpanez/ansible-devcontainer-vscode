@@ -1,13 +1,16 @@
 {
   "name": "Terraform Project Development",
   "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
-
-  "containerEnv": {
-    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
-  },
+  "remoteUser": "vscode",
 
   "customizations": {
     "vscode": {
+      "extensions": [
+        "hashicorp.terraform",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "github.vscode-github-actions"
+      ],
       "settings": {
         "terraform.languageServer.enable": true,
         "terraform.codelens.enabled": true,
@@ -22,13 +25,7 @@
           "editor.defaultFormatter": "hashicorp.terraform",
           "editor.formatOnSave": true
         }
-      },
-      "extensions": [
-        "hashicorp.terraform",
-        "eamodio.gitlens",
-        "ms-azuretools.vscode-docker",
-        "github.vscode-github-actions"
-      ]
+      }
     }
   },
 
@@ -37,17 +34,8 @@
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
   ],
 
-  "updateContentCommand": [
-    "bash",
-    "-c",
-    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
-  ],
+  "postCreateCommand": "uvx pre-commit install --install-hooks && terraform init || true",
 
-  "postCreateCommand": [
-    "bash",
-    "-c",
-    "pre-commit install --install-hooks || true; terraform init || true"
-  ],
-
-  "remoteUser": "vscode"
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
