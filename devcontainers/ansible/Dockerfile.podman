@@ -11,7 +11,8 @@ ARG BASE_IMAGE=python:3.12-slim-bookworm@sha256:5621ae4640bf259c8a9f09c513cd6c80
 # Using v5.7.0 (released 2025-11-11) which includes all CVE fixes
 # Known: Trivy may report v5.0.0 from binary metadata (false positive)
 # Verified: Runtime version matches tag specification
-FROM quay.io/containers/podman:v5.7.0@sha256:2f5944072be14f41dceb2ece57302959f7cd541af7435060fb77813b2a00069f AS podman-source
+# Note: Digest pinning removed due to frequent re-pushes by upstream
+FROM quay.io/containers/podman:v5.7.0 AS podman-source
 
 # Verify the Podman version to catch upstream tagging issues
 RUN podman --version && \
