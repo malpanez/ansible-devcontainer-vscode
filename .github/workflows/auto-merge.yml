@@ -13,7 +13,7 @@ permissions:
 jobs:
   auto-merge:
     name: Enable Auto-Merge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim  # Lightweight runner: simple gh CLI auto-merge operations
     if: |
       github.event.pull_request.draft == false &&
       (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]')
@@ -64,7 +64,7 @@ jobs:
 
   comment-on-merge:
     name: Comment on Successful Merge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim  # Lightweight runner: API call to add comment
     needs: auto-merge
     if: success()
     steps:

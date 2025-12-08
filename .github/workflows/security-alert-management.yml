@@ -27,7 +27,7 @@ permissions:
 jobs:
   manage-alerts:
     name: Manage Code Scanning Alerts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim  # Lightweight runner: API calls for alert triage
     timeout-minutes: 10
     permissions:
       contents: read
@@ -88,7 +88,7 @@ jobs:
 
   alert-report:
     name: Generate Alert Report
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim  # Lightweight runner: API calls for statistics
     timeout-minutes: 5
     permissions:
       contents: read
