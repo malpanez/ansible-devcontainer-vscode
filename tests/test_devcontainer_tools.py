@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
+import pytest  # noqa: F401 - pytest is the test framework runner
 
 
 # ========== Helper Functions ==========
