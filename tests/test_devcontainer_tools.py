@@ -9,7 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest  # noqa: F401 - pytest is the test framework runner
+# lgtm[py/unused-import]
+import pytest
 
 
 # ========== Helper Functions ==========
