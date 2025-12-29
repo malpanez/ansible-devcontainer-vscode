@@ -122,13 +122,13 @@ Fixed the thing           # What thing?
 4. **After PR is merged to `develop`:**
    - If all tests pass on `develop`, a PR to `main` will be automatically created
    - Once that PR passes all checks, it will auto-merge to `main`
-   - Dependabot PRs automatically target `develop` and follow the same flow
+   - Renovate PRs automatically target `develop` and follow the same flow
 
 ### Important Notes
 
 - **Never push directly to `main` or `develop`** - always use pull requests
 - **All PRs must pass CI checks** before merging (linting, tests, security scans)
-- **Dependabot PRs** automatically target `develop` and will auto-merge if tests pass
+- **Renovate PRs** automatically target `develop` and will auto-merge if tests pass
 - **Release flow:** `develop` → `main` happens automatically when `develop` is stable
 
 ## 3. Using the Makefile

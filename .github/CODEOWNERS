@@ -6,7 +6,6 @@
 
 # Workflows and CI/CD
 /.github/workflows/ @malpanez
-/.github/dependabot.yml @malpanez
 /.github/renovate.json @malpanez
 
 # Security configuration and scripts
