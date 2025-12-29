@@ -41,8 +41,7 @@ jobs:
           MAIN_SHA: ${{ github.sha }}
         run: |
           echo "Syncing main to develop..."
-          git fetch origin main:main
-          git fetch origin develop:develop
+          git fetch origin main develop
           git checkout develop
 
           # Check if develop is behind main
