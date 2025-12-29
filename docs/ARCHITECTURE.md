@@ -48,7 +48,7 @@ graph LR
     B -->|uv pip install --system .| C[Container Runtime]
 
     D[Developer adds dependency] --> A
-    E[Renovate/Dependabot] --> A
+    E[Renovate] --> A
 
     F[ansible-playbook<br/>update-dependencies.yml] -->|automates| A
 

@@ -118,7 +118,7 @@
 
 - name: 'dependencies'
   color: '0366d6'
-  description: 'Dependency updates (Renovate/Dependabot)'
+  description: 'Dependency updates (Renovate)'
 
 - name: 'devcontainer'
   color: '1d76db'

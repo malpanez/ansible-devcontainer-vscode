@@ -33,9 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SOPS**: Updated from 3.9.0 to 3.9.3
 - **Age**: Updated from 1.1.1 to 1.2.1
 - **Trivy**: Unified to v0.58.2 across all workflows
-- **Dependabot**:
-  - Changed from weekly to daily for Python dependencies
-  - Increased `open-pull-requests-limit` from 0 to 10
+- **Dependency Management**: Migrated from Dependabot to Renovate
+  - Renovate provides superior dependency grouping and auto-merge capabilities
   - Added dependency grouping (ansible, testing, linting, GitHub Actions)
   - Added labels per stack (ansible-stack, terraform-stack, etc.)
 - **CI Performance**: Added pre-commit cache (~30% faster builds)
@@ -49,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Terraform Version Inconsistency**: CI was using 1.7.5 while devcontainer used 1.9.6
 - **GHCR Image Accumulation**: Old images were never cleaned up automatically
-- **Dependency Updates**: Dependabot was disabled (`open-pull-requests-limit: 0`)
+- **Dependency Updates**: Replaced Dependabot with Renovate for better automation
 
 ### Security
 - Updated all tool versions to patch known vulnerabilities
