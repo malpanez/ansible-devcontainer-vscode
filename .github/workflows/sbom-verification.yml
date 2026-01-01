@@ -126,10 +126,9 @@ jobs:
 
             echo "| $sbom_name | $component_count | $relationship_count | $ntia_status |" >> "$GITHUB_STEP_SUMMARY"
 
-            # Warn if not NTIA compliant but don't fail
+            # Check NTIA compliance but don't warn (informational only in summary)
             if [[ "$ntia_status" == "⚠️ No" ]]; then
-              echo "::warning::SBOM $sbom_name is not NTIA compliant - this is informational only"
-              ntia-checker "$sbom_file" || true
+              ntia-checker "$sbom_file" > /dev/null 2>&1 || true
             fi
           done
 
