@@ -8,7 +8,7 @@ curl -fsSL "https://github.com/FiloSottile/age/releases/download/v${VERSION}/age
 tar -xzf "$TMP/age.tar.gz" -C "$TMP"
 AGE_BIN="$(find "$TMP" -type f -name age -perm -u+x | head -n1 || true)"
 AGE_KEYGEN="$(find "$TMP" -type f -name age-keygen -perm -u+x | head -n1 || true)"
-if [ -z "$AGE_BIN" ] || [ -z "$AGE_KEYGEN" ]; then
+if [[ -z "$AGE_BIN" ]] || [[ -z "$AGE_KEYGEN" ]]; then
   echo "Unable to locate age binaries" >&2
   exit 1
 fi

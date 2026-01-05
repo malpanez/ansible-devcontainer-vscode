@@ -44,12 +44,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libssl-dev \
       python3-dev \
       pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install GitHub CLI (gh) to avoid DevContainer features rebuild
-# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
       > /etc/apt/sources.list.d/github-cli.list \
@@ -76,10 +71,11 @@ ARG USER_GID=${USER_UID}
 # This forces package installations to happen during build, not at runtime
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && echo "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/uv, /usr/bin/uvx, /usr/local/bin/ansible-galaxy" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME}
-
-RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && cat > /etc/sudoers.d/${USERNAME} <<EOF
+${USERNAME} ALL=(root) NOPASSWD: /usr/bin/uv, /usr/bin/uvx, /usr/local/bin/ansible-galaxy
+EOF
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
+    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \

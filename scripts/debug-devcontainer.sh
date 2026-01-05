@@ -33,6 +33,7 @@ The script performs:
   3. devcontainer exec --workspace-folder devcontainers/<stack> <command>
 If no command is supplied, the shell for the container is opened.
 EOF
+  return 0
 }
 
 ensure_cli() {
@@ -40,17 +41,22 @@ ensure_cli() {
     echo "Error: devcontainer CLI not found. Install @devcontainers/cli (npm install -g @devcontainers/cli)." >&2
     exit 1
   fi
+  return 0
 }
 
 parse_args() {
+  local arg
+  local value
   while [[ $# -gt 0 ]]; do
-    case "$1" in
+    arg="$1"
+    value="${2:-}"
+    case "${arg}" in
       -s|--stack)
-        STACK="$2"
+        STACK="${value}"
         shift 2
         ;;
       -b|--build-arg)
-        BUILD_ARGS+=("--build-arg" "$2")
+        BUILD_ARGS+=("--build-arg" "${value}")
         shift 2
         ;;
       --prefer-build)
@@ -67,12 +73,13 @@ parse_args() {
         break
         ;;
       *)
-        echo "Unknown option: $1" >&2
+        echo "Unknown option: ${arg}" >&2
         usage
         exit 1
         ;;
     esac
   done
+  return 0
 }
 
 prepare_workspace() {
@@ -81,12 +88,12 @@ prepare_workspace() {
 
   if [[ "${prefer_build}" != "true" || ! -f "${source_folder}/devcontainer.json" ]]; then
     echo "${source_folder}"
-    return
+    return 0
   fi
 
   if ! command -v jq >/dev/null 2>&1; then
     echo "${source_folder}"
-    return
+    return 0
   fi
 
   local temp_dir
@@ -106,6 +113,7 @@ prepare_workspace() {
   fi
 
   echo "${temp_dir}"
+  return 0
 }
 
 main() {
@@ -147,6 +155,7 @@ main() {
     rm -rf "${prepared_workspace}"
     trap - EXIT
   fi
+  return 0
 }
 
 main "$@"

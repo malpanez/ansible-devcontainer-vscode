@@ -35,10 +35,11 @@ ARG USER_GID=${USER_UID}
 
 RUN addgroup -g ${USER_GID} ${USERNAME} \
     && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
-    && echo "${USERNAME} ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME}
-
-RUN install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && cat > /etc/sudoers.d/${USERNAME} <<EOF
+${USERNAME} ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx
+EOF
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
+    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/go \
