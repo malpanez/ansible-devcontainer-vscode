@@ -63,15 +63,10 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -m 700 /home/${USERNAME}/.ansible/tmp \
     && install -d -m 755 /home/${USERNAME}/.ansible/galaxy_cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
-    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible
-
-# Install uv once for downstream layers (pinned via PyPI).
-RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
-ENV PATH="/usr/local/bin:${PATH}"
-
-# Provide pre-commit so downstream stacks share the same tooling baseline.
-# Prepare shared workspace path (ownership fixed by child layers if needed).
-RUN uv pip install --system pre-commit \
+    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible \
+    && python -m pip install --no-cache-dir "uv==${UV_VERSION}" \
+    && uv pip install --system pre-commit \
     && mkdir -p /workspace \
     && chown ${USERNAME}:${USERNAME} /workspace
+ENV PATH="/usr/local/bin:${PATH}"
 WORKDIR /workspace
