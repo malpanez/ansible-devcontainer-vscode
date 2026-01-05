@@ -27,17 +27,22 @@ Examples:
   scripts/smoke-devcontainer-image.sh --stack ansible --build
   scripts/smoke-devcontainer-image.sh --stack terraform --image test/terraform:latest --build
 EOF
+  return 0
 }
 
 parse_args() {
+  local arg
+  local value
   while [[ $# -gt 0 ]]; do
-    case "$1" in
+    arg="$1"
+    value="${2:-}"
+    case "${arg}" in
       --stack)
-        STACK="$2"
+        STACK="${value}"
         shift 2
         ;;
       --image)
-        IMAGE_TAG="$2"
+        IMAGE_TAG="${value}"
         shift 2
         ;;
       --build)
@@ -45,7 +50,7 @@ parse_args() {
         shift
         ;;
       --base-image)
-        BASE_IMAGE_ARG="$2"
+        BASE_IMAGE_ARG="${value}"
         shift 2
         ;;
       -h|--help)
@@ -53,12 +58,13 @@ parse_args() {
         exit 0
         ;;
       *)
-        echo "Unknown option: $1" >&2
+        echo "Unknown option: ${arg}" >&2
         usage
         exit 1
         ;;
     esac
   done
+  return 0
 }
 
 ensure_args() {
@@ -75,23 +81,25 @@ ensure_args() {
   if [[ -z "${BASE_IMAGE_ARG}" ]]; then
     BASE_IMAGE_ARG="${BASE_IMAGE_DEFAULT}"
   fi
+  return 0
 }
 
 ensure_base_image() {
   if [[ "${STACK}" != "ansible" && "${STACK}" != "terraform" ]]; then
-    return
+    return 0
   fi
 
   if [[ "${BASE_IMAGE_ARG}" != "${BASE_IMAGE_DEFAULT}" ]]; then
-    return
+    return 0
   fi
 
   if docker image inspect "${BASE_IMAGE_ARG}" >/dev/null 2>&1; then
-    return
+    return 0
   fi
 
   echo ">> Building shared base image (${BASE_IMAGE_ARG}) ..."
   docker build --progress plain -t "${BASE_IMAGE_ARG}" -f "${REPO_ROOT}/devcontainers/base/Dockerfile" "${REPO_ROOT}"
+  return 0
 }
 
 build_image() {
@@ -125,6 +133,7 @@ build_image() {
 
   echo ">> Building ${STACK} image (${IMAGE_TAG}) ..."
   docker build --progress plain -t "${IMAGE_TAG}" -f "${dockerfile}" "${extra_args[@]}" "${context}"
+  return 0
 }
 
 run_smoke() {
@@ -154,6 +163,7 @@ run_smoke() {
       exit 1
       ;;
   esac
+  return 0
 }
 
 main() {
@@ -167,6 +177,7 @@ main() {
 
   run_smoke
   echo ">> Smoke test for '${STACK}' completed successfully."
+  return 0
 }
 
 main "$@"

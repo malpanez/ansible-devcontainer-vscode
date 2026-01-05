@@ -15,10 +15,25 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log() { echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $*"; }
-log_success() { echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✓${NC} $*"; }
-log_warning() { echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] ⚠${NC} $*"; }
-log_error() { echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ✗${NC} $*"; }
+log() {
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $*"
+    return 0
+}
+
+log_success() {
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✓${NC} $*"
+    return 0
+}
+
+log_warning() {
+    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] ⚠${NC} $*"
+    return 0
+}
+
+log_error() {
+    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ✗${NC} $*"
+    return 0
+}
 
 # Check dependencies
 if ! command -v gh &> /dev/null; then
@@ -52,7 +67,7 @@ for entry in "${ALERTS_TO_DISMISS[@]}"; do
     # GitHub API has a 280 character limit for dismissal comments
     DISMISS_COMMENT="Podman v5.7.0 in Dockerfile includes fixes. Trivy detects v5.0.0 from binary metadata (not runtime). False positive - dev env only. See SECURITY_REVIEW.md"
 
-    if [ "${DRY_RUN}" = "true" ]; then
+    if [[ "${DRY_RUN}" = "true" ]]; then
         log_warning "  [DRY RUN] Would dismiss with reason: false positive"
         log "  Comment preview (first 200 chars):"
         echo "${DISMISS_COMMENT}" | head -c 200
@@ -81,11 +96,11 @@ log "Summary"
 echo "========================================"
 log_success "Alerts processed: ${#ALERTS_TO_DISMISS[@]}"
 log_success "Successfully dismissed: ${DISMISSED}"
-if [ "${ERRORS}" -gt 0 ]; then
+if [[ "${ERRORS}" -gt 0 ]]; then
     log_error "Errors: ${ERRORS}"
 fi
 
-if [ "${DRY_RUN}" = "true" ]; then
+if [[ "${DRY_RUN}" = "true" ]]; then
     echo ""
     log_warning "This was a DRY RUN. No alerts were actually dismissed."
     log_warning "To execute dismissals, run: DRY_RUN=false $0"

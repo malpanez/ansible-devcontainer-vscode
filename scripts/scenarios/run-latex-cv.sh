@@ -21,6 +21,7 @@ LATEX_IMAGE="scenario-latex:${RANDOM}"
 cleanup() {
   docker image rm --force "${LATEX_IMAGE}" >/dev/null 2>&1 || true
   docker image rm --force "${BASE_IMAGE}" >/dev/null 2>&1 || true
+  return 0
 }
 trap cleanup EXIT
 

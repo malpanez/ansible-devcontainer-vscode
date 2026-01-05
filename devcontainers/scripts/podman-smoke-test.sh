@@ -9,21 +9,30 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+UNKNOWN_VALUE="unknown"
 
 info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    local message="${1:-}"
+    echo -e "${BLUE}ℹ️  ${message}${NC}"
+    return 0
 }
 
 success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    local message="${1:-}"
+    echo -e "${GREEN}✅ ${message}${NC}"
+    return 0
 }
 
 warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    local message="${1:-}"
+    echo -e "${YELLOW}⚠️  ${message}${NC}"
+    return 0
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    local message="${1:-}"
+    echo -e "${RED}❌ ${message}${NC}"
+    return 0
 }
 
 WORKSPACE_DIR="${WORKSPACE:-${WORKSPACE_FOLDER:-/workspace}}"
@@ -77,7 +86,7 @@ fi
 # ===========================
 # 4. Ansible Galaxy collections (idempotent)
 # ===========================
-if [ -f "${WORKSPACE_DIR}/requirements.yml" ]; then
+if [[ -f "${WORKSPACE_DIR}/requirements.yml" ]]; then
     info "Installing Ansible Galaxy collections from requirements.yml..."
     if ansible-galaxy collection install -r "${WORKSPACE_DIR}/requirements.yml"; then
         success "Ansible collections installed"
@@ -92,9 +101,9 @@ fi
 # 5. Verify cgroups version
 # ===========================
 info "Checking cgroups version..."
-if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+if [[ -f /sys/fs/cgroup/cgroup.controllers ]]; then
     success "cgroups v2 detected (optimal for Podman)"
-elif [ -d /sys/fs/cgroup/cpu ]; then
+elif [[ -d /sys/fs/cgroup/cpu ]]; then
     warning "cgroups v1 detected. Podman may have limitations."
     warning "Consider upgrading to a host with cgroups v2 support."
     warning "See: https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md"
@@ -113,7 +122,7 @@ if ! command -v podman &> /dev/null; then
     exit 1
 fi
 
-PODMAN_VERSION=$(podman --version 2>/dev/null || echo "unknown")
+PODMAN_VERSION=$(podman --version 2>/dev/null || echo "${UNKNOWN_VALUE}")
 success "Podman found: ${PODMAN_VERSION}"
 
 # ===========================
@@ -132,8 +141,8 @@ if ! podman info &> /dev/null; then
 fi
 
 # Extract useful info
-STORAGE_DRIVER=$(podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null || echo "unknown")
-RUNTIME=$(podman info --format '{{.Host.OCIRuntime.Name}}' 2>/dev/null || echo "unknown")
+STORAGE_DRIVER=$(podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null || echo "${UNKNOWN_VALUE}")
+RUNTIME=$(podman info --format '{{.Host.OCIRuntime.Name}}' 2>/dev/null || echo "${UNKNOWN_VALUE}")
 
 success "Podman info successful"
 info "   Storage driver: ${STORAGE_DRIVER}"
@@ -165,7 +174,7 @@ echo ""
 info "Verifying ansible-navigator installation..."
 
 if command -v ansible-navigator &> /dev/null; then
-    NAVIGATOR_VERSION=$(ansible-navigator --version 2>/dev/null | head -1 || echo "unknown")
+    NAVIGATOR_VERSION=$(ansible-navigator --version 2>/dev/null | head -1 || echo "${UNKNOWN_VALUE}")
     success "ansible-navigator found: ${NAVIGATOR_VERSION}"
 
     # Pre-pull the default EE image in background to improve first-run UX
@@ -186,7 +195,7 @@ fi
 # 10. Verify ansible-builder
 # ===========================
 if command -v ansible-builder &> /dev/null; then
-    BUILDER_VERSION=$(ansible-builder --version 2>/dev/null || echo "unknown")
+    BUILDER_VERSION=$(ansible-builder --version 2>/dev/null || echo "${UNKNOWN_VALUE}")
     success "ansible-builder found: ${BUILDER_VERSION}"
 else
     warning "ansible-builder not found"

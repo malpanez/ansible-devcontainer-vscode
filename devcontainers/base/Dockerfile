@@ -58,10 +58,8 @@ ARG USER_GID=$USER_UID
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
     && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME}
-
-# Ensure cache directories exist and are owned by the non-root user.
-RUN install -d -m 755 /home/${USERNAME}/.cache/pre-commit \
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
+    && install -d -m 755 /home/${USERNAME}/.cache/pre-commit \
     && install -d -m 700 /home/${USERNAME}/.ansible/tmp \
     && install -d -m 755 /home/${USERNAME}/.ansible/galaxy_cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
@@ -72,8 +70,8 @@ RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 ENV PATH="/usr/local/bin:${PATH}"
 
 # Provide pre-commit so downstream stacks share the same tooling baseline.
-RUN uv pip install --system pre-commit
-
 # Prepare shared workspace path (ownership fixed by child layers if needed).
-RUN mkdir -p /workspace && chown ${USERNAME}:${USERNAME} /workspace
+RUN uv pip install --system pre-commit \
+    && mkdir -p /workspace \
+    && chown ${USERNAME}:${USERNAME} /workspace
 WORKDIR /workspace

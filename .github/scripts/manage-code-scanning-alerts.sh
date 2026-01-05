@@ -20,40 +20,45 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+TIMESTAMP_FORMAT="%Y-%m-%d %H:%M:%S"
 
 # Check dependencies
 if ! command -v gh &> /dev/null; then
-    echo -e "${RED}Error: GitHub CLI (gh) is required but not installed.${NC}"
-    echo "Install from: https://cli.github.com/"
+    echo -e "${RED}Error: GitHub CLI (gh) is required but not installed.${NC}" >&2
+    echo "Install from: https://cli.github.com/" >&2
     exit 1
 fi
 
 if ! command -v jq &> /dev/null; then
-    echo -e "${RED}Error: jq is required but not installed.${NC}"
+    echo -e "${RED}Error: jq is required but not installed.${NC}" >&2
     exit 1
 fi
 
 # Verify authentication
 if ! gh auth status &> /dev/null; then
-    echo -e "${RED}Error: Not authenticated with GitHub CLI.${NC}"
-    echo "Run: gh auth login"
+    echo -e "${RED}Error: Not authenticated with GitHub CLI.${NC}" >&2
+    echo "Run: gh auth login" >&2
     exit 1
 fi
 
 log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $*"
+    echo -e "${BLUE}[$(date +"${TIMESTAMP_FORMAT}")]${NC} $*"
+    return 0
 }
 
 log_success() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✓${NC} $*"
+    echo -e "${GREEN}[$(date +"${TIMESTAMP_FORMAT}")] ✓${NC} $*"
+    return 0
 }
 
 log_warning() {
-    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] ⚠${NC} $*"
+    echo -e "${YELLOW}[$(date +"${TIMESTAMP_FORMAT}")] ⚠${NC} $*"
+    return 0
 }
 
 log_error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ✗${NC} $*"
+    echo -e "${RED}[$(date +"${TIMESTAMP_FORMAT}")] ✗${NC} $*"
+    return 0
 }
 
 # Get current date in seconds since epoch
@@ -71,10 +76,11 @@ echo ""
 check_rate_limit() {
     local remaining
     remaining=$(gh api rate_limit --jq '.rate.remaining' 2>/dev/null || echo "1000")
-    if [ "$remaining" -lt 10 ]; then
+    if [[ "$remaining" -lt 10 ]]; then
         log_warning "GitHub API rate limit low: ${remaining} requests remaining"
         log_warning "Consider waiting before running this script"
     fi
+    return 0
 }
 
 log "Checking API rate limit..."
@@ -119,7 +125,7 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     DISMISS_COMMENT=""
 
     # Rule 1: Stale alerts (older than threshold)
-    if [ "${AGE_DAYS}" -gt "${MAX_ALERT_AGE_DAYS}" ]; then
+    if [[ "${AGE_DAYS}" -gt "${MAX_ALERT_AGE_DAYS}" ]]; then
         SHOULD_DISMISS=true
         DISMISS_REASON="won't fix"
         DISMISS_COMMENT="Alert is ${AGE_DAYS} days old and hasn't been re-detected. Auto-dismissing as stale."
@@ -132,7 +138,9 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     # - Trivy version detection issue (examining binary metadata vs actual runtime)
     # - The v5.7.0 tag contains older binaries (upstream issue)
     # - Build cache serving stale binaries
-    if [[ "${LOCATION}" =~ usr/local/bin/podman ]] && [[ "${RULE_ID}" =~ ^CVE-(2024|2025) ]]; then
+    if [[ "${LOCATION}" =~ usr/local/bin/podman ]] \
+      && [[ "${RULE_ID}" =~ ^CVE-(2024|2025) ]] \
+      && [[ "${AGE_DAYS}" -ge 14 ]]; then
         # Check if this is a known Podman CVE that should be fixed in v5.7.0
         # CVE-2024-1753: Fixed in 5.0.1 (should be fixed in 5.7.0)
         # CVE-2024-9407: Fixed in 5.2.4 (should be fixed in 5.7.0)
@@ -142,12 +150,10 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
 
         # Note: Only auto-dismiss if the alert has been open for 14+ days AND we've verified
         # that our Dockerfile uses a version that should have the fix
-        if [ "${AGE_DAYS}" -ge 14 ]; then
-            SHOULD_DISMISS=true
-            DISMISS_REASON="false positive"
-            DISMISS_COMMENT="Dockerfile specifies Podman v5.7.0 which includes the fix for ${RULE_ID}. Trivy appears to be detecting version from binary metadata which may not reflect actual security patches. Verified via: devcontainers/ansible/Dockerfile.podman line 11."
-            log_warning "  → Marked for dismissal: Podman version detection mismatch"
-        fi
+        SHOULD_DISMISS=true
+        DISMISS_REASON="false positive"
+        DISMISS_COMMENT="Dockerfile specifies Podman v5.7.0 which includes the fix for ${RULE_ID}. Trivy appears to be detecting version from binary metadata which may not reflect actual security patches. Verified via: devcontainers/ansible/Dockerfile.podman line 11."
+        log_warning "  → Marked for dismissal: Podman version detection mismatch"
     fi
 
     # Rule 3: Known false positives (configure based on your needs)
@@ -179,7 +185,7 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
             DISMISS_REASON="false positive"
             DISMISS_COMMENT="Renovate is configured in .github/renovate.json. Scorecard may not detect it yet. See PR #155."
             log_warning "  → Marked for dismissal: Renovate already configured"
-        elif [[ "${RULE_ID}" == "PinnedDependenciesID" ]] && [ "${AGE_DAYS}" -ge 7 ]; then
+        elif [[ "${RULE_ID}" == "PinnedDependenciesID" ]] && [[ "${AGE_DAYS}" -ge 7 ]]; then
             # Dockerfile base images use digest pins, some ARG versions can't be pinned
             SHOULD_DISMISS=true
             DISMISS_REASON="false positive"
@@ -198,7 +204,7 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
         # CVE-2025-61727: crypto/x509 wildcard SAN not restricted by subdomain exclusion
         if [[ "${RULE_ID}" =~ ^CVE-2025-(61729|61727)$ ]]; then
             # These are recent (Dec 2025) but affect dev tools only, auto-dismiss after 7 days
-            if [ "${AGE_DAYS}" -ge 7 ]; then
+            if [[ "${AGE_DAYS}" -ge 7 ]]; then
                 SHOULD_DISMISS=true
                 DISMISS_REASON="used in tests"
                 DISMISS_COMMENT="Go crypto/x509 CVE in dev toolchain. Attack surface minimal in dev env. Awaiting upstream updates."
@@ -207,7 +213,7 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
         elif [[ "${RULE_ID}" =~ ^CVE-2025-(58181|47914|61725|61724|61723|58185|58189|58188|58187|58186|58183|47912|52881)$ ]] || \
            [[ "${RULE_ID}" =~ ^CVE-2025-(47910|0913|22866|22869|22871|4673|47906|47907|46394)$ ]] || \
            [[ "${RULE_ID}" =~ ^CVE-2024-(45336|45341)$ ]]; then
-            if [ "${AGE_DAYS}" -ge 30 ]; then
+            if [[ "${AGE_DAYS}" -ge 30 ]]; then
                 SHOULD_DISMISS=true
                 DISMISS_REASON="used in tests"
                 DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream. See SECURITY_REVIEW.md"
@@ -217,8 +223,8 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     fi
 
     # Execute dismissal
-    if [ "${SHOULD_DISMISS}" = true ]; then
-        if [ "${DRY_RUN}" = "true" ]; then
+    if [[ "${SHOULD_DISMISS}" = true ]]; then
+        if [[ "${DRY_RUN}" = "true" ]]; then
             log_warning "  → [DRY RUN] Would dismiss with reason: ${DISMISS_REASON}"
             log_warning "  → [DRY RUN] Comment: ${DISMISS_COMMENT}"
             ((DISMISSED_COUNT++)) || true
@@ -250,11 +256,11 @@ echo "========================================"
 log "Total alerts processed: ${ALERT_COUNT}"
 log_success "Dismissed: ${DISMISSED_COUNT}"
 log "Kept open: ${SKIPPED_COUNT}"
-if [ "${ERROR_COUNT}" -gt 0 ]; then
+if [[ "${ERROR_COUNT}" -gt 0 ]]; then
     log_error "Errors: ${ERROR_COUNT}"
 fi
 
-if [ "${DRY_RUN}" = "true" ]; then
+if [[ "${DRY_RUN}" = "true" ]]; then
     echo ""
     log_warning "This was a DRY RUN. No alerts were actually dismissed."
     log_warning "Set DRY_RUN=false to execute dismissals."

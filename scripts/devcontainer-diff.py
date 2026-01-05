@@ -43,56 +43,47 @@ def diff_files(source: Path, target: Path) -> str:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Diff current .devcontainer contents against template."
-    )
-    parser.add_argument(
-        "--target", default=".devcontainer", help="Path to the .devcontainer directory."
-    )
-    parser.add_argument(
-        "--templates",
-        default="devcontainers",
-        help="Path to the devcontainers/ directory.",
-    )
-    parser.add_argument(
-        "--stack", help="Template stack to compare. Defaults to metadata stack."
-    )
-    parser.add_argument(
-        "--metadata",
-        help="Explicit metadata path (defaults to <target>/.template-metadata.json).",
-    )
-    args = parser.parse_args()
-
-    target = Path(args.target).resolve()
+def resolve_target(target_arg: str) -> Path:
+    target = Path(target_arg).resolve()
     if not target.exists():
         print(f"Target directory not found: {target}", file=sys.stderr)
-        return 1
+        raise FileNotFoundError
+    return target
 
+
+def resolve_metadata_path(target: Path, metadata_arg: str | None) -> Path:
     metadata_path = (
-        Path(args.metadata).resolve()
-        if args.metadata
+        Path(metadata_arg).resolve()
+        if metadata_arg
         else target / ".template-metadata.json"
     )
     if not metadata_path.exists():
         print(f"Metadata file not found: {metadata_path}", file=sys.stderr)
-        return 1
+        raise FileNotFoundError
+    return metadata_path
 
-    metadata = load_metadata(metadata_path)
-    stack = args.stack or metadata.get("stack")
+
+def resolve_stack(metadata: dict, stack_arg: str | None) -> str:
+    stack = stack_arg or metadata.get("stack")
     if not stack:
         print("Stack not specified and metadata missing 'stack'.", file=sys.stderr)
-        return 1
+        raise ValueError
+    return stack
 
-    templates_root = Path(args.templates).resolve()
+
+def resolve_source(templates_arg: str, stack: str) -> Path:
+    templates_root = Path(templates_arg).resolve()
     source = templates_root / stack
     if not source.exists():
         print(
             f"Template stack '{stack}' not found under {templates_root}",
             file=sys.stderr,
         )
-        return 1
+        raise FileNotFoundError
+    return source
 
+
+def report_differences(target: Path, source: Path) -> bool:
     target_files = list_files(target)
     source_files = list_files(source)
 
@@ -123,6 +114,40 @@ def main() -> int:
                 print(diff)
                 changed = True
 
+    return changed
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Diff current .devcontainer contents against template."
+    )
+    parser.add_argument(
+        "--target", default=".devcontainer", help="Path to the .devcontainer directory."
+    )
+    parser.add_argument(
+        "--templates",
+        default="devcontainers",
+        help="Path to the devcontainers/ directory.",
+    )
+    parser.add_argument(
+        "--stack", help="Template stack to compare. Defaults to metadata stack."
+    )
+    parser.add_argument(
+        "--metadata",
+        help="Explicit metadata path (defaults to <target>/.template-metadata.json).",
+    )
+    args = parser.parse_args()
+
+    try:
+        target = resolve_target(args.target)
+        metadata_path = resolve_metadata_path(target, args.metadata)
+        metadata = load_metadata(metadata_path)
+        stack = resolve_stack(metadata, args.stack)
+        source = resolve_source(args.templates, stack)
+    except (FileNotFoundError, ValueError):
+        return 1
+
+    changed = report_differences(target, source)
     if not changed:
         print("No differences detected between .devcontainer/ and template.")
         return 0

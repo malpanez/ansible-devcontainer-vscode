@@ -6,14 +6,12 @@ on:
     tags:
       - 'v*.*.*'
 
-permissions:
-  contents: write
-  packages: write
-
 jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -37,6 +35,9 @@ jobs:
   publish-container:
     name: Publish Devcontainer Images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout
@@ -219,6 +220,9 @@ jobs:
     name: GHCR Release Smoke Test
     needs: publish-container
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     strategy:
       fail-fast: false

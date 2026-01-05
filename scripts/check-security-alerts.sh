@@ -15,12 +15,12 @@ echo "Scanning Python dependencies for known vulnerabilities..."
 echo ""
 
 # Run pip-audit on requirements.txt
-if [ -f "requirements.txt" ]; then
+if [[ -f "requirements.txt" ]]; then
     echo "📦 Scanning requirements.txt..."
     uvx pip-audit -r requirements.txt --format json > /tmp/pip-audit-results.json 2>&1 || true
 
     # Display results
-    if [ -f "/tmp/pip-audit-results.json" ]; then
+    if [[ -f "/tmp/pip-audit-results.json" ]]; then
         uvx pip-audit -r requirements.txt --format markdown || true
     fi
 fi
@@ -35,7 +35,7 @@ fi
 
 echo ""
 echo "=== Safety Check ==="
-if [ -f "requirements.txt" ]; then
+if [[ -f "requirements.txt" ]]; then
     uvx safety check -r requirements.txt || true
 fi
 

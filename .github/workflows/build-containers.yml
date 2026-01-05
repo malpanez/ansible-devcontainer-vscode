@@ -63,10 +63,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve stack input
+        id: stack
+        run: |
+          case "${{ github.event.inputs.stack }}" in
+            base|ansible|golang|terraform|latex)
+              echo "stack=${{ github.event.inputs.stack }}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Invalid stack input: ${{ github.event.inputs.stack }}"
+              exit 1
+              ;;
+          esac
+
       - name: Configure metadata tags
         id: meta_tags
         run: |
-          if [ "${{ github.event.inputs.stack }}" = "base" ]; then
+          if [ "${{ steps.stack.outputs.stack }}" = "base" ]; then
             {
               echo "tags<<EOF"
               echo "type=raw,value=py312"
@@ -88,12 +101,12 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
 
       - name: Determine target platforms
         run: |
-          if [ "${{ github.event.inputs.stack }}" = "latex" ]; then
+          if [ "${{ steps.stack.outputs.stack }}" = "latex" ]; then
             echo "PLATFORMS=linux/amd64" >> "$GITHUB_ENV"
           else
             echo "PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
@@ -104,7 +117,7 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
         with:
           context: .
-          file: devcontainers/${{ github.event.inputs.stack }}/Dockerfile
+          file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -117,7 +130,7 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
