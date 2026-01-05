@@ -14,24 +14,25 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+TIMESTAMP_FORMAT="%Y-%m-%d %H:%M:%S"
 
 log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $*"
+    echo -e "${BLUE}[$(date +"${TIMESTAMP_FORMAT}")]${NC} $*"
     return 0
 }
 
 log_success() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✓${NC} $*"
+    echo -e "${GREEN}[$(date +"${TIMESTAMP_FORMAT}")] ✓${NC} $*"
     return 0
 }
 
 log_warning() {
-    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] ⚠${NC} $*"
+    echo -e "${YELLOW}[$(date +"${TIMESTAMP_FORMAT}")] ⚠${NC} $*"
     return 0
 }
 
 log_error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ✗${NC} $*"
+    echo -e "${RED}[$(date +"${TIMESTAMP_FORMAT}")] ✗${NC} $*"
     return 0
 }
 
