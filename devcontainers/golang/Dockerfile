@@ -35,7 +35,7 @@ ARG USER_GID=${USER_UID}
 
 RUN addgroup -g ${USER_GID} ${USERNAME} \
     && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
-    && cat > /etc/sudoers.d/${USERNAME} <<EOF
+    && cat > /etc/sudoers.d/${USERNAME} <<'EOF' \
 ${USERNAME} ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx
 EOF
     && chmod 0440 /etc/sudoers.d/${USERNAME} \

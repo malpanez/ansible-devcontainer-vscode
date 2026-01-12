@@ -64,7 +64,7 @@ ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && cat > /etc/sudoers.d/${USERNAME} <<EOF
+    && cat > /etc/sudoers.d/${USERNAME} <<'EOF' \
 ${USERNAME} ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/local/bin/uv, /usr/local/bin/uvx
 EOF
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
