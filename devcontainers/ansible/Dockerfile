@@ -71,7 +71,7 @@ ARG USER_GID=${USER_UID}
 # This forces package installations to happen during build, not at runtime
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && cat > /etc/sudoers.d/${USERNAME} <<EOF
+    && cat > /etc/sudoers.d/${USERNAME} <<'EOF' \
 ${USERNAME} ALL=(root) NOPASSWD: /usr/bin/uv, /usr/bin/uvx, /usr/local/bin/ansible-galaxy
 EOF
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
