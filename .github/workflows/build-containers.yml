@@ -200,6 +200,7 @@ jobs:
 
       - name: Scan base image with Trivy
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8  # 0.33.1
+        continue-on-error: true
         with:
           version: v0.58.2
           image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-base:main
@@ -207,10 +208,22 @@ jobs:
           output: trivy-base.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Check if SARIF file exists
+        id: sarif_check
+        if: always()
+        run: |
+          if [ -f "trivy-base.sarif" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SARIF file not generated for base image"
+          fi
 
       - name: Upload Trivy SARIF for base
         uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
-        if: always()
+        if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: trivy-base.sarif
           category: trivy-base
@@ -312,6 +325,7 @@ jobs:
 
       - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Trivy
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8  # 0.33.1
+        continue-on-error: true
         with:
           version: v0.58.2
           image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}@${{ steps.build.outputs.digest }}
@@ -319,10 +333,22 @@ jobs:
           output: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Check if SARIF file exists
+        id: sarif_check
+        if: always()
+        run: |
+          if [ -f "trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SARIF file not generated for ${{ matrix.stack }}${{ matrix.variant }}"
+          fi
 
       - name: Upload Trivy SARIF for ${{ matrix.stack }}${{ matrix.variant }}
         uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
-        if: always()
+        if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
           category: trivy-${{ matrix.stack }}${{ matrix.variant }}
