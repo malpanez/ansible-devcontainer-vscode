@@ -40,7 +40,7 @@ RUN set -eux; \
       -o /tmp/terragrunt.sha256; \
     curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${ARCH}" \
       -o /usr/local/bin/terragrunt; \
-    grep "terragrunt_linux_${ARCH}$" /tmp/terragrunt.sha256 | sha256sum -c -; \
+    cd /usr/local/bin && grep "terragrunt_linux_${ARCH}$" /tmp/terragrunt.sha256 | sha256sum -c -; \
     rm -f /tmp/terragrunt.sha256; \
     chmod +x /usr/local/bin/terragrunt; \
     /usr/local/bin/terragrunt --version; \
