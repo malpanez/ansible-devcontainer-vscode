@@ -39,8 +39,9 @@ RUN set -eux; \
     curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/SHA256SUMS" \
       -o /tmp/terragrunt.sha256; \
     curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${ARCH}" \
-      -o /usr/local/bin/terragrunt; \
-    cd /usr/local/bin && grep "terragrunt_linux_${ARCH}$" /tmp/terragrunt.sha256 | sha256sum -c -; \
+      -o /tmp/terragrunt_linux_${ARCH}; \
+    cd /tmp && grep "terragrunt_linux_${ARCH}$" /tmp/terragrunt.sha256 | sha256sum -c -; \
+    mv /tmp/terragrunt_linux_${ARCH} /usr/local/bin/terragrunt; \
     rm -f /tmp/terragrunt.sha256; \
     chmod +x /usr/local/bin/terragrunt; \
     /usr/local/bin/terragrunt --version; \
@@ -48,16 +49,11 @@ RUN set -eux; \
     curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/checksums.txt" \
       -o /tmp/tflint.checksums; \
     curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${ARCH}.zip" \
-      -o /tmp/tflint.zip; \
-    TFLINT_CHECKSUM_LINE="$(grep -E "(^|\\()tflint_linux_${ARCH}\\.zip(\\)|$)" /tmp/tflint.checksums | head -n1)"; \
-    if echo "${TFLINT_CHECKSUM_LINE}" | grep -q "SHA256 ("; then \
-      echo "${TFLINT_CHECKSUM_LINE}" | sed -E 's/^SHA256 \\(([^)]+)\\) = ([a-f0-9]+)$/\\2  \\1/' | sha256sum -c -; \
-    else \
-      echo "${TFLINT_CHECKSUM_LINE}" | sha256sum -c -; \
-    fi; \
+      -o /tmp/tflint_linux_${ARCH}.zip; \
+    cd /tmp && grep "tflint_linux_${ARCH}.zip" /tmp/tflint.checksums | sha256sum -c -; \
     rm -f /tmp/tflint.checksums; \
-    unzip /tmp/tflint.zip -d /usr/local/bin; \
-    rm /tmp/tflint.zip; \
+    unzip /tmp/tflint_linux_${ARCH}.zip -d /usr/local/bin; \
+    rm /tmp/tflint_linux_${ARCH}.zip; \
     chmod +x /usr/local/bin/tflint; \
     /usr/local/bin/tflint --version
 
