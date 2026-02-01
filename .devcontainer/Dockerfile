@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.9.6
+ARG TERRAFORM_VERSION=1.14.4
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
-ARG TERRAGRUNT_VERSION=0.67.1
+ARG TERRAGRUNT_VERSION=0.99.1
 # renovate: datasource=github-releases depName=terraform-linters/tflint
-ARG TFLINT_VERSION=0.54.0
+ARG TFLINT_VERSION=0.60.0
 # Base image for final stage (must be before first FROM for multi-platform builds)
 ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
 
@@ -50,10 +50,11 @@ RUN set -eux; \
     chmod +x /usr/local/bin/tflint; \
     /usr/local/bin/tflint --version
 
+# hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="alpanez.alcalde@gmail.com"
-LABEL description="Terraform + Ansible Development Environment 2025"
+LABEL description="Terraform + Ansible Development Environment 2026"
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode"
 LABEL org.opencontainers.image.description="TOP 0.1% DevContainer for Terraform, Ansible, and Infrastructure as Code"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
