@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 ARG DEBIAN_VERSION=bookworm-slim
-ARG TERRAFORM_VERSION=1.14.0
-ARG TERRAGRUNT_VERSION=0.93.11
+ARG TERRAFORM_VERSION=1.14.4
+ARG TERRAGRUNT_VERSION=0.99.1
 ARG TFLINT_VERSION=0.60.0
 ARG SOPS_VERSION=3.11.0
 ARG AGE_VERSION=1.2.1
@@ -43,6 +43,7 @@ RUN set -eux; \
     chmod +x /tmp/bin/sops; \
     /bin/bash /tmp/install_age.sh "${AGE_VERSION}" "${ARCH}";
 
+# hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE="unknown"
@@ -82,6 +83,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install GitHub CLI (gh) to avoid DevContainer features rebuild
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
