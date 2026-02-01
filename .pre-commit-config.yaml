@@ -74,17 +74,14 @@ repos:
       - id: shellcheck
         name: ShellCheck
 
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.13.1-beta
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.12.0.3
     hooks:
-      - id: hadolint-docker
+      - id: hadolint
         name: Hadolint (Dockerfile Linter)
 
-  - repo: https://github.com/terraform-linters/tflint
-    rev: v0.54.0
-    hooks:
-      - id: tflint
-        name: TFLint (Terraform Linter)
+  # Note: tflint hook removed - using terraform_tflint from pre-commit-terraform instead
+  # The tflint repository no longer provides pre-commit hooks directly
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.96.2

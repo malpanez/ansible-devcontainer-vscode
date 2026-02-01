@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
-ARG BASE_IMAGE=golang:1.25.4-alpine3.21@sha256:66318aca70141a077877f813ad6e903b3d6e0ef861b5f41defb80e4b29364c57
+ARG BASE_IMAGE=golang:1.25.6-alpine3.22@sha256:fa3380ab0d73b706e6b07d2a306a4dc68f20bfc1437a6a6c47c8f88fe4af6f75
+# hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
 
 ARG BUILD_DATE="unknown"
