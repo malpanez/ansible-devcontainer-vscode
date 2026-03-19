@@ -1,0 +1,87 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(uv:*)",
+      "Bash(uvx:*)",
+      "Bash(uv run:*)",
+      "Bash(python3:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(ansible:*)",
+      "Bash(ansible-playbook:*)",
+      "Bash(ansible-lint:*)",
+      "Bash(ansible-galaxy:*)",
+      "Bash(molecule:*)",
+      "Bash(terraform:*)",
+      "Bash(tofu:*)",
+      "Bash(tflint:*)",
+      "Bash(terragrunt:*)",
+      "Bash(docker:*)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker manifest inspect:*)",
+      "Bash(docker pull:*)",
+      "Bash(yamllint:*)",
+      "Bash(hadolint:*)",
+      "Bash(shellcheck:*)",
+      "Bash(shfmt:*)",
+      "Bash(trivy:*)",
+      "Bash(pre-commit:*)",
+      "Bash(uvx pre-commit:*)",
+      "Bash(uv run pre-commit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git stash:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh api:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh repo view:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(jq:*)",
+      "Bash(awk:*)",
+      "Bash(wc:*)",
+      "Bash(bash:*)",
+      "Bash(chmod:*)",
+      "Bash(chown:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)",
+      "Bash(curl:*)",
+      "Bash(bc:*)",
+      "Bash(for:*)",
+      "Bash(export:*)",
+      "Bash(sudo mkdir:*)",
+      "Bash(sudo chown:*)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=\"$CLAUDE_FILE_PATH\"; case \"$FILE\" in *.py) uv run ruff format \"$FILE\" 2>/dev/null || true ;; *.sh) shfmt -w \"$FILE\" 2>/dev/null || true ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}
