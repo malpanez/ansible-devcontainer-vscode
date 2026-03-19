@@ -5,6 +5,7 @@ This document describes the recommended branch protection rules for this reposit
 ## Overview
 
 The repository uses a **Git Flow** branching strategy with two protected branches:
+
 - **`main`** - Production-ready code
 - **`develop`** - Integration branch for ongoing development
 
@@ -30,6 +31,7 @@ Navigate to: **Settings → Branches → Add branch protection rule**
     - `Pre-commit` (from ci.yml)
     - `Quality Summary` (from quality.yml)
     - `Security Scan` (from ci.yml)
+    - `Guard Main Promotion Path` (from enforce-promotion-path.yml)
     - `GitGuardian Security Checks`
 
 - [x] **Require conversation resolution before merging**
@@ -127,6 +129,7 @@ GitHub now offers **Rulesets** as a more flexible alternative to branch protecti
 3. Configure similar rules as above but with more granular control
 
 Rulesets allow:
+
 - Targeting multiple branches with patterns
 - Bypass permissions for specific users/teams/apps
 - More fine-grained status check requirements
@@ -166,6 +169,7 @@ gh pr create --base develop --title "feat: test branch protection"
 - Adjust approval requirements as team grows
 - Consider enabling "Require deployments to succeed" for production releases
 - Periodically audit who has bypass permissions
+- Keep `main` as a promotion branch: target it from `develop` for normal releases and from `hotfix/*` only for urgent production fixes
 
 ---
 

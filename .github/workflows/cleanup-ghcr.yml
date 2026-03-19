@@ -36,58 +36,58 @@ jobs:
           min-versions-to-keep: 3
           delete-only-untagged-versions: true
 
-  cleanup-old-sha-tags:
-    name: Delete Old SHA Tags
+  verify-protected-tags:
+    name: Verify Protected Tags
     runs-on: ubuntu-latest
     needs: cleanup-untagged
     permissions:
-      packages: write
       contents: read
+      packages: read
     strategy:
       matrix:
-        image:
-          - devcontainer-base
-          - devcontainer-ansible
-          - devcontainer-terraform
-          - devcontainer-golang
-          - devcontainer-latex
+        include:
+          - image: devcontainer-base
+            tag: py312
+          - image: devcontainer-ansible
+            tag: latest
+          - image: devcontainer-terraform
+            tag: latest
+          - image: devcontainer-golang
+            tag: latest
+          - image: devcontainer-latex
+            tag: latest
     steps:
-      - name: Delete old SHA-tagged versions (keep last 10)
-        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55  # v5.1.0
+      - name: Login to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
         with:
-          package-name: ${{ matrix.image }}
-          package-type: container
-          min-versions-to-keep: 10
-          ignore-versions: '^(latest|py312|v\d+\.\d+\.\d+)$'
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-  cleanup-old-branches:
-    name: Delete Old Branch Tags
+      - name: Verify manifest exists
+        run: |
+          docker buildx imagetools inspect \
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.tag }}
+
+  report-tagged-cleanup-policy:
+    name: Tagged Cleanup Policy
     runs-on: ubuntu-latest
-    needs: cleanup-old-sha-tags
+    needs: cleanup-untagged
     permissions:
-      packages: write
       contents: read
-    strategy:
-      matrix:
-        image:
-          - devcontainer-base
-          - devcontainer-ansible
-          - devcontainer-terraform
-          - devcontainer-golang
-          - devcontainer-latex
     steps:
-      - name: Delete old branch-tagged versions (keep last 5)
-        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55  # v5.1.0
-        with:
-          package-name: ${{ matrix.image }}
-          package-type: container
-          min-versions-to-keep: 5
-          ignore-versions: '^(latest|py312|main|develop|v\d+\.\d+\.\d+|sha-.*)$'
+      - name: Explain policy
+        run: |
+          echo "Skipping automatic deletion of SHA and branch-tagged versions." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Reason: deleting tagged versions can break surviving protected tags if a registry manifest list still references removed content." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Current policy: delete only untagged versions automatically; review tagged cleanup manually." >> $GITHUB_STEP_SUMMARY
 
   report:
     name: Cleanup Summary
     runs-on: ubuntu-latest
-    needs: [cleanup-untagged, cleanup-old-sha-tags, cleanup-old-branches]
+    needs: [cleanup-untagged, verify-protected-tags, report-tagged-cleanup-policy]
     if: always()
     permissions:
       contents: read
@@ -107,6 +107,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Retention policy:" >> $GITHUB_STEP_SUMMARY
           echo "- Untagged: Keep last 3" >> $GITHUB_STEP_SUMMARY
-          echo "- SHA tags: Keep last 10" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch tags: Keep last 5" >> $GITHUB_STEP_SUMMARY
-          echo "- Protected: \`latest\`, \`py312\`, \`main\`, \`develop\`, version tags" >> $GITHUB_STEP_SUMMARY
+          echo "- Tagged versions: no automatic deletion" >> $GITHUB_STEP_SUMMARY
+          echo "- Verified after cleanup: \`py312\`, \`latest\` tags" >> $GITHUB_STEP_SUMMARY
