@@ -55,7 +55,9 @@
       "Bash(tflint:*)",
       "Bash(terragrunt:*)",
       "Bash(pytest:*)",
-      "Bash(pip:*)"
+      "Bash(pip:*)",
+      "Bash(gh repo view:*)",
+      "Bash(docker inspect:*)"
     ],
     "deny": [],
     "ask": []

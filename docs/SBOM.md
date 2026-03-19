@@ -27,6 +27,7 @@ Think of it like an ingredient list on food packaging - it tells you exactly wha
 ### Standards
 
 We generate SBOMs in **SPDX format** (Software Package Data Exchange), an ISO standard (ISO/IEC 5962:2021) supported by:
+
 - US Executive Order 14028 (cybersecurity)
 - Linux Foundation
 - CISA (Cybersecurity & Infrastructure Security Agency)
@@ -38,6 +39,7 @@ We generate SBOMs in **SPDX format** (Software Package Data Exchange), an ISO st
 ### 1. Supply Chain Security
 
 SBOMs enable:
+
 - **Vulnerability tracking**: Know exactly which package versions are installed
 - **License compliance**: Identify all open-source licenses in use
 - **Dependency auditing**: Track transitive dependencies
@@ -46,6 +48,7 @@ SBOMs enable:
 ### 2. Transparency
 
 Users can:
+
 - Verify what's in our images before using them
 - Assess security posture
 - Meet their own compliance requirements
@@ -54,6 +57,7 @@ Users can:
 ### 3. Industry Best Practice
 
 Elite open-source projects provide SBOMs:
+
 - Kubernetes
 - Docker Official Images
 - GitHub Actions runners
@@ -73,16 +77,18 @@ SBOMs are automatically generated during the container build process in our CI/C
 - name: Build and push base
   uses: docker/build-push-action@v6
   with:
-    sbom: true        # Generate SBOM
-    provenance: true  # Generate provenance attestation
+    sbom: true # Generate SBOM
+    provenance: true # Generate provenance attestation
     push: true
 ```
 
 This uses **BuildKit** with the SBOM generator plugin to create:
+
 1. **SBOM document** in SPDX JSON format
 2. **Provenance attestation** (who built it, when, from what source)
 
 Both are:
+
 - Signed with GitHub's Sigstore
 - Attached to the container image
 - Stored in GitHub Container Registry (GHCR)
@@ -101,11 +107,11 @@ Both are:
 
 ```bash
 # Pull the image
-docker pull ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest
+docker pull ghcr.io/malpanez/devcontainer-ansible:latest
 
 # View SBOM
 docker buildx imagetools inspect \
-  ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest \
+  ghcr.io/malpanez/devcontainer-ansible:latest \
   --format '{{ json .SBOM }}'
 ```
 
@@ -125,7 +131,7 @@ brew install cosign  # macOS
 
 # Download SBOM
 cosign download sbom \
-  ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest \
+  ghcr.io/malpanez/devcontainer-ansible:latest \
   > sbom.spdx.json
 
 # Pretty-print
@@ -142,7 +148,7 @@ brew install syft  # macOS
 # or: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
 
 # Generate SBOM from local image
-syft ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest \
+syft ghcr.io/malpanez/devcontainer-ansible:latest \
   -o spdx-json > sbom.spdx.json
 
 # Or from Dockerfile directory
@@ -165,7 +171,7 @@ brew install cosign
 cosign verify \
   --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest
+  ghcr.io/malpanez/devcontainer-ansible:latest
 ```
 
 ### Verify Provenance
@@ -177,7 +183,7 @@ cosign verify-attestation \
   --type slsaprovenance \
   --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest
+  ghcr.io/malpanez/devcontainer-ansible:latest
 ```
 
 ---
@@ -214,6 +220,7 @@ cosign verify-attestation \
 ### Package Information Included
 
 For each component:
+
 - **Name** and **version**
 - **License** (SPDX identifier)
 - **Supplier** (organization or person)
@@ -224,6 +231,7 @@ For each component:
 ### Stacks Covered
 
 We generate SBOMs for all devcontainer stacks:
+
 - **ansible**: Python packages, Ansible collections, system packages
 - **terraform**: Terraform, Terragrunt, TFLint binaries
 - **golang**: Go standard library, compiled binaries
@@ -245,10 +253,11 @@ brew install grype
 grype sbom:./sbom.spdx.json
 
 # Or scan image directly (grype generates SBOM internally)
-grype ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest
+grype ghcr.io/malpanez/devcontainer-ansible:latest
 ```
 
 **Example output:**
+
 ```
 NAME               INSTALLED  FIXED-IN  TYPE  VULNERABILITY  SEVERITY
 urllib3            1.26.16    1.26.17   pypi  CVE-2023-43804 HIGH
@@ -265,7 +274,7 @@ brew install trivy
 trivy sbom ./sbom.spdx.json
 
 # Or scan image (includes SBOM, config, secrets)
-trivy image ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest
+trivy image ghcr.io/malpanez/devcontainer-ansible:latest
 ```
 
 ### OSV-Scanner (Open Source Vulnerabilities)
@@ -292,17 +301,18 @@ Our CI pipeline scans all images on every build:
   uses: aquasecurity/trivy-action@master
   with:
     image-ref: devcontainer-${{ matrix.stack }}:ci
-    format: 'sarif'
-    output: 'trivy-results.sarif'
-    severity: 'CRITICAL,HIGH'
+    format: "sarif"
+    output: "trivy-results.sarif"
+    severity: "CRITICAL,HIGH"
 
 - name: Upload to GitHub Security
   uses: github/codeql-action/upload-sarif@v3
   with:
-    sarif_file: 'trivy-results.sarif'
+    sarif_file: "trivy-results.sarif"
 ```
 
 Vulnerabilities appear in:
+
 - GitHub Security tab
 - Pull request checks
 - Dependabot alerts (for base images)
@@ -346,14 +356,14 @@ Vulnerabilities appear in:
 
 ## Tools Reference
 
-| Tool | Purpose | Installation |
-|------|---------|--------------|
-| [cosign](https://github.com/sigstore/cosign) | Verify signatures | `brew install cosign` |
-| [syft](https://github.com/anchore/syft) | Generate SBOMs | `brew install syft` |
-| [grype](https://github.com/anchore/grype) | Scan vulnerabilities | `brew install grype` |
-| [trivy](https://github.com/aquasecurity/trivy) | Comprehensive scanner | `brew install trivy` |
-| [osv-scanner](https://github.com/google/osv-scanner) | OSV database scanner | `go install ...` |
-| [sbom-tool](https://github.com/microsoft/sbom-tool) | Microsoft SBOM tool | `dotnet tool install ...` |
+| Tool                                                 | Purpose               | Installation              |
+| ---------------------------------------------------- | --------------------- | ------------------------- |
+| [cosign](https://github.com/sigstore/cosign)         | Verify signatures     | `brew install cosign`     |
+| [syft](https://github.com/anchore/syft)              | Generate SBOMs        | `brew install syft`       |
+| [grype](https://github.com/anchore/grype)            | Scan vulnerabilities  | `brew install grype`      |
+| [trivy](https://github.com/aquasecurity/trivy)       | Comprehensive scanner | `brew install trivy`      |
+| [osv-scanner](https://github.com/google/osv-scanner) | OSV database scanner  | `go install ...`          |
+| [sbom-tool](https://github.com/microsoft/sbom-tool)  | Microsoft SBOM tool   | `dotnet tool install ...` |
 
 ---
 
@@ -365,7 +375,7 @@ Vulnerabilities appear in:
 #!/bin/bash
 # verify-image.sh - Complete SBOM verification workflow
 
-IMAGE="ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest"
+IMAGE="ghcr.io/malpanez/devcontainer-ansible:latest"
 
 echo "1. Verifying image signature..."
 cosign verify \
@@ -389,7 +399,7 @@ echo "✅ Verification complete!"
 
 ```bash
 # Find if a specific package is in the image
-syft ghcr.io/malpanez/ansible-devcontainer-vscode/devcontainer-ansible:latest \
+syft ghcr.io/malpanez/devcontainer-ansible:latest \
   -o json | jq '.artifacts[] | select(.name == "ansible-core")'
 ```
 
