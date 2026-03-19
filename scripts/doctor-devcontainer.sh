@@ -137,6 +137,13 @@ main() {
   fi
   status_ok "devcontainer.json present"
 
+  for script in "devcontainer-metadata.py" "devcontainer-diff.py"; do
+    if [[ ! -f "${SCRIPT_DIR}/${script}" ]]; then
+      status_fail "${script} not found at ${SCRIPT_DIR}/${script}"
+      return 1
+    fi
+  done
+
   if ! python3 "${SCRIPT_DIR}/devcontainer-metadata.py" --target "${TARGET_DIR}" --templates "${TEMPLATES_DIR}"; then
     status_fail "template metadata check failed"
     failure=1
