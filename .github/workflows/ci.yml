@@ -25,6 +25,7 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -84,6 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.ansible == 'true'
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -118,15 +120,15 @@ jobs:
           if [ -f "playbooks/test-environment.yml" ]; then
             ansible-playbook playbooks/test-environment.yml --check
           else
-            echo "::warning::Test playbook not found, skipping"
+            echo "::notice::Test playbook not found, skipping"
           fi
-        continue-on-error: true
 
   golang-ci:
     name: Golang CI
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.golang == 'true'
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -174,6 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.terraform == 'true'
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -194,22 +197,21 @@ jobs:
 
       - name: Terraform Format Check
         run: terraform fmt -recursive -check
-        continue-on-error: true
 
       - name: Run Terraform validation
         run: |
           if [ -x "./scripts/run-terraform-tests.sh" ]; then
             ./scripts/run-terraform-tests.sh
           else
-            echo "::warning::Terraform test script not found or not executable"
+            echo "::notice::Terraform test script not found or not executable"
           fi
-        continue-on-error: true
 
   script-lint:
     name: Script Lint
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.scripts == 'true'
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -221,7 +223,6 @@ jobs:
           scandir: './scripts'
           severity: error
           ignore_paths: '*.ps1'
-        continue-on-error: true
 
       - name: Lint PowerShell scripts
         if: hashFiles('scripts/*.ps1') != ''
@@ -240,6 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.devcontainer == 'true'
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -256,10 +258,36 @@ jobs:
             fi
           done
 
+  devcontainer-state:
+    name: Devcontainer State
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.devcontainer == 'true' || needs.changes.outputs.scripts == 'true'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify active .devcontainer metadata
+        run: python3 scripts/devcontainer-metadata.py
+
+      - name: Verify active .devcontainer sync
+        run: python3 scripts/devcontainer-diff.py
+
+      - name: Run devcontainer doctor
+        run: bash scripts/doctor-devcontainer.sh
+
 
   devcontainer-build:
     name: Build Devcontainer (${{ matrix.stack }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -299,7 +327,7 @@ jobs:
             echo "cache_to=type=gha,scope=${{ matrix.stack }}" >>"$GITHUB_OUTPUT"
             echo "use_registry=false" >>"$GITHUB_OUTPUT"
           else
-            CACHE_REF="ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}:buildcache"
+            CACHE_REF="ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:buildcache"
             echo "cache_from=type=registry,ref=${CACHE_REF}" >>"$GITHUB_OUTPUT"
             echo "cache_to=type=registry,ref=${CACHE_REF},mode=max" >>"$GITHUB_OUTPUT"
             echo "use_registry=true" >>"$GITHUB_OUTPUT"
@@ -317,7 +345,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
           tags: type=raw,value=ci
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -367,6 +395,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [changes, devcontainer-build]
     if: needs.changes.outputs.devcontainer == 'true'
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
@@ -415,6 +444,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.python == 'true'
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
 
@@ -437,7 +469,7 @@ jobs:
       - name: Run pytest with coverage
         run: |
           if [ -d "tests" ] && [ -n "$(ls -A tests/*.py 2>/dev/null)" ]; then
-            python -m pytest tests/ \
+            uv run pytest tests/ \
               --verbose \
               --tb=short \
               --maxfail=5 \
@@ -447,12 +479,11 @@ jobs:
               --cov-report=xml:coverage.xml \
               --cov-report=html:htmlcov \
               --cov-report=term-missing \
-              -p no:ansible \
-              || echo "::warning::Some pytest tests failed"
+              --cov-fail-under=95 \
+              -p no:ansible
           else
-            echo "No Python tests found, skipping"
+            echo "::notice::No Python tests found, skipping"
           fi
-        continue-on-error: true
 
       - name: Upload Python coverage to Codecov
         if: always()
@@ -469,6 +500,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.ansible == 'true'
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
 
@@ -493,11 +527,10 @@ jobs:
           if [ -x "./scripts/run-ansible-tests.sh" ]; then
             ./scripts/run-ansible-tests.sh
           else
-            echo "::warning::ansible-test script not found"
+            echo "::notice::ansible-test script not found"
           fi
         env:
           ANSIBLE_TEST_PYTHON_VERSION: ${{ env.PYTHON_VERSION }}
-        continue-on-error: true
 
   molecule:
     name: Molecule (${{ matrix.distro }})
@@ -506,10 +539,13 @@ jobs:
     if: |
       needs.changes.outputs.ansible == 'true' &&
       (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 45
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
-        distro: [debian12, ubuntu2204]
+        distro: [debian12, ubuntu2204, ubuntu2404]
 
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
@@ -545,12 +581,11 @@ jobs:
               molecule test --scenario-name latex
             fi
           else
-            echo "::warning::Molecule not installed"
+            echo "::notice::Molecule not installed"
           fi
         env:
           MOLECULE_DISTRO: ${{ matrix.distro }}
           MOLECULE_IMAGE: geerlingguy/docker-${{ matrix.distro }}-ansible:latest
-        continue-on-error: true
 
   scenario-tests:
     name: Scenario Tests
@@ -558,6 +593,9 @@ jobs:
     needs: [changes, devcontainer-build]
     if: |
       github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
 
@@ -590,6 +628,7 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.changes.outputs.devcontainer == 'true'
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -615,7 +654,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-base
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           tags: |
             type=raw,value=latest
             type=raw,value=py312
@@ -639,7 +678,7 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
         with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-base
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
@@ -651,6 +690,7 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.changes.outputs.devcontainer == 'true'
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -680,7 +720,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         with:
-          images: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
           tags: |
             type=raw,value=latest
             type=sha
@@ -703,7 +743,7 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
         with:
-          subject-name: ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
@@ -712,6 +752,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: publish-containers
     if: github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -729,13 +773,14 @@ jobs:
 
       - name: Test published GHCR image
         run: |
-          docker pull ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}:latest
-          docker run --rm ghcr.io/${{ github.repository }}/devcontainer-${{ matrix.stack }}:latest \
+          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:latest
+          docker run --rm ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:latest \
             sh -c "echo 'GHCR ${{ matrix.stack }} image healthy'"
 
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       security-events: write
       contents: read
@@ -766,6 +811,9 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
     needs:
       - changes
       - test-playbooks
@@ -775,6 +823,7 @@ jobs:
       - dockerfile-lint
       - devcontainer-build
       - unit-tests
+      - ansible-test
     if: always()
     steps:
       - name: Check results

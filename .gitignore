@@ -220,4 +220,9 @@ collections/ansible_collections/
 *.vault
 *.key
 *.pem
+*.secret
 .ssh/
+.env
+.env.*
+!.env.example
+!.env.*.example
