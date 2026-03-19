@@ -17,19 +17,10 @@
     "workarounds:all"
   ],
   "timezone": "Europe/Dublin",
-  "schedule": [
-    "before 5am on monday"
-  ],
-  "labels": [
-    "dependencies",
-    "renovate"
-  ],
-  "assignees": [
-    "@malpanez"
-  ],
-  "reviewers": [
-    "@malpanez"
-  ],
+  "schedule": ["before 5am on monday"],
+  "labels": ["dependencies", "renovate"],
+  "assignees": ["@malpanez"],
+  "reviewers": ["@malpanez"],
   "prConcurrentLimit": 8,
   "prCreation": "not-pending",
   "prHourlyLimit": 3,
@@ -55,26 +46,16 @@
   "ignoreDeps": [],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": [
-      "security",
-      "vulnerability",
-      "high-priority"
-    ],
-    "assignees": [
-      "@malpanez"
-    ],
+    "labels": ["security", "vulnerability", "high-priority"],
+    "assignees": ["@malpanez"],
     "semanticCommitType": "fix",
     "semanticCommitScope": "security",
-    "schedule": [
-      "at any time"
-    ],
+    "schedule": ["at any time"],
     "prPriority": 20
   },
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": [
-      "before 3am on the first day of the month"
-    ],
+    "schedule": ["before 3am on the first day of the month"],
     "commitMessageAction": "refresh lock files",
     "automerge": true,
     "platformAutomerge": true
@@ -82,9 +63,7 @@
   "packageRules": [
     {
       "description": "GitHub Actions - Auto-merge digest pins and minor/patch",
-      "matchManagers": [
-        "github-actions"
-      ],
+      "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions",
       "groupSlug": "github-actions",
       "automerge": true,
@@ -92,27 +71,14 @@
       "platformAutomerge": true,
       "minimumReleaseAge": "3 days",
       "internalChecksFilter": "strict",
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "pin",
-        "digest"
-      ],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "commitMessageTopic": "GitHub Actions {{depName}}",
-      "labels": [
-        "dependencies",
-        "github-actions",
-        "automerge"
-      ]
+      "labels": ["dependencies", "github-actions", "automerge"]
     },
     {
       "description": "GitHub Actions - Major updates require manual review",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": [
         "dependencies",
@@ -124,27 +90,16 @@
     },
     {
       "description": "Docker base images - Highest priority, pin digests",
-      "matchFileNames": [
-        "devcontainers/base/**",
-        ".devcontainer/**"
-      ],
-      "matchDatasources": [
-        "docker"
-      ],
+      "matchFileNames": ["devcontainers/base/**", ".devcontainer/**"],
+      "matchDatasources": ["docker"],
       "groupName": "Docker base images",
       "groupSlug": "docker-base",
       "pinDigests": true,
-      "schedule": [
-        "before 6am on monday"
-      ],
+      "schedule": ["before 6am on monday"],
       "prPriority": 10,
       "minimumReleaseAge": "3 days",
       "stabilityDays": 3,
-      "labels": [
-        "dependencies",
-        "docker",
-        "base-image"
-      ],
+      "labels": ["dependencies", "docker", "base-image"],
       "commitMessagePrefix": "chore(docker-base):",
       "automerge": false
     },
@@ -156,58 +111,31 @@
         "devcontainers/golang/**",
         "devcontainers/latex/**"
       ],
-      "matchDatasources": [
-        "docker"
-      ],
+      "matchDatasources": ["docker"],
       "pinDigests": true,
-      "schedule": [
-        "before 6am on monday"
-      ],
+      "schedule": ["before 6am on monday"],
       "minimumReleaseAge": "3 days",
       "stabilityDays": 3,
-      "labels": [
-        "dependencies",
-        "docker"
-      ],
+      "labels": ["dependencies", "docker"],
       "automerge": false
     },
     {
       "description": "Python - Ansible packages group",
-      "matchManagers": [
-        "pip_requirements",
-        "pip_setup",
-        "pipenv",
-        "poetry"
-      ],
-      "matchPackagePatterns": [
-        "^ansible"
-      ],
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry"],
+      "matchPackagePatterns": ["^ansible"],
       "groupName": "Ansible packages",
       "groupSlug": "ansible",
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
+      "matchUpdateTypes": ["patch", "minor"],
       "minimumReleaseAge": "3 days",
-      "labels": [
-        "dependencies",
-        "python",
-        "ansible",
-        "automerge"
-      ],
+      "labels": ["dependencies", "python", "ansible", "automerge"],
       "commitMessagePrefix": "chore(ansible):"
     },
     {
       "description": "Python - Testing packages group",
-      "matchManagers": [
-        "pip_requirements",
-        "pip_setup",
-        "pipenv",
-        "poetry"
-      ],
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry"],
       "matchPackagePatterns": [
         "^pytest",
         "^molecule",
@@ -219,26 +147,13 @@
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
-      "labels": [
-        "dependencies",
-        "python",
-        "testing",
-        "automerge"
-      ],
+      "matchUpdateTypes": ["patch", "minor"],
+      "labels": ["dependencies", "python", "testing", "automerge"],
       "commitMessagePrefix": "chore(testing):"
     },
     {
       "description": "Python - Linting packages group",
-      "matchManagers": [
-        "pip_requirements",
-        "pip_setup",
-        "pipenv",
-        "poetry"
-      ],
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry"],
       "matchPackagePatterns": [
         "^ruff",
         "^black",
@@ -252,125 +167,64 @@
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
-      "labels": [
-        "dependencies",
-        "python",
-        "linting",
-        "automerge"
-      ],
+      "matchUpdateTypes": ["patch", "minor"],
+      "labels": ["dependencies", "python", "linting", "automerge"],
       "commitMessagePrefix": "chore(linting):"
     },
     {
       "description": "Python - All other packages minor/patch auto-merge",
-      "matchManagers": [
-        "pip_requirements",
-        "pip_setup",
-        "pipenv",
-        "poetry"
-      ],
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry"],
       "groupName": "Python dependencies",
       "groupSlug": "python",
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
+      "matchUpdateTypes": ["patch", "minor"],
       "matchCurrentVersion": "!/^0/",
       "minimumReleaseAge": "3 days",
-      "labels": [
-        "dependencies",
-        "python",
-        "automerge"
-      ]
+      "labels": ["dependencies", "python", "automerge"]
     },
     {
       "description": "Python - Major updates require manual review",
-      "matchManagers": [
-        "pip_requirements",
-        "pip_setup",
-        "pipenv",
-        "poetry"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
+      "matchManagers": ["pip_requirements", "pip_setup", "pipenv", "poetry"],
+      "matchUpdateTypes": ["major"],
       "automerge": false,
-      "labels": [
-        "dependencies",
-        "python",
-        "major-update",
-        "requires-review"
-      ],
+      "labels": ["dependencies", "python", "major-update", "requires-review"],
       "prPriority": 3
     },
     {
-      "description": "Terraform - Pin provider versions (manual updates only)",
-      "matchManagers": [
-        "terraform"
-      ],
-      "matchPackageNames": [
-        "hashicorp/terraform"
-      ],
-      "enabled": false,
-      "description": "Terraform version pinned in Dockerfile ARG, update manually"
+      "description": "Terraform version pinned in Dockerfile ARG - update via Dockerfile renovate annotations",
+      "matchManagers": ["terraform"],
+      "matchPackageNames": ["hashicorp/terraform"],
+      "enabled": false
     },
     {
       "description": "Terraform - Other dependencies",
-      "matchManagers": [
-        "terraform"
-      ],
+      "matchManagers": ["terraform"],
       "groupName": "Terraform dependencies",
       "groupSlug": "terraform",
-      "schedule": [
-        "before 6am on monday"
-      ],
+      "schedule": ["before 6am on monday"],
       "automerge": false,
-      "labels": [
-        "dependencies",
-        "terraform"
-      ]
+      "labels": ["dependencies", "terraform"]
     },
     {
       "description": "Go - Auto-merge minor/patch",
-      "matchManagers": [
-        "gomod"
-      ],
+      "matchManagers": ["gomod"],
       "groupName": "Go dependencies",
       "groupSlug": "go",
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "matchUpdateTypes": [
-        "patch",
-        "minor"
-      ],
+      "matchUpdateTypes": ["patch", "minor"],
       "minimumReleaseAge": "3 days",
-      "labels": [
-        "dependencies",
-        "go",
-        "automerge"
-      ]
+      "labels": ["dependencies", "go", "automerge"]
     },
     {
       "description": "Go - Major updates require review",
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major"],
       "automerge": false,
-      "labels": [
-        "dependencies",
-        "go",
-        "major-update"
-      ]
+      "labels": ["dependencies", "go", "major-update"]
     },
     {
       "description": "Security - CRITICAL severity, immediate action",
@@ -382,23 +236,13 @@
         "pypi"
       ],
       "vulnerabilitySeverity": "critical",
-      "labels": [
-        "security",
-        "critical",
-        "emergency"
-      ],
+      "labels": ["security", "critical", "emergency"],
       "automerge": false,
-      "schedule": [
-        "at any time"
-      ],
+      "schedule": ["at any time"],
       "minimumReleaseAge": "0 days",
       "prPriority": 30,
-      "assignees": [
-        "@malpanez"
-      ],
-      "reviewers": [
-        "@malpanez"
-      ]
+      "assignees": ["@malpanez"],
+      "reviewers": ["@malpanez"]
     },
     {
       "description": "Security - HIGH severity, high priority",
@@ -410,14 +254,9 @@
         "pypi"
       ],
       "vulnerabilitySeverity": "high",
-      "labels": [
-        "security",
-        "high-priority"
-      ],
+      "labels": ["security", "high-priority"],
       "automerge": false,
-      "schedule": [
-        "at any time"
-      ],
+      "schedule": ["at any time"],
       "minimumReleaseAge": "0 days",
       "prPriority": 20
     },
@@ -431,79 +270,46 @@
         "pypi"
       ],
       "vulnerabilitySeverity": "medium",
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "labels": [
-        "security",
-        "medium-priority",
-        "automerge"
-      ],
+      "matchUpdateTypes": ["patch"],
+      "labels": ["security", "medium-priority", "automerge"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "schedule": [
-        "at any time"
-      ],
+      "schedule": ["at any time"],
       "prPriority": 15
     },
     {
       "description": "Pin Docker digests for reproducibility and security",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchUpdateTypes": [
-        "pin",
-        "digest"
-      ],
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["pin", "digest"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
       "commitMessageExtra": "to {{newDigestShort}}",
       "commitMessageTopic": "{{depName}} digest",
-      "labels": [
-        "dependencies",
-        "docker",
-        "digest",
-        "automerge"
-      ]
+      "labels": ["dependencies", "docker", "digest", "automerge"]
     },
     {
       "description": "Development dependencies - Lower priority but auto-merge",
-      "matchDepTypes": [
-        "devDependencies"
-      ],
+      "matchDepTypes": ["devDependencies"],
       "prPriority": -1,
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
-      "labels": [
-        "dependencies",
-        "dev",
-        "automerge"
-      ]
+      "labels": ["dependencies", "dev", "automerge"]
     },
     {
       "description": "0.x versions - Treat minor as major",
       "matchCurrentVersion": "/^0/",
-      "matchUpdateTypes": [
-        "minor"
-      ],
+      "matchUpdateTypes": ["minor"],
       "automerge": false,
-      "labels": [
-        "dependencies",
-        "unstable",
-        "requires-review"
-      ]
+      "labels": ["dependencies", "unstable", "requires-review"]
     }
   ],
   "regexManagers": [
     {
       "description": "Update _VERSION variables in Dockerfiles",
-      "fileMatch": [
-        "(^|/)Dockerfile$",
-        "(^|/)Dockerfile\\.[^/]*$"
-      ],
+      "fileMatch": ["(^|/)Dockerfile$", "(^|/)Dockerfile\\.[^/]*$"],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+(?:ENV|ARG)\\s+[A-Z_]+_VERSION=(?<currentValue>\\S+)"
       ],
@@ -511,35 +317,17 @@
     },
     {
       "description": "Update tool versions in shell scripts",
-      "fileMatch": [
-        "^scripts/.*\\.sh$"
-      ],
+      "fileMatch": ["^scripts/.*\\.sh$"],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+.*?_VERSION=['\"](?<currentValue>[^'\"]+)['\"]"
       ]
     },
     {
       "description": "Update versions in GitHub workflow env",
-      "fileMatch": [
-        "^\\.github/workflows/[^/]+\\.ya?ml$"
-      ],
+      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*['\"]?(?<currentValue>[^'\"\\s]+)['\"]?"
       ]
-    }
-  ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "Custom version detection for ARG statements",
-      "fileMatch": [
-        "(^|/)Dockerfile$"
-      ],
-      "matchStrings": [
-        "ARG\\s+(?<depName>[A-Z_]+)_VERSION=(?<currentValue>[^\\s]+)"
-      ],
-      "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver"
     }
   ],
   "hostRules": [
@@ -555,13 +343,7 @@
     }
   ],
   "prBodyTemplate": "{{{header}}}{{{table}}}{{{warnings}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
-  "prBodyColumns": [
-    "Package",
-    "Type",
-    "Update",
-    "Change",
-    "Pending"
-  ],
+  "prBodyColumns": ["Package", "Type", "Update", "Change", "Pending"],
   "prBodyNotes": [
     "",
     "---",

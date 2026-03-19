@@ -1,10 +1,17 @@
 # syntax=docker/dockerfile:1.7
 ARG DEBIAN_VERSION=bookworm-slim
+# renovate: datasource=github-releases depName=hashicorp/terraform versioning=hashicorp
 ARG TERRAFORM_VERSION=1.14.4
+# renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=0.99.1
+# renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.60.0
+# renovate: datasource=github-releases depName=getsops/sops
 ARG SOPS_VERSION=3.11.0
+# renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.2.1
+# renovate: datasource=github-releases depName=astral-sh/uv
+ARG UV_VERSION=0.9.13
 ARG BASE_IMAGE=debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8 AS fetch
@@ -94,7 +101,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+ARG UV_VERSION
+RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
 
 # Install AWS CLI v2 to avoid DevContainer features rebuild
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
