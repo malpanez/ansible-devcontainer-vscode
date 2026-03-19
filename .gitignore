@@ -220,7 +220,12 @@ collections/ansible_collections/
 *.vault
 *.key
 *.pem
+*.secret
 .ssh/
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 # Claude Code local tooling (never commit)
 .claude/
