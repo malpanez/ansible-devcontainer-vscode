@@ -1,0 +1,117 @@
+---
+name: Repair GHCR Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: "Stack to republish"
+        required: true
+        default: "terraform"
+        type: choice
+        options:
+          - base
+          - ansible
+          - terraform
+          - golang
+          - latex
+      include_base:
+        description: "Build/push devcontainer-base first"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  repair-base:
+    name: Repair Base
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.inputs.include_base == 'true' || github.event.inputs.stack == 'base'
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+        with:
+          driver: docker-container
+
+      - name: Login to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push base
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        with:
+          context: devcontainers/base
+          file: devcontainers/base/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:sha-${{ github.sha }}
+
+      - name: Verify base tags
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+
+  repair-stack:
+    name: Repair ${{ github.event.inputs.stack }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: repair-base
+    if: github.event.inputs.stack != 'base' && always() && (needs.repair-base.result == 'success' || needs.repair-base.result == 'skipped')
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+        with:
+          driver: docker-container
+
+      - name: Login to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push selected stack
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        with:
+          context: .
+          file: devcontainers/${{ github.event.inputs.stack }}/Dockerfile
+          push: true
+          platforms: ${{ github.event.inputs.stack == 'latex' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest
+            ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:sha-${{ github.sha }}
+
+      - name: Verify latest tag
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest
+          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest
+
+      - name: Smoke test published image
+        run: |
+          docker run --rm ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest \
+            sh -c "echo '${{ github.event.inputs.stack }} latest is healthy'"
