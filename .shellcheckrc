@@ -1,0 +1,11 @@
+# ShellCheck configuration
+# https://www.shellcheck.net/wiki/Ignore
+
+# SC1091: Not following sourced files (too noisy for env sourcing)
+disable=SC1091
+
+# SC2034: Unused variables — false positives in scripts sourced by others
+# disable=SC2034
+
+# Shell dialect: enforce bash (set per-file with #!/usr/bin/env bash)
+shell=bash
