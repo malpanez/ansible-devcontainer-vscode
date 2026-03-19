@@ -115,8 +115,11 @@ feature/*, fix/*, docs/*, chore/*, refactor/*
 hotfix/* → main (ONLY for urgent production fixes — rare)
 ```
 
-- Branch names must match the pattern `(feature|fix|docs|chore|refactor|security|hotfix)/...`
-- `enforce-promotion-path.yml` workflow rejects PRs that bypass `develop`
+- Branch names accepted by `enforce-promotion-path.yml`:
+  - Targeting `develop`: `feature|fix|docs|chore|refactor|test|ci|perf|security|hotfix` + `/...`
+  - Targeting `main`: only `develop` or `hotfix/*`
+  - Unconventional names (e.g. `experiment/`) generate a **warning** on develop PRs but do not block
+- `enforce-promotion-path.yml` rejects PRs that bypass `develop` with a hard failure
 
 ## Devcontainer Architecture
 

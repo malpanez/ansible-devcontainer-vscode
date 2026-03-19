@@ -60,15 +60,19 @@ check_main_flow() {
 }
 
 check_develop_flow() {
+  # Design: develop enforcement is advisory — unconventional names warn but do not block.
+  # Only PRs targeting main are hard-gated (check_main_flow returns 1 on violation).
+  # Accepted prefixes: feature|fix|docs|chore|refactor|test|ci|perf|security|hotfix
   case "${HEAD_REF}" in
     main)
       echo "Sync from main to develop is allowed."
       ;;
-    feature/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|perf/*|hotfix/*)
+    feature/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|perf/*|security/*|hotfix/*)
       echo "Source branch '${HEAD_REF}' is allowed to target develop."
       ;;
     *)
-      echo "Source branch '${HEAD_REF}' does not follow the documented naming convention." >&2
+      printf 'Warning: source branch %q does not follow the documented naming convention.\n' "${HEAD_REF}" >&2
+      printf 'Accepted prefixes: feature|fix|docs|chore|refactor|test|ci|perf|security|hotfix\n' >&2
       ;;
   esac
   return 0
