@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+# renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
 ARG TECTONIC_VERSION=0.15.0
 FROM debian:bookworm-slim@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
 
@@ -55,8 +56,9 @@ RUN set -eux; \
     install -m 0755 "${SRC}" /usr/local/bin/tectonic; \
     rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+# renovate: datasource=github-releases depName=astral-sh/uv
+ARG UV_VERSION=0.9.13
+RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
