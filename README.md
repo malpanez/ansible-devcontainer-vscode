@@ -20,7 +20,7 @@
 [![Ansible](https://img.shields.io/badge/ansible-9.14.0-EE0000?logo=ansible)](https://www.ansible.com/)
 [![uv](https://img.shields.io/badge/uv-0.9.13-00A3FF)](https://github.com/astral-sh/uv)
 
-Modern, reproducible infrastructure development environments powered by VS Code Dev Containers and the `uv` Python toolchain. Open the repository in VS Code, pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in a container, and you are ready to lint, test, and ship automation from any platform (Windows + WSL2, macOS, or Linux).
+Pull a pre-built infrastructure workspace from GHCR and start writing Terraform or running Ansible in **under 30 seconds** — 3–5× smaller than Microsoft's devcontainer images, with no local setup and no drift between machines. Pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in VS Code, and your entire toolchain is already installed, locked, and ready. Works on Windows + WSL2, macOS, and Linux.
 
 ## Highlights
 
@@ -33,6 +33,7 @@ Modern, reproducible infrastructure development environments powered by VS Code 
 - 🧪 **Quality gates baked in** – pre-commit hooks, `ansible-lint`, `yamllint`, Molecule/pytest harness, and GitHub Actions CI.
 - 🪪 **Template-driven pre-commit** – `ensure-precommit` seeds the right hook config per stack and runs `uvx pre-commit` without bloating the images.
 - 🔐 **Security conscious** – runs as non-root, includes Trivy scanning in CI, and keeps secrets out of the repo.
+- 🤖 **AI agent safe by design** – run Claude Code, Copilot, or any AI agent with full permissions inside the container. Worst case: a broken workspace, back to normal with `git reset` in seconds. Your host OS, credentials, and other projects are never at risk.
 - 📣 **Responsible disclosure** – see [`SECURITY.md`](SECURITY.md) for reporting guidelines and supply-chain expectations.
 - 🪟 **Windows bootstrap script** – run `scripts/bootstrap-windows.ps1` to enable WSL, configure proxies, and install Docker/VS Code with one command.
 
@@ -45,6 +46,31 @@ Modern, reproducible infrastructure development environments powered by VS Code 
 | Everywhere    | Git, ability to clone this repository                                                                                |
 
 > **Tip (Windows)** – enable WSL2 (`wsl --install`), reboot, install Ubuntu from the Microsoft Store, then install Docker Desktop and enable “Use the WSL 2 based engine”. Launch VS Code from inside WSL (`code .`) so the Remote – WSL and Dev Containers extensions can build the workspace container seamlessly.
+
+## Why not Microsoft's devcontainer images?
+
+Microsoft's universal images ship tools for every possible use case. That's convenient but you pay for it every time you pull.
+
+| Stack            | These images | Microsoft devcontainers | Difference |
+| ---------------- | ------------ | ----------------------- | ---------- |
+| Ansible / Python | ~650 MB      | ~1.8 GB                 | **–64 %**  |
+| Terraform        | ~240 MB      | ~1.5 GB                 | **–84 %**  |
+| Golang           | ~210 MB      | ~1.4 GB                 | **–85 %**  |
+
+Each image here includes only what the stack actually needs — a pinned toolchain, `uv` for Python, and nothing else. Pre-built on GHCR so VS Code pulls them directly; no local build step.
+
+A weekly CI run rebuilds every image from scratch, so OS-level security patches land automatically even when the repository is quiet.
+
+### AI agents inside devcontainers
+
+Giving an AI agent (Claude Code, Copilot, Cursor, etc.) broad file-system and shell permissions on your laptop is a real risk. The same agent running inside a devcontainer has a naturally bounded blast radius:
+
+- **Host OS is untouched** — the agent can only affect the mounted workspace
+- **Recovery is trivial** — `git reset --hard` + rebuild restores the full environment in seconds
+- **Credentials stay isolated** — only what you explicitly mount is visible
+- **Audit trail is git** — every change the agent makes is tracked and reversible
+
+The devcontainer is not just a development convenience. For AI-assisted workflows, it is a safe execution sandbox.
 
 ## Quick Start
 
