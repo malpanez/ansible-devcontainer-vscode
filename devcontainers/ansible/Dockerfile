@@ -22,6 +22,7 @@ LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devco
 ENV DEBIAN_FRONTEND=noninteractive \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
     WORKSPACE=/workspace \
     DEVCONTAINER_STACK=ansible \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
@@ -72,7 +73,8 @@ ARG USER_GID=${USER_UID}
 # This forces package installations to happen during build, not at runtime
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && printf '%s ALL=(root) NOPASSWD: /usr/bin/uv, /usr/bin/uvx, /usr/local/bin/ansible-galaxy\n' "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
+    && printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx, /usr/local/bin/ansible-galaxy\n' \
+        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
@@ -82,8 +84,8 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.ansible \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible
 
-COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/ansible/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/ansible/.pre-commit-config.yaml
-COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --chmod=0444 templates/pre-commit/ansible/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/ansible/.pre-commit-config.yaml
+COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
