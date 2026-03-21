@@ -116,7 +116,7 @@ requires-dist = [
     { name = "passlib", specifier = ">=1.7.4" },
     { name = "pre-commit", specifier = ">=3.6.0" },
     { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-ansible", specifier = ">=24.1.0" },
+    { name = "pytest-ansible", specifier = ">=24.1.0,<26.0.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-testinfra", specifier = ">=10.1.0" },
     { name = "ruff", specifier = ">=0.3.0" },
