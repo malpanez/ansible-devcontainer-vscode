@@ -1,4 +1,6 @@
 .git
+.github/
+.claude/
 **/.molecule
 **/.pytest_cache
 **/__pycache__
@@ -6,4 +8,9 @@
 **/.uv
 **/.venv
 **/node_modules
+collections/
 docs/
+playbooks/
+roles/
+scripts/
+tests/
