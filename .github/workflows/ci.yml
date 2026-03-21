@@ -361,7 +361,6 @@ jobs:
           severity-cutoff: critical
           only-fixed: true
           fail-build: "true"
-          output-format: table
 
   devcontainer-cli-test:
     name: DevContainer CLI (${{ matrix.stack }})

@@ -19,17 +19,25 @@ ignore:
   - vulnerability: CVE-2025-66506
   - vulnerability: CVE-2025-66564
 
-  # CVE-2026-33186 - google.golang.org/grpc v1.79.2 in gh CLI (CRITICAL)
+  # CVE-2026-33186 / GHSA-p77j-4mvh-x3m3 - grpc v1.79.2 in gh CLI (CRITICAL)
   # Affected: /usr/bin/gh from GitHub apt repository
   # Reason: Pre-compiled binary, fix requires gh release with grpc 1.79.3+
   # Plan: Monitor gh releases for updated grpc dependency
   - vulnerability: CVE-2026-33186
+  - vulnerability: GHSA-p77j-4mvh-x3m3
 
-  # CVE-2025-68121 - Go stdlib crypto/tls in pre-compiled binaries (CRITICAL)
-  # Affected: gh CLI (Go 1.25.6), terragrunt, tflint compiled with Go 1.23.4
+  # GHSA-v778-237x-gjrc - golang.org/x/crypto v0.24.0 in pre-compiled Go binaries
+  # Affected: terragrunt, tflint, or other Go binaries compiled with old x/crypto
+  # Reason: Pre-compiled binaries from upstream, cannot patch ourselves
+  # Plan: Monitor upstream releases for updated golang.org/x/crypto dependency
+  - vulnerability: GHSA-v778-237x-gjrc
+
+  # CVE-2025-68121 / CVE-2025-22871 - Go stdlib in pre-compiled binaries (CRITICAL)
+  # Affected: gh CLI (Go 1.25.x), terragrunt, tflint compiled with Go 1.23.4
   # Reason: Pre-compiled binaries from upstream, fix requires updated Go toolchain
   # Plan: Monitor upstream releases for binaries compiled with Go 1.24.13+/1.25.7+
   - vulnerability: CVE-2025-68121
+  - vulnerability: CVE-2025-22871
 
   # CVE-2025-15467 - libssl3 in Debian base image (CRITICAL)
   # Affected: debian:bookworm-slim base image (old pinned digest)
