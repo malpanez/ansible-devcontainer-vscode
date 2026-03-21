@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+# renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
 ARG TECTONIC_VERSION=0.15.0
 FROM debian:bookworm-slim@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
 
@@ -33,7 +34,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       perl \
       sudo \
       unzip \
-      xz-utils \
+    && apt-get autoremove -y --purge \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -55,8 +57,9 @@ RUN set -eux; \
     install -m 0755 "${SRC}" /usr/local/bin/tectonic; \
     rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+# renovate: datasource=github-releases depName=astral-sh/uv
+ARG UV_VERSION=0.9.13
+RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
@@ -64,7 +67,8 @@ ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && printf '%s\n' "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/local/bin/uv, /usr/local/bin/uvx" > /etc/sudoers.d/${USERNAME} \
+    && printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx\n' \
+        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
@@ -72,8 +76,8 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/Tectonic \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/latex
 
-COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/latex/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml
-COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --chmod=0444 templates/pre-commit/latex/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml
+COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
