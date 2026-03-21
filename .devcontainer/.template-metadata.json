@@ -1,5 +1,5 @@
 {
   "stack": "terraform",
-  "source": "/home/malpanez/repos/ansible-devcontainer-vscode/devcontainers/terraform",
-  "signature": "d186d9061d27edd3a8d1352c2aa817aff472349fa1c5c335e66854d400afaeeb"
+  "source": "devcontainers/terraform",
+  "signature": "b73acd2033d7b06d9ff5eb569b2e6a9213edb15ce9d01e437ef0320be404fb97"
 }
