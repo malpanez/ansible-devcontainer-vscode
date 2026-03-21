@@ -354,6 +354,8 @@ jobs:
 
       - name: Scan image with Grype
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
           image: devcontainer-${{ matrix.stack }}:ci
           severity-cutoff: critical
@@ -745,6 +747,8 @@ jobs:
       - name: Run filesystem scan with Grype
         id: grype-fs
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
           path: "."
           severity-cutoff: high
