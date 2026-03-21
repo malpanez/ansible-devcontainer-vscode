@@ -1,0 +1,38 @@
+---
+# Grype configuration for vulnerability scanning
+# Replaces .trivyignore after migration from Trivy (compromised March 2026)
+# See: https://github.com/aquasecurity/trivy/discussions/10425
+
+ignore:
+  # CVE-2024-45337 - golang.org/x/crypto in age binary (LOW)
+  # Affected: age v1.2.1 pre-compiled binary
+  # Reason: SSH server code path not used by age (file encryption tool)
+  - vulnerability: CVE-2024-45337
+
+  # CVE-2025-61727 / CVE-2025-61729 - Go stdlib in Podman v5.7.0 (MEDIUM/HIGH)
+  # Reason: Pre-compiled binary from upstream, cannot patch ourselves
+  - vulnerability: CVE-2025-61727
+  - vulnerability: CVE-2025-61729
+
+  # CVE-2025-66506 / CVE-2025-66564 - sigstore in Podman/tflint (HIGH)
+  # Reason: Pre-compiled binaries from upstream, cannot patch ourselves
+  - vulnerability: CVE-2025-66506
+  - vulnerability: CVE-2025-66564
+
+  # CVE-2026-33186 - google.golang.org/grpc v1.79.2 in gh CLI (CRITICAL)
+  # Affected: /usr/bin/gh from GitHub apt repository
+  # Reason: Pre-compiled binary, fix requires gh release with grpc 1.79.3+
+  # Plan: Monitor gh releases for updated grpc dependency
+  - vulnerability: CVE-2026-33186
+
+  # CVE-2025-68121 - Go stdlib crypto/tls in pre-compiled binaries (CRITICAL)
+  # Affected: gh CLI (Go 1.25.6), terragrunt, tflint compiled with Go 1.23.4
+  # Reason: Pre-compiled binaries from upstream, fix requires updated Go toolchain
+  # Plan: Monitor upstream releases for binaries compiled with Go 1.24.13+/1.25.7+
+  - vulnerability: CVE-2025-68121
+
+  # CVE-2025-15467 - libssl3 in Debian base image (CRITICAL)
+  # Affected: debian:bookworm-slim base image (old pinned digest)
+  # Reason: Updating base image digest will fix this; suppressed during migration
+  # Plan: Update base image SHA256 pins via Renovate
+  - vulnerability: CVE-2025-15467
