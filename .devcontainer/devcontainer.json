@@ -41,7 +41,11 @@
     "SOPS_AGE_KEY_FILE": "/workspace/.secrets/age.key"
   },
   "remoteUser": "vscode",
-  "postCreateCommand": ["/bin/bash", "-lc", "ensure-precommit"],
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit"
+  ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 }
