@@ -142,7 +142,6 @@ cffi==2.0.0 \
     #   ansible-lint
     #   cryptography
     #   onigurumacffi
-    #   pytest-ansible
 cfgv==3.5.0 \
     --hash=sha256:a8dc6b26ad22ff227d2634a65cb388215ce6cc96bbcc5cfde7641ae87e8dacc0 \
     --hash=sha256:d5b1034354820651caa73ede66a6294d6e95c1b00acc5e9b098e917404669132
@@ -367,10 +366,6 @@ enrich==1.2.7 \
     --hash=sha256:0a2ab0d2931dff8947012602d1234d2a3ee002d9a355b5d70be6bf5466008893 \
     --hash=sha256:f29b2c8c124b4dbd7c975ab5c3568f6c7a47938ea3b7d2106c8a3bd346545e4f
     # via molecule
-execnet==2.1.2 \
-    --hash=sha256:63d83bfdd9a23e35b9c6a3261412324f964c2ec8dcd8d3c6916ee9373e0befcd \
-    --hash=sha256:67fba928dd5a544b783f6056f449e5e3931a5c378b128bc18501f7ea79e296ec
-    # via pytest-xdist
 executing==2.2.1 \
     --hash=sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4 \
     --hash=sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017
@@ -699,34 +694,19 @@ pytest==9.0.2 \
     #   ansible-devcontainer
     #   pytest-ansible
     #   pytest-cov
-    #   pytest-plus
-    #   pytest-sugar
     #   pytest-testinfra
-    #   pytest-xdist
-pytest-ansible==25.12.0 \
-    --hash=sha256:8a8b7afb30274a1a992a37408b775ad5fe5219a7c3b36904523d1276fe089ccd \
-    --hash=sha256:c7ebf507eea6cb97949e0bae5e015d892bae6c461d0c7f526cce4c961560990c
+pytest-ansible==24.12.0 \
+    --hash=sha256:ef4acb9f6c8371fa0c86e4107bf4f4e22331cf002faba05430147c8310fec39e \
+    --hash=sha256:fcdeb7e4edfa29803ced2aade3a1be40a5adfec8c18aa114fba17eeddfb513c2
     # via ansible-devcontainer
 pytest-cov==7.0.0 \
     --hash=sha256:33c97eda2e049a0c5298e91f519302a1334c26ac65c1a483d6206fd458361af1 \
     --hash=sha256:3b8e9558b16cc1479da72058bdecf8073661c7f57f7d3c5f22a1c23507f2d861
     # via ansible-devcontainer
-pytest-plus==0.8.1 \
-    --hash=sha256:02dfb28f1a914e8df3b6e3525df7e94feabc0681ecea626912e8028e9355f02c \
-    --hash=sha256:2b8e9037716c9d7b708074863933897681f86d852d9c4e9717271be143dbdfb6
-    # via pytest-ansible
-pytest-sugar==1.1.1 \
-    --hash=sha256:2f8319b907548d5b9d03a171515c1d43d2e38e32bd8182a1781eb20b43344cc8 \
-    --hash=sha256:73b8b65163ebf10f9f671efab9eed3d56f20d2ca68bda83fa64740a92c08f65d
-    # via pytest-ansible
 pytest-testinfra==10.2.2 \
     --hash=sha256:537fd5eb88da618c1f461248aa20594cf8d44512e8519b239837e83875e1e9cd \
     --hash=sha256:b785602b0aa868c858e4ef121a8cc0d13a81c04b74ec0364d70969540f8e7c31
     # via ansible-devcontainer
-pytest-xdist==3.8.0 \
-    --hash=sha256:202ca578cfeb7370784a8c33d6d05bc6e13b4f25b5053c30a152269fd10f0b88 \
-    --hash=sha256:7e578125ec9bc6050861aa93f2d59f1d8d085595d6551c2c90b6f4fad8d3a9f1
-    # via pytest-ansible
 python-daemon==3.1.2 \
     --hash=sha256:b906833cef63502994ad48e2eab213259ed9bb18d54fa8774dcba2ff7864cec6 \
     --hash=sha256:f7b04335adc473de877f5117e26d5f1142f4c9f7cd765408f0877757be5afbf4
@@ -992,10 +972,6 @@ subprocess-tee==0.4.2 \
     # via
     #   ansible-compat
     #   ansible-lint
-termcolor==3.3.0 \
-    --hash=sha256:348871ca648ec6a9a983a13ab626c0acce02f515b9e1983332b17af7979521c5 \
-    --hash=sha256:cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5
-    # via pytest-sugar
 traitlets==5.14.3 \
     --hash=sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7 \
     --hash=sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f
@@ -1007,7 +983,6 @@ typing-extensions==4.15.0 \
     --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548
     # via
     #   mypy
-    #   pytest-ansible
     #   referencing
 tzdata==2025.3 \
     --hash=sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1 \
