@@ -93,13 +93,6 @@ repos:
       - id: terraform_tflint
         name: Terraform TFLint
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
-    hooks:
-      - id: prettier
-        name: Prettier (Format JSON, Markdown, YAML)
-        types_or: [json, markdown]
-        exclude: ^(package-lock\.json|\.vscode/|\.github/workflows/)
 
 # Configuration
 default_language_version:
