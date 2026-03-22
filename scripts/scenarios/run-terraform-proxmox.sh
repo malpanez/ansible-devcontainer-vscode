@@ -19,7 +19,6 @@ cd "${MODULE_DIR}"
 
 export TF_IN_AUTOMATION=1
 export TF_CLI_ARGS="-no-color"
-export TF_CLI_ARGS_init="-backend=false -input=false"
 
 existing_lock=false
 if [[ -f .terraform.lock.hcl ]]; then
@@ -31,6 +30,7 @@ cleanup() {
   if [[ "${existing_lock}" == "false" ]]; then
     rm -f .terraform.lock.hcl
   fi
+  return 0
 }
 trap cleanup EXIT
 
@@ -39,7 +39,7 @@ terraform fmt -check
 
 if [[ ! -d .terraform ]]; then
   echo "==> terraform init (backend disabled)"
-  terraform init >/dev/null
+  terraform init -backend=false -input=false >/dev/null
 fi
 
 echo "==> terraform validate"

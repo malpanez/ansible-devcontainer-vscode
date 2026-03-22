@@ -23,6 +23,7 @@ Stacks available under devcontainers/:
 
 Copies the selected template into .devcontainer/.
 EOF
+  return 0
 }
 
 STACK=""
@@ -88,12 +89,12 @@ echo ">> .devcontainer now matches '${STACK}'. Reopen in Container from VS Code 
 
 cleanup_workspace_artifacts() {
   if [[ "${PRUNE_WORKSPACE_ARTIFACTS}" != true ]]; then
-    return
+    return 0
   fi
 
   if [[ -z "${CONTAINER_CLI}" ]]; then
     echo ">> Container CLI not found; skipping optional clean-up." >&2
-    return
+    return 0
   fi
 
   local workspace_path="${REPO_ROOT}"
@@ -119,6 +120,7 @@ cleanup_workspace_artifacts() {
   fi
 
   echo ">> Clean-up complete."
+  return 0
 }
 
 cleanup_workspace_artifacts

@@ -19,10 +19,16 @@ fi
 
 # Provide safe placeholder values for common variables so `terraform validate`
 # succeeds even when secrets are not exported locally/CI.
-export TF_VAR_pm_api_url="${TF_VAR_pm_api_url:-https://proxmox.example.invalid:8006/api2/json}"
-export TF_VAR_pm_user="${TF_VAR_pm_user:-svc-terraform@pam}"
-export TF_VAR_pm_token_id="${TF_VAR_pm_token_id:-svc-terraform@pam!placeholder}"
-export TF_VAR_pm_token_secret="${TF_VAR_pm_token_secret:-placeholder-secret}"
+TF_VAR_PM_API_URL_DEFAULT="${TF_VAR_PM_API_URL_DEFAULT:-https://proxmox.example.invalid:8006/api2/json}"
+TF_VAR_PM_USER_DEFAULT="${TF_VAR_PM_USER_DEFAULT:-svc-terraform@pam}"
+TF_VAR_PM_TOKEN_ID_DEFAULT="${TF_VAR_PM_TOKEN_ID_DEFAULT:-svc-terraform@pam!placeholder}"
+TF_VAR_PM_TOKEN_SECRET_DEFAULT="${TF_VAR_PM_TOKEN_SECRET_DEFAULT:-placeholder-secret}"
+TF_VAR_ENV=(
+  "TF_VAR_pm_api_url=${TF_VAR_PM_API_URL_DEFAULT}"
+  "TF_VAR_pm_user=${TF_VAR_PM_USER_DEFAULT}"
+  "TF_VAR_pm_token_id=${TF_VAR_PM_TOKEN_ID_DEFAULT}"
+  "TF_VAR_pm_token_secret=${TF_VAR_PM_TOKEN_SECRET_DEFAULT}"
+)
 
 mapfile -t TERRAFORM_FILES < <(find "${MODULE_ROOT}" -type f -name '*.tf' \
   -not -path '*/.terraform/*' -not -path '*/.terragrunt-cache/*')
@@ -63,12 +69,12 @@ for module_dir in "${TERRAFORM_MODULE_DIRS[@]}"; do
   echo ">> Validating Terraform module at ${module_dir}"
   pushd "${module_dir}" >/dev/null
 
-  if ! terraform init -backend=false -input=false; then
+  if ! env "${TF_VAR_ENV[@]}" terraform init -backend=false -input=false; then
     echo "::warning::terraform init failed for ${module_dir}; skipping validation"
     popd >/dev/null
     continue
   fi
-  terraform validate -no-color
+  env "${TF_VAR_ENV[@]}" terraform validate -no-color
 
   # Clean up the local .terraform directory to avoid leaving behind artifacts.
   rm -rf .terraform

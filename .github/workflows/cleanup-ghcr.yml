@@ -12,14 +12,13 @@ on:
         default: 'false'
         type: boolean
 
-permissions:
-  packages: write
-  contents: read
-
 jobs:
   cleanup-untagged:
     name: Delete Untagged Images
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
     strategy:
       matrix:
         image:
@@ -41,6 +40,9 @@ jobs:
     name: Delete Old SHA Tags
     runs-on: ubuntu-latest
     needs: cleanup-untagged
+    permissions:
+      packages: write
+      contents: read
     strategy:
       matrix:
         image:
@@ -62,6 +64,9 @@ jobs:
     name: Delete Old Branch Tags
     runs-on: ubuntu-latest
     needs: cleanup-old-sha-tags
+    permissions:
+      packages: write
+      contents: read
     strategy:
       matrix:
         image:
@@ -84,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [cleanup-untagged, cleanup-old-sha-tags, cleanup-old-branches]
     if: always()
+    permissions:
+      contents: read
     steps:
       - name: Report results
         run: |
