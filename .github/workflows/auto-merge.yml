@@ -5,18 +5,17 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
-permissions:
-  contents: write
-  pull-requests: write
-  checks: read
-
 jobs:
   auto-merge:
     name: Enable Auto-Merge
     runs-on: ubuntu-slim  # Lightweight runner: simple gh CLI auto-merge operations
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
     if: |
       github.event.pull_request.draft == false &&
-      (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]')
+      github.actor == 'renovate[bot]'
     steps:
       - name: Get PR details
         id: pr
@@ -40,23 +39,13 @@ jobs:
           wait-interval: 10
           allowed-conclusions: success,skipped
 
-      - name: Enable auto-merge for Dependabot PRs
-        if: github.actor == 'dependabot[bot]'
-        run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-
       - name: Enable auto-merge for Renovate PRs
-        if: github.actor == 'renovate[bot]'
         run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
       - name: Approve PR
-        if: |
-          github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'
         uses: hmarr/auto-approve-action@f0939ea97e9205ef24d872e76833fa908a770363  # v4.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -67,6 +56,8 @@ jobs:
     runs-on: ubuntu-slim  # Lightweight runner: API call to add comment
     needs: auto-merge
     if: success()
+    permissions:
+      issues: write
     steps:
       - name: Add comment
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0

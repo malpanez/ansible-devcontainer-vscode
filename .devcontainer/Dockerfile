@@ -28,9 +28,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && rm -rf /var/lib/apt/lists/*
 
 # Download Terragrunt and TFLint with platform-specific architecture
-# Note: SHA256 verification would require updating checksums on every version bump
-# For security, we rely on HTTPS and GitHub's integrity guarantees
-# TODO: Consider implementing checksum verification with dynamic lookup
+# Verify checksums from upstream release metadata.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+WORKDIR /tmp
+# hadolint ignore=DL3003
 RUN set -eux; \
     case "${TARGETPLATFORM}" in \
       "linux/amd64") ARCH="amd64" ;; \
@@ -38,15 +39,24 @@ RUN set -eux; \
       *) echo "Unsupported TARGETPLATFORM: ${TARGETPLATFORM}" >&2; exit 1 ;; \
     esac; \
     echo "Downloading Terragrunt ${TERRAGRUNT_VERSION} for ${ARCH}..."; \
+    curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/SHA256SUMS" \
+      -o /tmp/terragrunt.sha256; \
     curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${ARCH}" \
-      -o /usr/local/bin/terragrunt; \
+      -o /tmp/terragrunt_linux_${ARCH}; \
+    cd /tmp && grep "terragrunt_linux_${ARCH}$" /tmp/terragrunt.sha256 | sha256sum -c -; \
+    mv /tmp/terragrunt_linux_${ARCH} /usr/local/bin/terragrunt; \
+    rm -f /tmp/terragrunt.sha256; \
     chmod +x /usr/local/bin/terragrunt; \
     /usr/local/bin/terragrunt --version; \
     echo "Downloading TFLint ${TFLINT_VERSION} for ${ARCH}..."; \
+    curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/checksums.txt" \
+      -o /tmp/tflint.checksums; \
     curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${ARCH}.zip" \
-      -o /tmp/tflint.zip; \
-    unzip /tmp/tflint.zip -d /usr/local/bin; \
-    rm /tmp/tflint.zip; \
+      -o /tmp/tflint_linux_${ARCH}.zip; \
+    cd /tmp && grep "tflint_linux_${ARCH}.zip" /tmp/tflint.checksums | sha256sum -c -; \
+    rm -f /tmp/tflint.checksums; \
+    unzip /tmp/tflint_linux_${ARCH}.zip -d /usr/local/bin; \
+    rm /tmp/tflint_linux_${ARCH}.zip; \
     chmod +x /usr/local/bin/tflint; \
     /usr/local/bin/tflint --version
 
@@ -90,20 +100,16 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 # Pin checkov to specific version for reproducibility
 # renovate: datasource=pypi depName=checkov
 ARG CHECKOV_VERSION="3.2.331"
-RUN uv pip install --system "checkov==${CHECKOV_VERSION}"
-
-# Verify all tools are installed correctly
-RUN terraform version && \
-    terragrunt --version && \
-    tflint --version && \
-    checkov --version && \
-    gh --version && \
-    make --version && \
-    jq --version
-
-# Create cache directories with proper permissions
-# Ensure .local exists and has correct ownership before creating subdirectories
-RUN mkdir -p /home/vscode/.local/share/uv /home/vscode/.cache/pre-commit /home/vscode/.cache/uv && \
+RUN set -eux; \
+    uv pip install --system "checkov==${CHECKOV_VERSION}"; \
+    terraform version; \
+    terragrunt --version; \
+    tflint --version; \
+    checkov --version; \
+    gh --version; \
+    make --version; \
+    jq --version; \
+    mkdir -p /home/vscode/.local/share/uv /home/vscode/.cache/pre-commit /home/vscode/.cache/uv; \
     chown -R vscode:vscode /home/vscode/.local /home/vscode/.cache
 
 USER vscode
