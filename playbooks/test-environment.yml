@@ -21,12 +21,18 @@
         expected_ansible_version: >-
           {{
             requirements_file_contents
-            | regex_search('ansible==(?P<version>[0-9.]+)', '\\g<version>')
+            | regex_search('ansible==[0-9.]+')
+            | default('')
+            | split('==')
+            | last
           }}
         expected_ansible_core_version: >-
           {{
             requirements_file_contents
-            | regex_search('ansible-core==(?P<version>[0-9.]+)', '\\g<version>')
+            | regex_search('ansible-core==[0-9.]+')
+            | default('')
+            | split('==')
+            | last
           }}
 
     - name: Assert expected Ansible versions resolved
