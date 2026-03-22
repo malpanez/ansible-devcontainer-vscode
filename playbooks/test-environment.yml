@@ -62,7 +62,9 @@
         detected_ansible_core_version: >-
           {{
             ansible_version_info.stdout
-            | regex_search('ansible\\s+\\[core\\s+(?P<version>[0-9.]+)\\]', '\\g<version>')
+            | regex_search('ansible\\s+\\[core\\s+[0-9.]+\\]')
+            | default('')
+            | regex_replace('^.*\\[core\\s+([0-9.]+)\\].*$', '\\1')
           }}
 
     - name: Assert detected ansible-core version

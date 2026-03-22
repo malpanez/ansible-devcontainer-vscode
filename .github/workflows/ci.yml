@@ -118,7 +118,7 @@ jobs:
       - name: Run test playbook
         run: |
           if [ -f "playbooks/test-environment.yml" ]; then
-            ansible-playbook playbooks/test-environment.yml --check
+            ansible-playbook playbooks/test-environment.yml
           else
             echo "::notice::Test playbook not found, skipping"
           fi
