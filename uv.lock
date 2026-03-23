@@ -116,7 +116,7 @@ requires-dist = [
     { name = "passlib", specifier = ">=1.7.4" },
     { name = "pre-commit", specifier = ">=3.6.0" },
     { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-ansible", specifier = ">=24.1.0,<25.0.0" },
+    { name = "pytest-ansible", specifier = ">=24.1.0,<24.7.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-testinfra", specifier = ">=10.1.0" },
     { name = "ruff", specifier = ">=0.3.0" },
@@ -1241,7 +1241,7 @@ wheels = [
 
 [[package]]
 name = "pytest-ansible"
-version = "24.12.0"
+version = "24.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ansible-compat" },
@@ -1249,9 +1249,9 @@ dependencies = [
     { name = "packaging" },
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/55/aa1c5a1d90a74682b9464eaeef7d9cfe7f00209382cb6bcd73a7ca7b9cb0/pytest_ansible-24.12.0.tar.gz", hash = "sha256:ef4acb9f6c8371fa0c86e4107bf4f4e22331cf002faba05430147c8310fec39e", size = 63097, upload-time = "2024-12-12T05:06:57.498Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/59/b7/810f810dc5449500849214d34aa7c472e88684ea6d28c272cd91e3bf0ef5/pytest_ansible-24.1.4.tar.gz", hash = "sha256:a6803ca12fecdc2f946ac52171fddf43a9a6440bf2f4552477bab70937db4c80", size = 61565, upload-time = "2024-07-03T13:05:57.621Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/da/155a7d6c8ec27c0a73fa95f50d7029a7e87323790ca4ee32659833446691/pytest_ansible-24.12.0-py3-none-any.whl", hash = "sha256:fcdeb7e4edfa29803ced2aade3a1be40a5adfec8c18aa114fba17eeddfb513c2", size = 29974, upload-time = "2024-12-12T05:06:54.603Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/d5/dbea57dab7253ce498ababfc35b466d4507421a454a4247d2ed85851ff36/pytest_ansible-24.1.4-py3-none-any.whl", hash = "sha256:ba7308845ea35f9a55f1806e4ba5f950920124d76982fc1cd8943853ea051285", size = 29633, upload-time = "2024-07-03T13:05:55.552Z" },
 ]
 
 [[package]]
