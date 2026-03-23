@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
 ARG DEBIAN_VERSION=bookworm-slim
+ARG UV_VERSION=0.9.13
 ARG TERRAFORM_VERSION=1.14.4
 ARG TERRAGRUNT_VERSION=0.99.1
 ARG TFLINT_VERSION=0.60.0
@@ -93,8 +94,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv package manager
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+# Install uv package manager (versioned binary, no pipe-to-shell)
+ARG UV_VERSION
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
+      *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+      -o /tmp/uv.tar.gz; \
+    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
 
 # Install AWS CLI v2 to avoid DevContainer features rebuild
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
