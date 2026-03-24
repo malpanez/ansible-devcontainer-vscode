@@ -226,3 +226,6 @@ collections/ansible_collections/
 .env.*
 !.env.example
 !.env.*.example
+
+# Claude Code local tooling (never commit)
+.claude/
