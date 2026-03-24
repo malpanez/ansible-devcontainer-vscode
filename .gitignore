@@ -221,3 +221,6 @@ collections/ansible_collections/
 *.key
 *.pem
 .ssh/
+
+# Claude Code local tooling (never commit)
+.claude/
