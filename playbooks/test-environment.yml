@@ -8,7 +8,7 @@
 
   tasks:
     - name: Check Ansible is installed
-      ansible.builtin.command: ansible --version
+      ansible.builtin.command: ansible-playbook --version
       register: ansible_version_info
       changed_when: false
 
