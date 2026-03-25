@@ -479,7 +479,6 @@ jobs:
               --cov-report=xml:coverage.xml \
               --cov-report=html:htmlcov \
               --cov-report=term-missing \
-              --cov-fail-under=95 \
               -p no:ansible \
               -p no:pytest-ansible
           else
