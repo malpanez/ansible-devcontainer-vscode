@@ -480,7 +480,8 @@ jobs:
               --cov-report=html:htmlcov \
               --cov-report=term-missing \
               --cov-fail-under=95 \
-              -p no:ansible
+              -p no:ansible \
+              -p no:pytest_ansible
           else
             echo "::notice::No Python tests found, skipping"
           fi
