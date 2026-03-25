@@ -45,6 +45,7 @@ addopts = [
   "--verbose",
   "--tb=short",
   "--strict-markers",
+  "-p no:pytest_ansible",
   "--cov=roles",
   "--cov=playbooks",
   "--cov=scripts",
