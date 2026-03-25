@@ -8,7 +8,11 @@
 
   tasks:
     - name: Check Ansible is installed
-      ansible.builtin.command: ansible-playbook --version
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "-c"
+          - "import ansible_core; print(f'ansible [core {ansible_core.__version__}]')"
       register: ansible_version_info
       changed_when: false
 
