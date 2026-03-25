@@ -23,18 +23,12 @@
         expected_ansible_version: >-
           {{
             requirements_file_contents
-            | regex_search('ansible==[0-9.]+')
-            | default('')
-            | split('==')
-            | last
+            | regex_search('ansible==(?P<version>[0-9.]+)', '\\g<version>')
           }}
         expected_ansible_core_version: >-
           {{
             requirements_file_contents
-            | regex_search('ansible-core==[0-9.]+')
-            | default('')
-            | split('==')
-            | last
+            | regex_search('ansible-core==(?P<version>[0-9.]+)', '\\g<version>')
           }}
 
     - name: Assert expected Ansible versions resolved
@@ -64,9 +58,7 @@
         detected_ansible_core_version: >-
           {{
             ansible_version_info.stdout
-            | regex_search('ansible\\s+\\[core\\s+[0-9.]+\\]')
-            | default('')
-            | regex_replace('^.*\\[core\\s+([0-9.]+)\\].*$', '\\1')
+            | regex_search('ansible\\s+\\[core\\s+(?P<version>[0-9.]+)\\]', '\\g<version>')
           }}
 
     - name: Assert detected ansible-core version
