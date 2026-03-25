@@ -8,13 +8,11 @@
 
   tasks:
     - name: Check Ansible is installed
-      ansible.builtin.command:
-        argv:
-          - "{{ ansible_playbook_python }}"
-          - "-c"
-          - "import ansible_core; print(f'ansible [core {ansible_core.__version__}]')"
-      register: ansible_version_info
-      changed_when: false
+      ansible.builtin.set_fact:
+        ansible_version_info:
+          stdout: "ansible [core {{ ansible_version.full }}]"
+          stdout_lines:
+            - "ansible [core {{ ansible_version.full }}]"
 
     - name: Load pinned dependency versions
       ansible.builtin.set_fact:
