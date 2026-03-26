@@ -6,6 +6,8 @@ FROM ${BASE_IMAGE}
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
+# renovate: datasource=github-releases depName=astral-sh/uv
+ARG UV_VERSION=0.9.13
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
@@ -28,7 +30,7 @@ RUN apk add --no-cache \
       sudo=~1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh
+RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
@@ -36,7 +38,8 @@ ARG USER_GID=${USER_UID}
 
 RUN addgroup -g ${USER_GID} ${USERNAME} \
     && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
-    && printf '%s\n' "${USERNAME} ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx" > /etc/sudoers.d/${USERNAME} \
+    && printf '%s ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx\n' \
+        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
@@ -44,8 +47,8 @@ RUN addgroup -g ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/go \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/golang
 
-COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
-COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --chmod=0444 templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
+COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/go/bin:${PATH}"
 

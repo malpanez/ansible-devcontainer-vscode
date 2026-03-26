@@ -1,11 +1,17 @@
 # syntax=docker/dockerfile:1.7
 ARG DEBIAN_VERSION=bookworm-slim
-ARG UV_VERSION=0.9.13
+# renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.14.4
+# renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=0.99.1
+# renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.60.0
+# renovate: datasource=github-releases depName=getsops/sops
 ARG SOPS_VERSION=3.11.0
+# renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.2.1
+# renovate: datasource=github-releases depName=astral-sh/uv
+ARG UV_VERSION=0.9.13
 ARG BASE_IMAGE=debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8 AS fetch
@@ -21,7 +27,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates \
       curl \
       unzip \
-      xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
@@ -66,8 +71,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=terraform \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
-# Install system dependencies
-# Note: git, github-cli (gh), and aws-cli installed to avoid DevContainer features rebuild
+# Install system dependencies + GitHub CLI (gh) to avoid DevContainer features rebuild
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
@@ -78,20 +84,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       git \
       sudo \
       unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# Install GitHub CLI (gh) to avoid DevContainer features rebuild
-# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
-# hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
       > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends gh \
+    && apt-get autoremove -y --purge \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager (versioned binary, no pipe-to-shell)
@@ -136,7 +136,8 @@ ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && printf '%s\n' "${USERNAME} ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/local/bin/uv, /usr/local/bin/uvx" > /etc/sudoers.d/${USERNAME} \
+    && printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx\n' \
+        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
@@ -145,8 +146,8 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/terraform
 
-COPY --chown=${USERNAME}:${USERNAME} templates/pre-commit/terraform/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml
-COPY --chmod=0755 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --chmod=0444 templates/pre-commit/terraform/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml
+COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 

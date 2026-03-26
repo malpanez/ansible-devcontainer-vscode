@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
 ARG PYTHON_IMAGE=python:3.12.12-slim-bookworm@sha256:5621ae4640bf259c8a9f09c513cd6c80fc14b3fab3d9cf99f3227637cdf78525
+# hadolint ignore=DL3006
 FROM ${PYTHON_IMAGE}
 
 # BuildKit platform arguments
@@ -13,6 +14,8 @@ LABEL description="Shared Python base layer for infrastructure devcontainers"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1
+# renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.9.13
 
 # Common system packages used across Python-based stacks.
@@ -39,6 +42,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
 # Install GitHub CLI (gh) to avoid DevContainer features rebuild
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -57,14 +61,14 @@ ARG USER_GID=$USER_UID
 
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx\n' "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
     && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -m 755 /home/${USERNAME}/.cache/pre-commit \
     && install -d -m 700 /home/${USERNAME}/.ansible/tmp \
     && install -d -m 755 /home/${USERNAME}/.ansible/galaxy_cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible \
-    && python -m pip install --no-cache-dir "uv==${UV_VERSION}" \
+    && curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
     && uv pip install --system pre-commit \
     && mkdir -p /workspace \
     && chown ${USERNAME}:${USERNAME} /workspace
