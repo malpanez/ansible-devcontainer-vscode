@@ -14,7 +14,7 @@
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix molecule trigger (develop) and add Python compat matrix to unit-tests
+- [x] 01-01-PLAN.md — Fix molecule trigger (develop) and add Python compat matrix to unit-tests
 - [ ] 01-02-PLAN.md — Verify 3 consecutive green CI runs on develop (checkpoint)
 
 **Deliverables:**
@@ -78,4 +78,4 @@ Plans:
 
 ---
 *Created: 2026-03-25*
-*Updated: 2026-03-25 — Phase 1 plans created*
+*Updated: 2026-03-26 — 01-01 complete: molecule/scenario-tests now fire on develop, unit-tests matrix added*
