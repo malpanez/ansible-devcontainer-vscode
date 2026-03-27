@@ -605,8 +605,8 @@ jobs:
             echo "::notice::Molecule not installed"
           fi
         env:
-          MOLECULE_DISTRO: ${{ matrix.distro }}
-          MOLECULE_IMAGE: geerlingguy/docker-${{ matrix.distro }}-ansible:latest
+          TEST_DISTRO: ${{ matrix.distro }}
+          TEST_IMAGE: geerlingguy/docker-${{ matrix.distro }}-ansible:latest
 
   scenario-tests:
     name: Scenario Tests

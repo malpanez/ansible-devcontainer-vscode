@@ -8,8 +8,8 @@ driver:
   name: docker
 
 platforms:
-  - name: "{{ lookup('env', 'MOLECULE_DISTRO') | default('debian12', true) }}"
-    image: "{{ lookup('env', 'MOLECULE_IMAGE') | default('geerlingguy/docker-debian12-ansible:latest', true) }}"
+  - name: ${TEST_DISTRO:-debian12}
+    image: ${TEST_IMAGE:-geerlingguy/docker-debian12-ansible:latest}
     privileged: true
     override_command: false
     environment:
