@@ -9,7 +9,8 @@ platforms:
   - name: ${TEST_DISTRO:-debian12}
     image: ${TEST_IMAGE:-geerlingguy/docker-debian12-ansible:latest}
     privileged: true
-    override_command: false
+    override_command: true
+    command: sleep infinity
     environment:
       ANSIBLE_FORCE_COLOR: "true"
     volumes:
