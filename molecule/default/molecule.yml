@@ -20,7 +20,7 @@ provisioner:
   env:
     ANSIBLE_ROLES_PATH: ../../roles:~/.ansible/roles:/usr/share/ansible/roles:/etc/ansible/roles
     ANSIBLE_COLLECTIONS_PATH: ../../collections:~/.ansible/collections:/usr/share/ansible/collections
-    ANSIBLE_REMOTE_TMP: /tmp/.ansible/tmp
+    ANSIBLE_REMOTE_TMP: /tmp/ansible-remote
   playbooks:
     converge: converge.yml
   inventory:
