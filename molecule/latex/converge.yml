@@ -80,10 +80,10 @@
     - name: Re-run devcontainer_template after toggle
       ansible.builtin.include_role:
         name: devcontainer_template
+        apply:
+          become: true
       vars:
         devcontainer_template_root: "{{ devcontainer_template_root_override }}"
         devcontainer_template_target: "{{ devcontainer_template_target_override }}"
         devcontainer_template_stack: latex
         devcontainer_template_skip_when_unchanged: true
-      apply:
-        become: true

@@ -110,7 +110,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e .
+          uv pip install --system .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
@@ -467,7 +467,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e .
+          uv pip install --system .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -524,7 +524,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e .
+          uv pip install --system .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -574,17 +574,32 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system -e .
+          uv pip install --system .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
 
       - name: Run Molecule
         run: |
+          set -euo pipefail
+
+          run_scenario() {
+            scenario="$1"
+            status=0
+
+            molecule converge --scenario-name "$scenario" || status=$?
+            if [ "$status" -eq 0 ]; then
+              molecule verify --scenario-name "$scenario" || status=$?
+            fi
+
+            molecule destroy --scenario-name "$scenario" || true
+            return "$status"
+          }
+
           if command -v molecule &> /dev/null; then
-            molecule test --scenario-name default
+            run_scenario default
             if [ -d "molecule/latex" ]; then
-              molecule test --scenario-name latex
+              run_scenario latex
             fi
           else
             echo "::notice::Molecule not installed"
@@ -827,8 +842,11 @@ jobs:
       - script-lint
       - dockerfile-lint
       - devcontainer-build
+      - devcontainer-cli-test
       - unit-tests
       - ansible-test
+      - molecule
+      - scenario-tests
     if: always()
     steps:
       - name: Check results

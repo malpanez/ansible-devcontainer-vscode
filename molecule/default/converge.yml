@@ -68,13 +68,13 @@
     - name: Re-run devcontainer_template to ensure idempotency
       ansible.builtin.include_role:
         name: devcontainer_template
+        apply:
+          become: true
       vars:
         devcontainer_template_root: /workspace/devcontainers
         devcontainer_template_target: /workspace/.devcontainer
         devcontainer_template_stack: ansible
         devcontainer_template_skip_when_unchanged: true
-      apply:
-        become: true
 
     - name: Stat metadata after second run
       ansible.builtin.stat:

@@ -12,7 +12,7 @@ This repository uses `develop` as the integration branch and `main` as the produ
    ```
 2. Open the pull request into `develop`.
 3. Merge the PR after checks pass.
-4. A push to `develop` triggers the promotion workflow, which creates or reuses a PR from `develop` to `main` and enables auto-merge.
+4. A push to `develop` triggers the promotion workflow, which creates or reuses a PR from `develop` to `main` and enables auto-merge. The same workflow can also be run manually with `workflow_dispatch` when a promotion PR needs to be recreated.
 5. When the promotion PR passes, it merges into `main`.
 6. A push to `main` triggers the sync workflow back into `develop`.
 

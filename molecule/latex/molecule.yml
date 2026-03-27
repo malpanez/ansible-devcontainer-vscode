@@ -31,7 +31,6 @@ verifier:
 
 scenario:
   test_sequence:
-    - lint
     - converge
     - verify
     - destroy
