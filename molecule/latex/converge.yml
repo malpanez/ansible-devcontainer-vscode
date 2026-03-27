@@ -30,6 +30,14 @@
     - name: Gather facts after bootstrap
       ansible.builtin.setup:
 
+    - name: Create workspace directory
+      ansible.builtin.file:
+        path: /workspace
+        state: directory
+        owner: vscode
+        group: vscode
+        mode: "0755"
+
     - name: Copy Ansible Python requirements
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../requirements-ansible.txt"
