@@ -79,7 +79,7 @@
     - name: Check Python Ansible package version
       ansible.builtin.command:
         argv:
-          - python3
+          - "{{ ansible_playbook_python }}"
           - "-c"
           - "import ansible; print(ansible.__version__)"
       register: ansible_python_version
