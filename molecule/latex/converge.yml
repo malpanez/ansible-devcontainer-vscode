@@ -2,6 +2,7 @@
 - name: Converge
   hosts: all
   become: true
+  gather_facts: false
   vars:
     ansible_environment_config_dir: /workspace
     ansible_environment_devcontainer_user: vscode
@@ -22,6 +23,13 @@
     devcontainer_template_target_override: /workspace/.devcontainer
 
   pre_tasks:
+    - name: Bootstrap writable Ansible tmp directory
+      ansible.builtin.raw: mkdir -p /tmp/ansible-remote && chmod 1777 /tmp/ansible-remote
+      changed_when: false
+
+    - name: Gather facts after bootstrap
+      ansible.builtin.setup:
+
     - name: Copy Ansible Python requirements
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../requirements-ansible.txt"
