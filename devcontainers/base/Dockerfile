@@ -8,8 +8,11 @@ ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG TARGETOS
 
-LABEL maintainer="alpanez.alcalde@gmail.com"
-LABEL description="Shared Python base layer for infrastructure devcontainers"
+LABEL maintainer="alpanez.alcalde@gmail.com" \
+      description="Shared Python base layer for infrastructure devcontainers" \
+      org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="malpanez"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_INSTALL_DIR=/usr/local/bin
@@ -68,7 +71,17 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -m 755 /home/${USERNAME}/.ansible/galaxy_cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible \
-    && curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh \
+    && case "$(dpkg --print-architecture)" in \
+         amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
+         arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
+         *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+         -o /tmp/uv.tar.gz \
+    && tar -xzf /tmp/uv.tar.gz -C /tmp \
+    && install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv \
+    && install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx \
+    && rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}" \
     && uv pip install --system pre-commit \
     && mkdir -p /workspace \
     && chown ${USERNAME}:${USERNAME} /workspace
