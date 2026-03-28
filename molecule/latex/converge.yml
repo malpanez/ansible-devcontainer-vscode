@@ -34,8 +34,6 @@
       ansible.builtin.file:
         path: /workspace
         state: directory
-        owner: vscode
-        group: vscode
         mode: "0755"
 
     - name: Copy Ansible Python requirements
