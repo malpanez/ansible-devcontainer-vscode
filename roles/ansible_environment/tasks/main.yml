@@ -64,14 +64,18 @@
         url: "{{ ansible_environment_uv_checksums_url }}"
         dest: "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}"
         mode: '0644'
-      when: ansible_environment_uv_effective_checksum | length == 0
+      when:
+        - ansible_environment_uv_enforce_checksum | bool
+        - ansible_environment_uv_effective_checksum | length == 0
 
     - name: Read checksum for uv archive
       ansible.builtin.command:
         cmd: cat "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}"
       register: ansible_environment_uv_checksum_manifest_lookup
       changed_when: false
-      when: ansible_environment_uv_effective_checksum | length == 0
+      when:
+        - ansible_environment_uv_enforce_checksum | bool
+        - ansible_environment_uv_effective_checksum | length == 0
 
     - name: Ensure checksum was located in checksum file
       ansible.builtin.assert:
@@ -79,7 +83,9 @@
           - ansible_environment_uv_checksum_manifest_lookup.stdout | default('') | trim | length > 0
         fail_msg: >-
           Unable to read checksum from {{ ansible_environment_uv_checksums_manifest }}.
-      when: ansible_environment_uv_effective_checksum | length == 0
+      when:
+        - ansible_environment_uv_enforce_checksum | bool
+        - ansible_environment_uv_effective_checksum | length == 0
 
     - name: Cache manifest-derived checksum
       ansible.builtin.set_fact:
@@ -93,14 +99,16 @@
             )
           }}
       changed_when: false
-      when: ansible_environment_uv_effective_checksum | length == 0
+      when:
+        - ansible_environment_uv_enforce_checksum | bool
+        - ansible_environment_uv_effective_checksum | length == 0
 
     - name: Download uv archive
       ansible.builtin.get_url:
         url: "{{ ansible_environment_uv_download_url }}"
         dest: "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_archive_filename }}"
         mode: '0644'
-        checksum: "{{ ansible_environment_uv_effective_checksum | default(omit, true) }}"
+        checksum: "{{ ansible_environment_uv_effective_checksum if (ansible_environment_uv_effective_checksum | length > 0) else omit }}"
 
     - name: Extract uv archive
       ansible.builtin.unarchive:
