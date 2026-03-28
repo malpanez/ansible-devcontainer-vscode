@@ -3,22 +3,21 @@
 [![CI Pipeline](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/ci.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/ci.yml)
 [![Build Containers](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml)
 [![CodeQL](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/codeql.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/codeql.yml)
-[![codecov](https://codecov.io/gh/malpanez/ansible-devcontainer-vscode/branch/main/graph/badge.svg)](https://codecov.io/gh/malpanez/ansible-devcontainer-vscode)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
+[![SBOM](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/sbom-verification.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/sbom-verification.yml)
 [![Code Quality](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
+
 [![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)
 [![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github)](https://codespaces.new/malpanez/ansible-devcontainer-vscode)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](https://github.com/malpanez/ansible-devcontainer-vscode/issues)
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
-[![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
-[![uv](https://img.shields.io/badge/uv-ready-00A3FF)](https://github.com/astral-sh/uv)
+[![uv](https://img.shields.io/badge/uv-ready-00A3FF?logo=astral)](https://github.com/astral-sh/uv)
 
-**Tool Versions:**
-[![Terraform](https://img.shields.io/badge/terraform-1.14.0-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![Python](https://img.shields.io/badge/python-3.12.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+**Stacks:**
 [![Ansible](https://img.shields.io/badge/ansible-9.14.0-EE0000?logo=ansible)](https://www.ansible.com/)
-[![uv](https://img.shields.io/badge/uv-0.9.13-00A3FF)](https://github.com/astral-sh/uv)
+[![Terraform](https://img.shields.io/badge/terraform-1.14.0-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Python](https://img.shields.io/badge/python-3.12.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
 Pull a pre-built infrastructure workspace from GHCR and start writing Terraform or running Ansible in **under 30 seconds** — 3–5× smaller than Microsoft's devcontainer images, with no local setup and no drift between machines. Pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in VS Code, and your entire toolchain is already installed, locked, and ready. Works on Windows + WSL2, macOS, and Linux.
 
