@@ -116,9 +116,19 @@
         dest: "{{ ansible_environment_uv_tempdir.path }}"
         remote_src: true
 
+    - name: Determine extracted uv directory
+      ansible.builtin.set_fact:
+        ansible_environment_uv_extract_dir: >-
+          {{
+            ansible_environment_uv_tempdir.path
+            ~ '/'
+            ~ (ansible_environment_uv_archive_filename | regex_replace('\\.tar\\.gz$', ''))
+          }}
+      changed_when: false
+
     - name: Verify uv binary was extracted
       ansible.builtin.stat:
-        path: "{{ ansible_environment_uv_tempdir.path }}/uv"
+        path: "{{ ansible_environment_uv_extract_dir }}/uv"
       register: ansible_environment_uv_extracted_binary
       failed_when: not ansible_environment_uv_extracted_binary.stat.exists
 
@@ -140,18 +150,18 @@
 
         - name: Install uv binary  # noqa: risky-file-permissions
           ansible.builtin.copy:
-            src: "{{ ansible_environment_uv_tempdir.path }}/uv"
+            src: "{{ ansible_environment_uv_extract_dir }}/uv"
             dest: "{{ ansible_environment_uv_binary_path }}"
             remote_src: true
 
         - name: Check if uvx helper is available
           ansible.builtin.stat:
-            path: "{{ ansible_environment_uv_tempdir.path }}/uvx"
+            path: "{{ ansible_environment_uv_extract_dir }}/uvx"
           register: ansible_environment_uvx_stat
 
         - name: Install uvx helper  # noqa: risky-file-permissions
           ansible.builtin.copy:
-            src: "{{ ansible_environment_uv_tempdir.path }}/uvx"
+            src: "{{ ansible_environment_uv_extract_dir }}/uvx"
             dest: "{{ ansible_environment_uv_install_dir }}/uvx"
             remote_src: true
           when: ansible_environment_uvx_stat.stat.exists
