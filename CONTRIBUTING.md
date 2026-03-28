@@ -23,12 +23,14 @@ This project aims to provide **TOP 0.1%** DevContainer environments for Infrastr
 ### Setup
 
 1. **Fork and Clone**
+
    ```bash
    gh repo fork malpanez/ansible-devcontainer-vscode --clone
    cd ansible-devcontainer-vscode
    ```
 
 2. **Open in DevContainer**
+
    ```bash
    code .
    # Select "Reopen in Container" when prompted
@@ -52,6 +54,7 @@ git checkout -b fix/bug-description
 ```
 
 **Branch Naming Convention**:
+
 - `feature/` - New features
 - `fix/` - Bug fixes
 - `docs/` - Documentation changes
@@ -88,6 +91,7 @@ git commit -m "docs: update README with Z"
 ```
 
 **Commit Types**:
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation
@@ -102,31 +106,42 @@ git commit -m "docs: update README with Z"
 
 ```bash
 git push origin feature/my-awesome-feature
-gh pr create --fill
+gh pr create --base develop --fill
 ```
+
+Default flow:
+
+- Open feature/fix/docs/chore PRs into `develop`
+- Promotion to `main` happens from `develop` via the repository automation
+- Reserve `hotfix/* -> main` for urgent production fixes only
 
 ## 🎨 Code Style
 
 ### Python
+
 - Use `ruff` for linting and formatting
 - Max line length: 120 characters
 - Follow PEP 8
 
 ### YAML
+
 - 2 spaces indentation
 - Use `yamllint` configuration
 - Quote strings when ambiguous
 
 ### Terraform
+
 - Use `terraform fmt`
 - Follow HashiCorp style guide
 
 ### Shell Scripts
+
 - Use ShellCheck
 - Prefer `bash` over `sh`
 - Add error handling (`set -euo pipefail`)
 
 ### Dockerfiles
+
 - Use `hadolint`
 - Multi-stage builds preferred
 - Pin versions with comments for Renovate
@@ -134,6 +149,7 @@ gh pr create --fill
 ## 🧪 Testing
 
 ### Docker Images
+
 ```bash
 # Build locally
 make build
@@ -143,17 +159,20 @@ docker run --rm -it devcontainer-terraform:local bash
 ```
 
 ### Workflows
+
 - Test workflow changes in a fork first
 - Use `act` for local testing (optional)
 
 ## 🔒 Security
 
 ### Before Committing
+
 - **Never commit secrets** - Use `.secrets.baseline`
 - Run `make security` to scan
 - Pre-commit hooks will catch common issues
 
 ### Reporting Security Issues
+
 - **DO NOT** open public issues for security vulnerabilities
 - Email: alpanez.alcalde@gmail.com
 - Include detailed description and steps to reproduce
@@ -161,11 +180,13 @@ docker run --rm -it devcontainer-terraform:local bash
 ## 📖 Documentation
 
 ### What to Document
+
 - New features require documentation updates
 - Breaking changes need migration guides
 - Complex logic needs inline comments
 
 ### Where to Document
+
 - `README.md` - Project overview and quick start
 - `docs/` - Detailed guides
 - Inline comments - Complex code logic
@@ -174,21 +195,26 @@ docker run --rm -it devcontainer-terraform:local bash
 ## ✅ Pull Request Guidelines
 
 ### Before Submitting
+
 - [ ] Code follows project style guidelines
 - [ ] All tests pass locally
 - [ ] Documentation is updated
 - [ ] Commits follow conventional commits
 - [ ] Pre-commit hooks pass
+- [ ] `make doctor-devcontainer` passes if your change touches devcontainer tooling
 - [ ] No merge conflicts with `develop`
 
 ### PR Description
+
 Use the PR template to provide:
+
 - Clear description of changes
 - Related issues (Fixes #123)
 - Testing performed
 - Screenshots (if applicable)
 
 ### Review Process
+
 1. Automated CI checks must pass
 2. At least 1 approval required
 3. All conversations resolved
@@ -197,6 +223,7 @@ Use the PR template to provide:
 ## 🐛 Bug Reports
 
 Use the Bug Report template and include:
+
 - Clear description
 - Steps to reproduce
 - Expected vs actual behavior
@@ -206,6 +233,7 @@ Use the Bug Report template and include:
 ## ✨ Feature Requests
 
 Use the Feature Request template and include:
+
 - Problem statement
 - Proposed solution
 - Alternatives considered
