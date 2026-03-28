@@ -2,7 +2,6 @@
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
-    cache_valid_time: 3600
   become: true
 
 - name: Install system dependencies
@@ -30,7 +29,31 @@
     validate: 'visudo -cf %s'
   become: true
 
-- name: Set timezone
-  community.general.timezone:
-    name: "{{ devcontainer_base_timezone }}"
+- name: Check requested timezone data
+  ansible.builtin.stat:
+    path: "/usr/share/zoneinfo/{{ devcontainer_base_timezone }}"
+  register: devcontainer_base_timezone_file
+  become: true
+
+- name: Configure /etc/localtime
+  ansible.builtin.file:
+    src: "/usr/share/zoneinfo/{{ devcontainer_base_timezone }}"
+    dest: /etc/localtime
+    state: link
+    force: true
+  when: devcontainer_base_timezone_file.stat.exists
+  become: true
+
+- name: Configure /etc/timezone
+  ansible.builtin.copy:
+    dest: /etc/timezone
+    content: "{{ devcontainer_base_timezone }}\n"
+    mode: "0644"
+  when: devcontainer_base_timezone_file.stat.exists
+  become: true
+
+- name: Warn when requested timezone data is unavailable
+  ansible.builtin.debug:
+    msg: "Timezone {{ devcontainer_base_timezone }} is unavailable in this image; skipping timezone configuration."
+  when: not devcontainer_base_timezone_file.stat.exists
   become: true

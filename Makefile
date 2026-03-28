@@ -52,6 +52,26 @@ build: ## Build all devcontainers locally
 	@docker build -t devcontainer-terraform:local -f .devcontainer/Dockerfile .
 	@echo "✅ Build complete!"
 
+.PHONY: switch-ansible
+switch-ansible: ## Switch to Ansible stack
+	@./scripts/use-devcontainer.sh ansible
+
+.PHONY: switch-terraform
+switch-terraform: ## Switch to Terraform stack
+	@./scripts/use-devcontainer.sh terraform
+
+.PHONY: switch-golang
+switch-golang: ## Switch to Golang stack
+	@./scripts/use-devcontainer.sh golang
+
+.PHONY: switch-latex
+switch-latex: ## Switch to LaTeX stack
+	@./scripts/use-devcontainer.sh latex
+
+.PHONY: doctor-devcontainer
+doctor-devcontainer: ## Diagnose active .devcontainer health and drift
+	@bash ./scripts/doctor-devcontainer.sh
+
 .PHONY: clean
 clean: ## Clean cache and temporary files
 	@echo "🧹 Cleaning up..."

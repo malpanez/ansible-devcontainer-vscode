@@ -1,125 +1,160 @@
 # syntax=docker/dockerfile:1.7
-
+ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.14.4
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=0.99.1
 # renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.60.0
-# Base image for final stage (must be before first FROM for multi-platform builds)
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:py312
+# renovate: datasource=github-releases depName=getsops/sops
+ARG SOPS_VERSION=3.11.0
+# renovate: datasource=github-releases depName=FiloSottile/age
+ARG AGE_VERSION=1.2.1
+# renovate: datasource=github-releases depName=astral-sh/uv
+ARG UV_VERSION=0.9.13
+ARG BASE_IMAGE=debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
 
-FROM --platform=$BUILDPLATFORM hashicorp/terraform:${TERRAFORM_VERSION} AS terraform-cli
+FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8 AS fetch
+ARG TARGETARCH
+ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
-FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS terraform-tools
-ARG TARGETPLATFORM
-ARG TERRAGRUNT_VERSION
-ARG TFLINT_VERSION
+COPY devcontainers/terraform/install_age.sh /tmp/install_age.sh
 
-# Install dependencies for downloading and verifying tools
 # hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        unzip \
+      ca-certificates \
+      curl \
+      unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Download Terragrunt and TFLint with platform-specific architecture
-# Verify checksums from upstream release metadata.
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-WORKDIR /tmp
-# hadolint ignore=DL3003
 RUN set -eux; \
-    case "${TARGETPLATFORM}" in \
-      "linux/amd64") ARCH="amd64" ;; \
-      "linux/arm64") ARCH="arm64" ;; \
-      *) echo "Unsupported TARGETPLATFORM: ${TARGETPLATFORM}" >&2; exit 1 ;; \
+    case "$TARGETARCH" in \
+      amd64|arm64) ARCH="$TARGETARCH" ;; \
+      *) echo "Arquitectura no soportada: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    echo "Downloading Terragrunt ${TERRAGRUNT_VERSION} for ${ARCH}..."; \
-    curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/SHA256SUMS" \
-      -o /tmp/terragrunt.sha256; \
+    mkdir -p /tmp/bin; \
+    curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip" \
+      -o /tmp/terraform.zip; \
+    unzip -d /tmp/bin /tmp/terraform.zip; \
     curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${ARCH}" \
-      -o /tmp/terragrunt_linux_${ARCH}; \
-    cd /tmp && grep "terragrunt_linux_${ARCH}$" /tmp/terragrunt.sha256 | sha256sum -c -; \
-    mv /tmp/terragrunt_linux_${ARCH} /usr/local/bin/terragrunt; \
-    rm -f /tmp/terragrunt.sha256; \
-    chmod +x /usr/local/bin/terragrunt; \
-    /usr/local/bin/terragrunt --version; \
-    echo "Downloading TFLint ${TFLINT_VERSION} for ${ARCH}..."; \
-    curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/checksums.txt" \
-      -o /tmp/tflint.checksums; \
+      -o /tmp/bin/terragrunt; \
+    chmod +x /tmp/bin/terragrunt; \
     curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${ARCH}.zip" \
-      -o /tmp/tflint_linux_${ARCH}.zip; \
-    cd /tmp && grep "tflint_linux_${ARCH}.zip" /tmp/tflint.checksums | sha256sum -c -; \
-    rm -f /tmp/tflint.checksums; \
-    unzip /tmp/tflint_linux_${ARCH}.zip -d /usr/local/bin; \
-    rm /tmp/tflint_linux_${ARCH}.zip; \
-    chmod +x /usr/local/bin/tflint; \
-    /usr/local/bin/tflint --version
+      -o /tmp/tflint.zip; \
+    unzip -d /tmp/bin /tmp/tflint.zip; \
+    curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${ARCH}" \
+      -o /tmp/bin/sops; \
+    chmod +x /tmp/bin/sops; \
+    /bin/bash /tmp/install_age.sh "${AGE_VERSION}" "${ARCH}";
 
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
 
-LABEL maintainer="alpanez.alcalde@gmail.com"
-LABEL description="Terraform + Ansible Development Environment 2026"
-LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode"
-LABEL org.opencontainers.image.description="TOP 0.1% DevContainer for Terraform, Ansible, and Infrastructure as Code"
-LABEL org.opencontainers.image.licenses="Apache-2.0"
+ARG BUILD_DATE="unknown"
+ARG VCS_REF="unknown"
+ARG IMAGE_VENDOR="malpanez"
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV UV_INSTALL_DIR=/usr/local/bin
-ENV UV_LINK_MODE=copy
+LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
+      org.opencontainers.image.description="Terraform devcontainer with Terragrunt, TFLint, SOPS, age, and uv-powered pre-commit" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}"
 
-USER root
+ENV DEBIAN_FRONTEND=noninteractive \
+    UV_INSTALL_DIR=/usr/local/bin \
+    UV_LINK_MODE=copy \
+    TF_PLUGIN_CACHE_DIR=/workspaces/.terraform.d/plugin-cache \
+    WORKSPACE=/workspace \
+    DEVCONTAINER_STACK=terraform \
+    DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
-# Copy tools from build stages
-COPY --from=terraform-cli /bin/terraform /usr/local/bin/terraform
-COPY --from=terraform-tools /usr/local/bin/terragrunt /usr/local/bin/terragrunt
-COPY --from=terraform-tools /usr/local/bin/tflint /usr/local/bin/tflint
+# Install system dependencies + GitHub CLI (gh) to avoid DevContainer features rebuild
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# hadolint ignore=DL3008,DL3015
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      curl \
+      git \
+      sudo \
+      unzip \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && apt-get autoremove -y --purge \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install common CLI tools that were previously in postCreateCommand
-# This improves devcontainer startup performance significantly
-# hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache/apt \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-        gh \
-        make \
-        yamllint \
-        jq \
-        git-lfs \
-        vim \
-        ripgrep && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Python security and quality tools
-# Pin checkov to specific version for reproducibility
-# renovate: datasource=pypi depName=checkov
-ARG CHECKOV_VERSION="3.2.331"
+# Install uv package manager (versioned binary, no pipe-to-shell)
+ARG UV_VERSION
 RUN set -eux; \
-    uv pip install --system "checkov==${CHECKOV_VERSION}"; \
-    terraform version; \
-    terragrunt --version; \
-    tflint --version; \
-    checkov --version; \
-    gh --version; \
-    make --version; \
-    jq --version; \
-    mkdir -p /home/vscode/.local/share/uv /home/vscode/.cache/pre-commit /home/vscode/.cache/uv; \
-    chown -R vscode:vscode /home/vscode/.local /home/vscode/.cache
+    case "$(dpkg --print-architecture)" in \
+      amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
+      *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+      -o /tmp/uv.tar.gz; \
+    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
 
-USER vscode
+# Install AWS CLI v2 to avoid DevContainer features rebuild
+# https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+ARG TARGETARCH
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) AWS_ARCH="x86_64" ;; \
+      arm64) AWS_ARCH="aarch64" ;; \
+      *) echo "Arquitectura no soportada: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o /tmp/awscliv2.zip \
+    && unzip -q /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli \
+    && rm -rf /tmp/awscliv2.zip /tmp/aws
 
-# Configure git defaults
-RUN git config --global init.defaultBranch main && \
-    git config --global pull.rebase false && \
-    git config --global core.editor "vim" && \
-    git lfs install
+COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform
+COPY --from=fetch --link --chmod=0755 /tmp/bin/terragrunt /usr/local/bin/terragrunt
+COPY --from=fetch --link --chmod=0755 /tmp/bin/tflint /usr/local/bin/tflint
+COPY --from=fetch --link --chmod=0755 /tmp/bin/sops /usr/local/bin/sops
+COPY --from=fetch --link --chmod=0755 /tmp/bin/age /usr/local/bin/age
+COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-keygen
 
-WORKDIR /workspace
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=${USER_UID}
+
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
+    && printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx\n' \
+        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME} \
+    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
+    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \
+    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/terraform
+
+COPY --chmod=0444 templates/pre-commit/terraform/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml
+COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+
+ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
+
+USER ${USERNAME}
+
+RUN git config --global init.defaultBranch main
+
+WORKDIR ${WORKSPACE}
 
 CMD ["/bin/bash"]
