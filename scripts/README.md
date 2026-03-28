@@ -21,15 +21,17 @@ All scripts are designed to be run from the repository root or directly via thei
 
 ### Quick Reference
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| [use-devcontainer.sh](#use-devcontainersh) | Switch between devcontainer stacks | `./scripts/use-devcontainer.sh ansible` |
-| [run-smoke-tests.sh](#run-smoke-testssh) | Run Ansible smoke tests | `./scripts/run-smoke-tests.sh` |
-| [run-terraform-tests.sh](#run-terraform-testssh) | Run Terraform validation tests | `./scripts/run-terraform-tests.sh` |
-| [run-ansible-tests.sh](#run-ansible-testssh) | Run Ansible tests with Molecule | `./scripts/run-ansible-tests.sh` |
-| [cleanup-merged-branches.sh](#cleanup-merged-branchessh) | Clean up merged Git branches | `./scripts/cleanup-merged-branches.sh --dry-run` |
-| [smoke-devcontainer-image.sh](#smoke-devcontainer-imagesh) | Test devcontainer images | `./scripts/smoke-devcontainer-image.sh ansible` |
-| [bootstrap-windows.ps1](#bootstrap-windowsps1) | Bootstrap Windows environment | `.\scripts\bootstrap-windows.ps1` |
+| Script                                                     | Purpose                                       | Usage                                                       |
+| ---------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------- |
+| [use-devcontainer.sh](#use-devcontainersh)                 | Switch between devcontainer stacks            | `./scripts/use-devcontainer.sh ansible`                     |
+| [doctor-devcontainer.sh](#doctor-devcontainersh)           | Diagnose active `.devcontainer` state         | `./scripts/doctor-devcontainer.sh --strict`                 |
+| [check-branch-flow.sh](#check-branch-flowsh)               | Validate PR source/target branch combinations | `./scripts/check-branch-flow.sh --base main --head develop` |
+| [run-smoke-tests.sh](#run-smoke-testssh)                   | Run Ansible smoke tests                       | `./scripts/run-smoke-tests.sh`                              |
+| [run-terraform-tests.sh](#run-terraform-testssh)           | Run Terraform validation tests                | `./scripts/run-terraform-tests.sh`                          |
+| [run-ansible-tests.sh](#run-ansible-testssh)               | Run Ansible tests with Molecule               | `./scripts/run-ansible-tests.sh`                            |
+| [cleanup-merged-branches.sh](#cleanup-merged-branchessh)   | Clean up merged Git branches                  | `./scripts/cleanup-merged-branches.sh --dry-run`            |
+| [smoke-devcontainer-image.sh](#smoke-devcontainer-imagesh) | Test devcontainer images                      | `./scripts/smoke-devcontainer-image.sh ansible`             |
+| [bootstrap-windows.ps1](#bootstrap-windowsps1)             | Bootstrap Windows environment                 | `.\scripts\bootstrap-windows.ps1`                           |
 
 ---
 
@@ -40,12 +42,14 @@ All scripts are designed to be run from the repository root or directly via thei
 Switches between devcontainer stacks (Ansible, Terraform, Golang, LaTeX).
 
 **Features:**
+
 - Copies selected stack template to `.devcontainer/`
 - Creates metadata file for tracking
 - Optional cleanup with `--prune` flag
 - Supports both Docker and Podman
 
 **Usage:**
+
 ```bash
 # Switch to Ansible stack (default)
 ./scripts/use-devcontainer.sh ansible
@@ -61,16 +65,19 @@ Switches between devcontainer stacks (Ansible, Terraform, Golang, LaTeX).
 ```
 
 **Options:**
+
 - `-p, --prune`: Remove stopped containers and volumes
 - `-h, --help`: Show usage information
 
 **Available stacks:**
+
 - `ansible` - Ansible automation stack (Python 3.12, uv, Ansible)
 - `terraform` - Infrastructure as Code stack (Terraform, Terragrunt, TFLint)
 - `golang` - Go development stack (Go 1.23, Alpine-based)
 - `latex` - LaTeX document preparation (Tectonic, Perl)
 
 **After switching:**
+
 1. Reopen VS Code (`code .`)
 2. Select "Dev Containers: Reopen in Container"
 3. VS Code will rebuild with the new stack
@@ -82,6 +89,7 @@ Switches between devcontainer stacks (Ansible, Terraform, Golang, LaTeX).
 PowerShell version of the stack switcher for Windows users.
 
 **Usage:**
+
 ```powershell
 # Switch to Terraform stack
 .\scripts\use-devcontainer.ps1 -Stack terraform
@@ -89,6 +97,53 @@ PowerShell version of the stack switcher for Windows users.
 # Show help
 .\scripts\use-devcontainer.ps1 -Help
 ```
+
+### doctor-devcontainer.sh
+
+Validates the active `.devcontainer/` against the source template and checks local prerequisites.
+
+**What it checks:**
+
+- `.devcontainer/` exists and contains `devcontainer.json`
+- `.template-metadata.json` is present and matches the selected stack
+- `.devcontainer/` has no drift versus `devcontainers/<stack>`
+- Local `docker` and `devcontainer` CLIs are available
+
+**Usage:**
+
+```bash
+# Standard diagnosis
+./scripts/doctor-devcontainer.sh
+
+# Fail if local tooling is missing
+./scripts/doctor-devcontainer.sh --strict
+
+# Check an alternate target/template root
+./scripts/doctor-devcontainer.sh --target /tmp/my-devcontainer --templates ./devcontainers
+```
+
+**Exit codes:**
+
+- `0` - Active `.devcontainer` is healthy
+- `1` - Drift, missing metadata, or missing required local tooling
+
+### check-branch-flow.sh
+
+Validates whether a PR source branch is allowed to target `develop` or `main`.
+
+**Usage:**
+
+```bash
+./scripts/check-branch-flow.sh --base main --head develop
+./scripts/check-branch-flow.sh --base main --head hotfix/security-fix
+./scripts/check-branch-flow.sh --base develop --head feature/new-ui
+```
+
+**Behavior:**
+
+- `main` accepts `develop` and `hotfix/*`
+- `develop` accepts normal topic branches plus `main` syncs
+- Invalid `main` promotions fail with exit code `1`
 
 ---
 
@@ -99,6 +154,7 @@ PowerShell version of the stack switcher for Windows users.
 Runs the Ansible environment smoke test playbook to verify toolchain installation.
 
 **What it tests:**
+
 - Python and uv availability
 - Ansible installation and collections
 - Git configuration
@@ -106,6 +162,7 @@ Runs the Ansible environment smoke test playbook to verify toolchain installatio
 - Docker/Podman availability
 
 **Usage:**
+
 ```bash
 # Run smoke tests
 ./scripts/run-smoke-tests.sh
@@ -118,6 +175,7 @@ Runs the Ansible environment smoke test playbook to verify toolchain installatio
 ```
 
 **Exit codes:**
+
 - `0` - All tests passed
 - Non-zero - One or more tests failed
 
@@ -131,11 +189,13 @@ Executes `ansible-playbook playbooks/test-environment.yml`
 Runs Terraform validation tests across all `.tf` files in the repository.
 
 **What it tests:**
+
 - `terraform fmt -check` (formatting)
 - `terraform validate` (syntax and configuration)
 - `terraform init` (provider initialization)
 
 **Usage:**
+
 ```bash
 # Run all Terraform tests
 ./scripts/run-terraform-tests.sh
@@ -146,6 +206,7 @@ cd infrastructure/proxmox
 ```
 
 **Directory scanning:**
+
 - Automatically finds all directories with `*.tf` files
 - Skips `.terraform/` cache directories
 - Runs tests in parallel where possible
@@ -157,11 +218,13 @@ cd infrastructure/proxmox
 Runs Ansible tests using Molecule for role testing.
 
 **What it tests:**
+
 - Role syntax validation
 - Molecule scenarios (default, latex, etc.)
 - Integration tests with Docker containers
 
 **Usage:**
+
 ```bash
 # Run default Molecule scenario
 ./scripts/run-ansible-tests.sh
@@ -174,10 +237,12 @@ Runs Ansible tests using Molecule for role testing.
 ```
 
 **Requirements:**
+
 - Docker or Podman running
 - Molecule installed (`pip install molecule molecule-plugins[docker]`)
 
 **Environment variables:**
+
 - `MOLECULE_DISTRO` - Test distribution (default: `debian12`)
 - `MOLECULE_IMAGE` - Docker image to use
 
@@ -190,12 +255,14 @@ Runs Ansible tests using Molecule for role testing.
 Tests devcontainer images for basic functionality.
 
 **What it tests:**
+
 - Container starts successfully
 - Required tools are installed
 - Shell is accessible
 - User permissions are correct
 
 **Usage:**
+
 ```bash
 # Test Ansible image
 ./scripts/smoke-devcontainer-image.sh ansible
@@ -210,10 +277,12 @@ done
 ```
 
 **Options:**
+
 - `--build` - Build the image before testing
 - `--stack <name>` - Stack to test (ansible, terraform, golang, latex)
 
 **Expected output:**
+
 ```
 ✓ Container starts
 ✓ Shell is available
@@ -228,12 +297,14 @@ done
 Validates devcontainer.json configuration files.
 
 **What it checks:**
+
 - JSON syntax validity
 - Required fields present
 - Feature compatibility
 - Extension IDs
 
 **Usage:**
+
 ```bash
 # Check current .devcontainer
 ./scripts/check-devcontainer.sh
@@ -249,6 +320,7 @@ Validates devcontainer.json configuration files.
 Debugging helper for devcontainer issues.
 
 **What it shows:**
+
 - Docker/Podman status
 - Current devcontainer configuration
 - Container logs
@@ -256,6 +328,7 @@ Debugging helper for devcontainer issues.
 - Volume mounts
 
 **Usage:**
+
 ```bash
 # Debug current environment
 ./scripts/debug-devcontainer.sh
@@ -265,6 +338,7 @@ Debugging helper for devcontainer issues.
 ```
 
 **Useful for:**
+
 - Container not starting
 - Permission errors
 - Missing tools
@@ -277,12 +351,14 @@ Debugging helper for devcontainer issues.
 Applies automated fixes to Dockerfiles.
 
 **What it fixes:**
+
 - Line ending issues (CRLF → LF)
 - Trailing whitespace
 - Missing newlines at EOF
 - Common linting errors
 
 **Usage:**
+
 ```bash
 # Fix all Dockerfiles
 ./scripts/fix-dockerfiles.sh
@@ -306,6 +382,7 @@ Verifies that `.devcontainer/` matches the source template using SHA-256 signatu
 Ensures `.devcontainer/` hasn't drifted from its template source.
 
 **Usage:**
+
 ```bash
 # Verify current devcontainer
 python3 scripts/devcontainer-metadata.py
@@ -317,11 +394,13 @@ python3 scripts/devcontainer-metadata.py \
 ```
 
 **Exit codes:**
+
 - `0` - Metadata matches (OK)
 - `1` - Metadata file missing or invalid
 - `2` - Template has changed (mismatch)
 
 **Output:**
+
 ```
 Stack: ansible
 Signature: a1b2c3d4...
@@ -329,6 +408,7 @@ Status: OK
 ```
 
 **Used by:**
+
 - Pre-commit hooks
 - CI validation
 - Manual verification before committing `.devcontainer/`
@@ -343,6 +423,7 @@ Shows differences between `.devcontainer/` and the source template.
 Helps identify local customizations or drift from the template.
 
 **Usage:**
+
 ```bash
 # Show diff for current stack
 python3 scripts/devcontainer-diff.py --stack ansible
@@ -355,6 +436,7 @@ python3 scripts/devcontainer-diff.py \
 ```
 
 **Output:**
+
 ```diff
 --- devcontainers/ansible/devcontainer.json
 +++ .devcontainer/devcontainer.json
@@ -364,6 +446,7 @@ python3 scripts/devcontainer-diff.py \
 ```
 
 **Exit codes:**
+
 - `0` - No differences
 - `2` - Differences found
 
@@ -376,6 +459,7 @@ python3 scripts/devcontainer-diff.py \
 Automated setup script for Windows developers.
 
 **What it installs:**
+
 - WSL2 (Windows Subsystem for Linux)
 - Ubuntu distribution
 - Docker Desktop
@@ -383,12 +467,14 @@ Automated setup script for Windows developers.
 - Git for Windows
 
 **What it configures:**
+
 - Corporate proxy settings (optional)
 - WSL2 as default
 - Docker WSL integration
 - VS Code extensions (Dev Containers, Remote - WSL)
 
 **Usage:**
+
 ```powershell
 # Run as Administrator
 .\scripts\bootstrap-windows.ps1
@@ -404,6 +490,7 @@ Automated setup script for Windows developers.
 ```
 
 **Requirements:**
+
 - Windows 10/11 (version 2004+)
 - Administrator privileges
 - Internet connection
@@ -419,6 +506,7 @@ Automated setup script for Windows developers.
 WSL2-specific bootstrap (subset of bootstrap-windows.ps1).
 
 **Usage:**
+
 ```powershell
 # Install and configure WSL2 only
 .\scripts\bootstrap-wsl2.ps1
@@ -435,12 +523,14 @@ The `scenarios/` subdirectory contains end-to-end workflow examples.
 Generates a LaTeX CV using the Tectonic engine.
 
 **Usage:**
+
 ```bash
 # Run LaTeX CV example
 ./scripts/scenarios/run-latex-cv.sh
 ```
 
 **What it does:**
+
 1. Switches to LaTeX devcontainer
 2. Compiles example CV from `examples/latex/cv/`
 3. Outputs PDF to `build/cv.pdf`
@@ -452,12 +542,14 @@ Generates a LaTeX CV using the Tectonic engine.
 Runs Terraform plan for Proxmox infrastructure.
 
 **Usage:**
+
 ```bash
 # Run Terraform Proxmox example
 ./scripts/scenarios/run-terraform-proxmox.sh
 ```
 
 **What it does:**
+
 1. Switches to Terraform devcontainer
 2. Initializes Terraform providers
 3. Runs `terraform plan` for Proxmox setup
@@ -472,12 +564,14 @@ Runs Terraform plan for Proxmox infrastructure.
 Cleans up Git branches that have been merged to `main` or `develop`.
 
 **Features:**
+
 - Dry-run mode (default)
 - Interactive confirmation
 - Protects important branches (`main`, `develop`, `master`)
 - Cleans both local and remote branches
 
 **Usage:**
+
 ```bash
 # Dry run (show what would be deleted)
 ./scripts/cleanup-merged-branches.sh --dry-run
@@ -490,12 +584,14 @@ Cleans up Git branches that have been merged to `main` or `develop`.
 ```
 
 **Protected branches:**
+
 - `main`
 - `develop`
 - `master`
 - Current branch
 
 **Output:**
+
 ```
 🔍 Finding merged branches...
 

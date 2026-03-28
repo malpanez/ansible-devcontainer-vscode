@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - **Auto-publish to GHCR**: Images now publish automatically on push to `main` affecting `devcontainers/**` ([#PR])
 - **GHCR Cleanup Workflow**: Automated weekly cleanup of old container images with intelligent retention policy
 - **Renovate Integration**: Auto-merge dependency updates with grouping and security prioritization
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Git smart commit enabled
 
 ### Changed
+
 - **Terraform Version**: Unified to 1.9.6 across all workflows and Dockerfiles
 - **Go Version**: Updated from 1.22 to 1.23
 - **Terragrunt**: Updated from 0.54.22 to 0.67.1
@@ -41,16 +43,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Build Containers**: Added timeouts and max-parallel limit for better resource usage
 
 ### Improved
+
 - **Documentation**: Enhanced `.trivyignore` with detailed CVE tracking and review schedule
 - **Security**: Better CVE management with documented acceptance criteria
 - **DX**: LaTeX devcontainer now auto-compiles on save with Tectonic
 
 ### Fixed
+
 - **Terraform Version Inconsistency**: CI was using 1.7.5 while devcontainer used 1.9.6
 - **GHCR Image Accumulation**: Old images were never cleaned up automatically
+- **GHCR Namespace Drift**: Publishing and consumption now use a single owner-level namespace for public images
+- **GHCR Cleanup Safety**: Automated cleanup now avoids deleting tagged versions that could break surviving `latest`/`py312` tags
 - **Dependency Updates**: Replaced Dependabot with Renovate for better automation
 
 ### Security
+
 - Updated all tool versions to patch known vulnerabilities
 - Added automated security scanning with OpenSSF Scorecard
 - Enhanced Trivy scanning across all workflows
@@ -64,6 +71,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+
 - Multi-stack Dev Container support (Ansible, Golang, LaTeX, Terraform) with
   helper scripts to switch stacks and debug builds.
 - Comprehensive CI pipeline (linting, playbooks, ansible-test sanity, Molecule,

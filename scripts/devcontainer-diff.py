@@ -11,6 +11,10 @@ import json
 import sys
 from pathlib import Path
 
+IGNORED_TARGET_FILES = {
+    Path(".template-metadata.json"),
+}
+
 
 def load_metadata(metadata_path: Path) -> dict:
     with metadata_path.open("r", encoding="utf-8") as fh:
@@ -87,7 +91,11 @@ def report_differences(target: Path, source: Path) -> bool:
     target_files = list_files(target)
     source_files = list_files(source)
 
-    target_rel = {p.relative_to(target) for p in target_files}
+    target_rel = {
+        p.relative_to(target)
+        for p in target_files
+        if p.relative_to(target) not in IGNORED_TARGET_FILES
+    }
     source_rel = {p.relative_to(source) for p in source_files}
 
     additions = target_rel - source_rel

@@ -6,10 +6,11 @@ driver:
   name: docker
 
 platforms:
-  - name: "{{ lookup('env', 'MOLECULE_DISTRO') | default('debian12', true) }}"
-    image: "{{ lookup('env', 'MOLECULE_IMAGE') | default('geerlingguy/docker-debian12-ansible:latest', true) }}"
+  - name: ${TEST_DISTRO:-debian12}
+    image: ${TEST_IMAGE:-geerlingguy/docker-debian12-ansible:latest}
     privileged: true
-    override_command: false
+    override_command: true
+    command: sleep infinity
     environment:
       ANSIBLE_FORCE_COLOR: "true"
     volumes:
@@ -17,11 +18,15 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: ../../roles:~/.ansible/roles:/usr/share/ansible/roles:/etc/ansible/roles
+    ANSIBLE_COLLECTIONS_PATH: ../../collections:~/.ansible/collections:/usr/share/ansible/collections
+    ANSIBLE_REMOTE_TMP: /tmp/ansible-remote
   playbooks:
     converge: converge.yml
   inventory:
     host_vars:
-      "{{ lookup('env', 'MOLECULE_DISTRO') | default('debian12', true) }}":
+      ${TEST_DISTRO:-debian12}:
         ansible_python_interpreter: /usr/bin/python3
 
 verifier:
@@ -31,7 +36,6 @@ verifier:
 
 scenario:
   test_sequence:
-    - lint
     - converge
     - verify
     - destroy

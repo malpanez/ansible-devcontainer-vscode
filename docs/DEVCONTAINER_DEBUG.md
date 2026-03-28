@@ -21,6 +21,7 @@ Python tooling (ansible-lint, Checkov) now installs during the devcontainer `pos
 ```
 
 The script:
+
 1. Builds the selected template with the Dev Containers CLI.
 2. Starts the container (`devcontainer up`).
 3. Runs the provided command (or opens a shell if omitted).
@@ -43,7 +44,15 @@ Checks `.devcontainer/.template-metadata.json` to ensure the stack and checksum 
 
 Compares `.devcontainer/` files with the template and prints unified diffs for changed files, plus additions/removals. Pair with the metadata check to understand why a copy occurred.
 
-## 5. Reproduce CI (Podman)
+## 5. Run the doctor
+
+```bash
+./scripts/doctor-devcontainer.sh --strict
+```
+
+Runs the metadata check, the diff check, and verifies that local `docker`/`devcontainer` tooling is available. Use this first when a workspace opens inconsistently across machines.
+
+## 6. Reproduce CI (Podman)
 
 ```bash
 DEVCONTAINER_CONTAINER_ENGINE=podman ./scripts/check-devcontainer.sh

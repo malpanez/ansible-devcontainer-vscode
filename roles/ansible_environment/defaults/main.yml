@@ -13,12 +13,10 @@ ansible_environment_uv_archive_filename: >-
     uv_archive_filename
     | default(
         'uv-'
-        ~ ansible_environment_uv_version
-        ~ '-'
         ~ ansible_environment_uv_release_arch
         ~ '-'
         ~ ansible_environment_uv_release_platform
-        ~ '.tar.xz',
+        ~ '.tar.gz',
         true
       )
   }}
@@ -26,7 +24,7 @@ ansible_environment_uv_download_url: >-
   {{
     uv_download_url
     | default(
-        'https://github.com/astral-sh/uv/releases/download/v'
+        'https://github.com/astral-sh/uv/releases/download/'
         ~ ansible_environment_uv_version
         ~ '/'
         ~ ansible_environment_uv_archive_filename,
@@ -38,13 +36,13 @@ ansible_environment_uv_enforce_checksum: "{{ uv_enforce_checksum | default(false
 ansible_environment_uv_checksums_manifest: >-
   {{
     uv_checksums_manifest
-    | default('uv-' ~ ansible_environment_uv_version ~ '-SHA256SUMS', true)
+    | default(ansible_environment_uv_archive_filename ~ '.sha256', true)
   }}
 ansible_environment_uv_checksums_url: >-
   {{
     uv_checksums_url
     | default(
-        'https://github.com/astral-sh/uv/releases/download/v'
+        'https://github.com/astral-sh/uv/releases/download/'
         ~ ansible_environment_uv_version
         ~ '/'
         ~ ansible_environment_uv_checksums_manifest,
