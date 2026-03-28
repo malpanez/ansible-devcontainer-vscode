@@ -97,7 +97,6 @@ repos:
 # Configuration
 default_language_version:
   python: python3.12
-  node: system
 
 fail_fast: false  # Continue checking all hooks even if one fails
 minimum_pre_commit_version: '3.0.0'
