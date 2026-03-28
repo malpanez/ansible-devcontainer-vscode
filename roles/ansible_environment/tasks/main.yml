@@ -59,28 +59,26 @@
         suffix: uv
       register: ansible_environment_uv_tempdir
 
-    - name: Download uv checksum manifest
+    - name: Download uv checksum file
       ansible.builtin.get_url:
         url: "{{ ansible_environment_uv_checksums_url }}"
         dest: "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}"
         mode: '0644'
       when: ansible_environment_uv_effective_checksum | length == 0
 
-    - name: Extract checksum for uv archive from manifest
-      ansible.builtin.shell: |
-        awk '$2 == "{{ ansible_environment_uv_archive_filename }}" {print $1}' \
-          '{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}'
+    - name: Read checksum for uv archive
+      ansible.builtin.command:
+        cmd: cat "{{ ansible_environment_uv_tempdir.path }}/{{ ansible_environment_uv_checksums_manifest }}"
       register: ansible_environment_uv_checksum_manifest_lookup
       changed_when: false
       when: ansible_environment_uv_effective_checksum | length == 0
 
-    - name: Ensure checksum was located in manifest
+    - name: Ensure checksum was located in checksum file
       ansible.builtin.assert:
         that:
           - ansible_environment_uv_checksum_manifest_lookup.stdout | default('') | trim | length > 0
         fail_msg: >-
-          Unable to locate {{ ansible_environment_uv_archive_filename }}
-          in {{ ansible_environment_uv_checksums_manifest }}.
+          Unable to read checksum from {{ ansible_environment_uv_checksums_manifest }}.
       when: ansible_environment_uv_effective_checksum | length == 0
 
     - name: Cache manifest-derived checksum
