@@ -30,7 +30,18 @@ RUN apk add --no-cache \
       sudo=~1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+RUN set -eux; \
+    case "$(uname -m)" in \
+      x86_64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
+      aarch64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
+      *) printf 'Unsupported arch: %s\n' "$(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+      -o /tmp/uv.tar.gz; \
+    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
@@ -47,8 +58,8 @@ RUN addgroup -g ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/go \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/golang
 
-COPY --chmod=0444 templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
-COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --link --chmod=0444 templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
+COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/go/bin:${PATH}"
 

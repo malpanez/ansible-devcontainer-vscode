@@ -60,7 +60,18 @@ RUN set -eux; \
 
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.9.13
-RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
+      *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+      -o /tmp/uv.tar.gz; \
+    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
@@ -77,8 +88,8 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/Tectonic \
     && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/latex
 
-COPY --chmod=0444 templates/pre-commit/latex/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml
-COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
+COPY --link --chmod=0444 templates/pre-commit/latex/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml
+COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
