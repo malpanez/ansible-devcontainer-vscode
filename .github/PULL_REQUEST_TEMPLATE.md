@@ -1,93 +1,75 @@
 # Pull Request
 
-## 📝 Description
+## Description
 
-<!-- Provide a brief description of the changes -->
+<!-- Provide a clear and concise description of your changes -->
 
-## 🔗 Related Issues
+## Related Issues
 
-<!-- Link any related issues using #issue_number -->
+<!-- Link related issues using keywords such as Fixes #123 or Relates to #456 -->
 
 Fixes #
 Related to #
 
-## 🎯 Type of Change
+## Type of Change
 
-<!-- Mark with an `x` all that apply -->
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+- [ ] Refactoring
+- [ ] Dependency update
+- [ ] CI/CD or workflow change
+- [ ] DevContainer improvement
+- [ ] Security fix
 
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📝 Documentation update
-- [ ] ♻️ Refactoring (no functional changes)
-- [ ] 🎨 Style/formatting changes
-- [ ] ✅ Test updates
-- [ ] 🔧 CI/CD changes
-- [ ] 🔒 Security fix
+## Checklist
 
-## 📋 Checklist
+- [ ] Code follows the project style guidelines
+- [ ] Self-review completed
+- [ ] Documentation updated where needed
+- [ ] Tests added or updated where needed
+- [ ] No secrets or sensitive data committed
+- [ ] Pre-commit hooks pass locally (`pre-commit run --all-files`)
+- [ ] `make doctor-devcontainer` passes if the change touches devcontainer tooling
+- [ ] No merge conflicts with `develop`
 
-<!-- Mark completed items with an `x` -->
-
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings or errors
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-- [ ] Any dependent changes have been merged and published
-- [ ] I have checked my code and corrected any misspellings
-- [ ] I have run pre-commit hooks locally (`pre-commit run --all-files`)
-
-## 🧪 Testing
+## Testing
 
 <!-- Describe the tests you ran to verify your changes -->
 
-### Test Configuration
+### Environment
 
-- **DevContainer Stack**: <!-- Terraform / Ansible / Golang / LaTeX / Base -->
-- **Host OS**: <!-- macOS / Linux / Windows (WSL2) -->
-- **Docker Version**: <!-- Output of `docker --version` -->
+- DevContainer stack:
+- Host OS:
+- Container engine:
 
-### Test Steps
+### Steps
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
-### Test Results
+### Results
 
-<!-- Paste relevant test output or screenshots -->
-
-```
-# Test output here
+```text
+# Paste relevant test output here
 ```
 
-## 📸 Screenshots (if applicable)
+## CI/CD
 
-<!-- Add screenshots to help explain your changes -->
+- [ ] All workflow checks pass
+- [ ] No new security vulnerabilities introduced
+- [ ] Container/devcontainer build tested if applicable
 
-## 🔍 Additional Notes
+## Screenshots
 
-<!-- Any additional information that reviewers should know -->
+<!-- Add screenshots if they help explain the change -->
+
+## Additional Context
+
+<!-- Add any extra reviewer context here -->
 
 ---
 
-## 🤖 Automated Checks
-
-<!-- These will be filled automatically by CI -->
-
-- CI Build: <!-- Will be checked by GitHub Actions -->
-- Security Scan: <!-- Will be checked by Trivy -->
-- Linting: <!-- Will be checked by pre-commit -->
-
-## 👀 Reviewers
-
-<!-- Tag specific reviewers if needed -->
-
-/cc @malpanez
-
----
-
-**By submitting this PR, I confirm that my contribution is made under the terms of the Apache-2.0 license.**
+By submitting this PR, I confirm that my contribution is made under the terms of the MIT license.

@@ -1,0 +1,41 @@
+---
+name: Enforce Promotion Path
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard-main:
+    name: Guard Main Promotion Path
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.base_ref == 'main'
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Validate source branch for main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          bash scripts/check-branch-flow.sh --base main --head "${HEAD_REF}"
+
+  guard-develop:
+    name: Guard Develop Intake
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.base_ref == 'develop'
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Validate source branch for develop
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          bash scripts/check-branch-flow.sh --base develop --head "${HEAD_REF}"
