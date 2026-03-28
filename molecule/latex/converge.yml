@@ -2,6 +2,7 @@
 - name: Converge
   hosts: all
   become: true
+  gather_facts: false
   vars:
     ansible_environment_config_dir: /workspace
     ansible_environment_devcontainer_user: vscode
@@ -22,6 +23,19 @@
     devcontainer_template_target_override: /workspace/.devcontainer
 
   pre_tasks:
+    - name: Bootstrap writable Ansible tmp directory
+      ansible.builtin.raw: mkdir -p /tmp/ansible-remote && chmod 1777 /tmp/ansible-remote
+      changed_when: false
+
+    - name: Gather facts after bootstrap
+      ansible.builtin.setup:
+
+    - name: Create workspace directory
+      ansible.builtin.file:
+        path: /workspace
+        state: directory
+        mode: "0755"
+
     - name: Copy Ansible Python requirements
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../requirements-ansible.txt"
@@ -80,10 +94,10 @@
     - name: Re-run devcontainer_template after toggle
       ansible.builtin.include_role:
         name: devcontainer_template
+        apply:
+          become: true
       vars:
         devcontainer_template_root: "{{ devcontainer_template_root_override }}"
         devcontainer_template_target: "{{ devcontainer_template_target_override }}"
         devcontainer_template_stack: latex
         devcontainer_template_skip_when_unchanged: true
-      apply:
-        become: true

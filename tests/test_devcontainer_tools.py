@@ -9,8 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# lgtm[py/unused-import]
 import pytest
+
+pytestmark = pytest.mark.unit
 
 
 # ========== Helper Functions ==========
@@ -198,9 +199,13 @@ def test_metadata_with_multiple_files(tmp_path: Path):
     devcontainers.mkdir(parents=True)
 
     # Create multiple files
-    (devcontainers / "devcontainer.json").write_text('{"name": "terraform"}', encoding="utf-8")
+    (devcontainers / "devcontainer.json").write_text(
+        '{"name": "terraform"}', encoding="utf-8"
+    )
     (devcontainers / "Dockerfile").write_text("FROM ubuntu:latest", encoding="utf-8")
-    (devcontainers / "README.md").write_text("# Terraform DevContainer", encoding="utf-8")
+    (devcontainers / "README.md").write_text(
+        "# Terraform DevContainer", encoding="utf-8"
+    )
 
     target = tmp_path / ".devcontainer"
     target.mkdir()
@@ -331,9 +336,7 @@ def test_diff_stack_not_specified(tmp_path: Path):
     target.mkdir()
 
     # Metadata without 'stack' field
-    (target / ".template-metadata.json").write_text(
-        json.dumps({}), encoding="utf-8"
-    )
+    (target / ".template-metadata.json").write_text(json.dumps({}), encoding="utf-8")
 
     proc = _run_script(
         Path("scripts/devcontainer-diff.py"),
@@ -524,6 +527,7 @@ def test_diff_nested_directories(tmp_path: Path):
     (devcontainers / "config" / "settings" / "app.json").write_text(
         '{"nested": true}', encoding="utf-8"
     )
+    (devcontainers / "scripts").mkdir()
     (devcontainers / "scripts" / "init.sh").write_text(
         "#!/bin/bash\necho init", encoding="utf-8"
     )

@@ -4,6 +4,7 @@ devcontainer_base_user: "{{ devcontainer_user | default('vscode', true) }}"
 devcontainer_base_uid: "{{ devcontainer_uid | default(omit, true) }}"
 devcontainer_base_timezone: "{{ timezone | default('Europe/Dublin', true) }}"
 devcontainer_base_packages:
+  - tzdata
   - git
   - curl
   - wget
