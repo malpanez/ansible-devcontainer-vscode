@@ -116,21 +116,24 @@
         dest: "{{ ansible_environment_uv_tempdir.path }}"
         remote_src: true
 
-    - name: Determine extracted uv directory
-      ansible.builtin.set_fact:
-        ansible_environment_uv_extract_dir: >-
-          {{
-            ansible_environment_uv_tempdir.path
-            ~ '/'
-            ~ (ansible_environment_uv_archive_filename | regex_replace('\\.tar\\.gz$', ''))
-          }}
-      changed_when: false
+    - name: Locate extracted uv binary
+      ansible.builtin.find:
+        paths: "{{ ansible_environment_uv_tempdir.path }}"
+        patterns: "uv"
+        recurse: true
+        file_type: file
+      register: ansible_environment_uv_find_result
 
     - name: Verify uv binary was extracted
-      ansible.builtin.stat:
-        path: "{{ ansible_environment_uv_extract_dir }}/uv"
-      register: ansible_environment_uv_extracted_binary
-      failed_when: not ansible_environment_uv_extracted_binary.stat.exists
+      ansible.builtin.assert:
+        that:
+          - ansible_environment_uv_find_result.files | length > 0
+        fail_msg: "uv binary not found after extracting archive"
+
+    - name: Determine extracted uv directory
+      ansible.builtin.set_fact:
+        ansible_environment_uv_extract_dir: "{{ ansible_environment_uv_find_result.files[0].path | dirname }}"
+      changed_when: false
 
     - name: Install uv binaries  # noqa: risky-file-permissions
       module_defaults:
