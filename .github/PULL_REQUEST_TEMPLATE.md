@@ -72,4 +72,4 @@ Related to #
 
 ---
 
-By submitting this PR, I confirm that my contribution is made under the terms of the Apache-2.0 license.
+By submitting this PR, I confirm that my contribution is made under the terms of the MIT license.
