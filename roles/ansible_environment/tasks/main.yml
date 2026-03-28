@@ -83,7 +83,8 @@
 
     - name: Cache manifest-derived checksum
       ansible.builtin.set_fact:
-        ansible_environment_uv_effective_checksum: "{{ ansible_environment_uv_checksum_manifest_lookup.stdout | trim }}"
+        ansible_environment_uv_effective_checksum: >-
+          {{ 'sha256:' ~ (ansible_environment_uv_checksum_manifest_lookup.stdout | trim) }}
       changed_when: false
       when: ansible_environment_uv_effective_checksum | length == 0
 
