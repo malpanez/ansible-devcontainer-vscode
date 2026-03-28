@@ -229,3 +229,4 @@ collections/ansible_collections/
 
 # Claude Code local tooling (never commit)
 .claude/
+.planning/
