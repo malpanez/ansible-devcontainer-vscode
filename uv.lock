@@ -120,7 +120,7 @@ requires-dist = [
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-testinfra", specifier = ">=10.1.0" },
     { name = "ruff", specifier = ">=0.3.0" },
-    { name = "urllib3", specifier = ">=2.6.1" },
+    { name = "urllib3", specifier = ">=2.6.3" },
     { name = "yamllint", specifier = ">=1.35.0" },
 ]
 
