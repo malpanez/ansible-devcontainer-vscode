@@ -213,7 +213,7 @@ pygments==2.19.2
     #   ipython-pygments-lexers
     #   pytest
     #   rich
-pytest==9.0.2
+pytest==9.0.3
     # via
     #   ansible-devcontainer
     #   pytest-ansible
