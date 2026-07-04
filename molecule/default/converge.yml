@@ -8,6 +8,7 @@
     ansible_environment_devcontainer_user: vscode
     ansible_environment_python_requirements_file: /workspace/requirements-ansible.txt
     ansible_environment_collection_requirements_file: /workspace/requirements.yml
+    ansible_environment_uv_break_system_packages: true
     devcontainer_base_user: vscode
     devcontainer_base_timezone: Europe/Dublin
     python_tools_devcontainer_user: vscode
