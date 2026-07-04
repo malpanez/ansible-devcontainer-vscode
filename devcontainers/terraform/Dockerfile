@@ -29,25 +29,45 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 
+# Every artifact is verified against its upstream checksum manifest;
+# age publishes no manifest, so its hash is pinned per release.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# hadolint ignore=DL3003
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64|arm64) ARCH="$TARGETARCH" ;; \
-      *) echo "Arquitectura no soportada: $TARGETARCH" >&2; exit 1 ;; \
+      amd64) ARCH="amd64"; AGE_SHA256="bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377" ;; \
+      arm64) ARCH="arm64"; AGE_SHA256="c6878a324421b69e3e20b00ba17c04bc5c6dab0030cfe55bf8f68fa8d9e9093a" ;; \
+      *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    mkdir -p /tmp/bin; \
+    mkdir -p /tmp/bin /tmp/dl; \
+    cd /tmp/dl; \
     curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip" \
-      -o /tmp/terraform.zip; \
-    unzip -d /tmp/bin /tmp/terraform.zip; \
+      -o "terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"; \
+    curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" \
+      -o terraform_SHA256SUMS; \
+    grep " terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip" terraform_SHA256SUMS | sha256sum -c -; \
+    unzip -d /tmp/bin "terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"; \
     curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${ARCH}" \
-      -o /tmp/bin/terragrunt; \
-    chmod +x /tmp/bin/terragrunt; \
+      -o "terragrunt_linux_${ARCH}"; \
+    curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/SHA256SUMS" \
+      -o terragrunt_SHA256SUMS; \
+    grep -E " terragrunt_linux_${ARCH}\$" terragrunt_SHA256SUMS | sha256sum -c -; \
+    install -m 0755 "terragrunt_linux_${ARCH}" /tmp/bin/terragrunt; \
     curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_${ARCH}.zip" \
-      -o /tmp/tflint.zip; \
-    unzip -d /tmp/bin /tmp/tflint.zip; \
+      -o "tflint_linux_${ARCH}.zip"; \
+    curl -fsSL "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/checksums.txt" \
+      -o tflint_checksums.txt; \
+    grep " tflint_linux_${ARCH}.zip" tflint_checksums.txt | sha256sum -c -; \
+    unzip -d /tmp/bin "tflint_linux_${ARCH}.zip"; \
     curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${ARCH}" \
-      -o /tmp/bin/sops; \
-    chmod +x /tmp/bin/sops; \
-    /bin/bash /tmp/install_age.sh "${AGE_VERSION}" "${ARCH}";
+      -o "sops-v${SOPS_VERSION}.linux.${ARCH}"; \
+    curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt" \
+      -o sops_checksums.txt; \
+    grep -E " sops-v${SOPS_VERSION}\.linux\.${ARCH}\$" sops_checksums.txt | sha256sum -c -; \
+    install -m 0755 "sops-v${SOPS_VERSION}.linux.${ARCH}" /tmp/bin/sops; \
+    /bin/bash /tmp/install_age.sh "${AGE_VERSION}" "${ARCH}" "${AGE_SHA256}"; \
+    cd /; \
+    rm -rf /tmp/dl
 
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
@@ -103,22 +123,30 @@ RUN set -eux; \
       *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
-      -o /tmp/uv.tar.gz; \
-    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+      -o "/tmp/uv-${UV_ARCH}.tar.gz"; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
+      -o "/tmp/uv-${UV_ARCH}.tar.gz.sha256"; \
+    echo "$(cut -d' ' -f1 "/tmp/uv-${UV_ARCH}.tar.gz.sha256")  /tmp/uv-${UV_ARCH}.tar.gz" | sha256sum -c -; \
+    tar -xzf "/tmp/uv-${UV_ARCH}.tar.gz" -C /tmp; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
-    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
+    rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}"
 
 # Install AWS CLI v2 to avoid DevContainer features rebuild
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
+# renovate: datasource=github-tags depName=aws/aws-cli
+ARG AWS_CLI_VERSION=2.35.15
+# AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
+# per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64" ;; \
-      arm64) AWS_ARCH="aarch64" ;; \
-      *) echo "Arquitectura no soportada: $TARGETARCH" >&2; exit 1 ;; \
+      amd64) AWS_ARCH="x86_64"; AWS_SHA256="50692e3e2a606007d7789b5a307dca41452a965dea1f3d3687972da6e5adc86c" ;; \
+      arm64) AWS_ARCH="aarch64"; AWS_SHA256="8d8a76903f6c7b6a941ae2a3b5ca82125f732c6168b16ea2d02366a3056e2ca4" ;; \
+      *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o /tmp/awscliv2.zip \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \
+    && echo "${AWS_SHA256}  /tmp/awscliv2.zip" | sha256sum -c - \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
     && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli \
     && rm -rf /tmp/awscliv2.zip /tmp/aws

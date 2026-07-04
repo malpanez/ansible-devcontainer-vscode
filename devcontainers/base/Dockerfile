@@ -75,11 +75,14 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
          *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
        esac \
     && curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
-         -o /tmp/uv.tar.gz \
-    && tar -xzf /tmp/uv.tar.gz -C /tmp \
+         -o "/tmp/uv-${UV_ARCH}.tar.gz" \
+    && curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
+         -o "/tmp/uv-${UV_ARCH}.tar.gz.sha256" \
+    && echo "$(cut -d' ' -f1 "/tmp/uv-${UV_ARCH}.tar.gz.sha256")  /tmp/uv-${UV_ARCH}.tar.gz" | sha256sum -c - \
+    && tar -xzf "/tmp/uv-${UV_ARCH}.tar.gz" -C /tmp \
     && install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv \
     && install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx \
-    && rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}" \
+    && rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}" \
     && uv pip install --system pre-commit \
     && mkdir -p /workspace \
     && chown ${USERNAME}:${USERNAME} /workspace

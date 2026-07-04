@@ -32,7 +32,7 @@ ansible_environment_uv_download_url: >-
       )
   }}
 ansible_environment_uv_checksum: "{{ uv_checksum | default('', true) }}"
-ansible_environment_uv_enforce_checksum: "{{ uv_enforce_checksum | default(false, true) }}"
+ansible_environment_uv_enforce_checksum: "{{ uv_enforce_checksum | default(true, true) }}"
 # Required on targets whose distro Python is PEP 668 externally managed
 # (e.g. Debian 12+ system interpreters); devcontainer images built from
 # python:*-slim do not need it.
