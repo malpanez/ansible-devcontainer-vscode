@@ -243,7 +243,7 @@
 - name: Ensure Python requirements file exists
   ansible.builtin.stat:
     path: "{{ ansible_environment_python_requirements_file }}"
-    checksum: true
+    get_checksum: true
   register: ansible_environment_python_requirements_stat
 
 - name: Fail when Python requirements are missing
@@ -279,7 +279,7 @@
 - name: Ensure Ansible collection requirements file exists
   ansible.builtin.stat:
     path: "{{ ansible_environment_collection_requirements_file }}"
-    checksum: true
+    get_checksum: true
   register: ansible_environment_collection_requirements_stat
 
 - name: Fail when Ansible collection requirements are missing

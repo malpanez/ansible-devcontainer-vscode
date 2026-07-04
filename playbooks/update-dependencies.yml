@@ -49,7 +49,7 @@
     - name: Capture updated uv lock checksum
       ansible.builtin.stat:
         path: "{{ dependency_uv_lock_path }}"
-        checksum: true
+        get_checksum: true
       register: dependency_uv_lock_after
 
     - name: Detect uv lock changes
@@ -72,7 +72,7 @@
     - name: Capture current requirements checksum
       ansible.builtin.stat:
         path: "{{ dependency_requirements_path }}"
-        checksum: true
+        get_checksum: true
       register: dependency_requirements_before
 
     - name: Export frozen requirements
