@@ -1,20 +1,20 @@
 # syntax=docker/dockerfile:1.7
 ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.14.4
+ARG TERRAFORM_VERSION=1.15.7
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
-ARG TERRAGRUNT_VERSION=0.99.1
+ARG TERRAGRUNT_VERSION=1.1.0
 # renovate: datasource=github-releases depName=terraform-linters/tflint
-ARG TFLINT_VERSION=0.60.0
+ARG TFLINT_VERSION=0.63.1
 # renovate: datasource=github-releases depName=getsops/sops
-ARG SOPS_VERSION=3.11.0
+ARG SOPS_VERSION=3.13.2
 # renovate: datasource=github-releases depName=FiloSottile/age
-ARG AGE_VERSION=1.2.1
+ARG AGE_VERSION=1.3.1
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.9.13
-ARG BASE_IMAGE=debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8
+ARG BASE_IMAGE=debian:${DEBIAN_VERSION}@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
 
-FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:72ceb30c8c49e50d4bf87aa6eb5390c3bcf091c13f41e6382e79953ea44c11c8 AS fetch
+FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df AS fetch
 ARG TARGETARCH
 ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
