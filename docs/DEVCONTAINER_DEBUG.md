@@ -5,7 +5,7 @@ Use these scripts when a Dev Container fails to build or behaves differently bet
 ## 1. Build every template locally
 
 ```bash
-./scripts/check-devcontainer.sh
+./scripts/smoke-devcontainer-image.sh
 ```
 
 Runs `devcontainer build` for each stack (`ansible`, `golang`, `latex`, `terraform`). Pass extra arguments to forward build flags, e.g. `--no-cache`.
@@ -55,7 +55,7 @@ Runs the metadata check, the diff check, and verifies that local `docker`/`devco
 ## 6. Reproduce CI (Podman)
 
 ```bash
-DEVCONTAINER_CONTAINER_ENGINE=podman ./scripts/check-devcontainer.sh
+DEVCONTAINER_CONTAINER_ENGINE=podman ./scripts/smoke-devcontainer-image.sh
 ```
 
 Matches the GitHub Actions Podman job. Ensure `podman system service --time=0 tcp:127.0.0.1:8080 &` is running or use Podman Desktop on Windows.

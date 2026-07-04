@@ -1,5 +1,5 @@
 {
-  "name": "Ansible Dev Container (docker-socket)",
+  "name": "Ansible Dev Container",
   "build": {
     "dockerfile": "devcontainers/ansible/Dockerfile",
     "context": "../.."
@@ -47,7 +47,6 @@
     }
   },
   "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
     "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
   ],

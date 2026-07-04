@@ -216,7 +216,7 @@ ruff format .
 terraform version
 
 # Verify devcontainer uses correct version
-grep TERRAFORM_VERSION .github/versions.yml
+grep TERRAFORM_VERSION devcontainers/terraform/Dockerfile
 ```
 
 ### Terragrunt errors

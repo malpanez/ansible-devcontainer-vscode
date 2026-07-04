@@ -30,9 +30,6 @@ Welcome to the ansible-devcontainer-vscode documentation! This directory contain
 ## 🔐 Security
 
 - **[Security Policy](../SECURITY.md)** - Security reporting and policies
-- **[Security Review](SECURITY_REVIEW.md)** - Detailed security analysis
-- **[Security Alert Management](SECURITY_ALERT_MANAGEMENT_SUMMARY.md)** - Alert automation
-- **[OpenSSF Scorecard Progress](OSSF_SCORECARD_PROGRESS.md)** - Security scorecard improvements
 - **[Secrets Management](SECRETS.md)** - Handling credentials safely
 
 ## 🧪 Testing & Quality
