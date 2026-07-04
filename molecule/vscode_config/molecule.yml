@@ -10,6 +10,7 @@ driver:
 platforms:
   - name: ${TEST_DISTRO:-debian13}
     image: ${TEST_IMAGE:-geerlingguy/docker-debian13-ansible:latest}
+    pre_build_image: true
     privileged: true
     override_command: true
     command: sleep infinity
