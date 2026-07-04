@@ -118,7 +118,7 @@ jobs:
         with:
           context: .
           file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
-          push: true
+          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -182,7 +182,7 @@ jobs:
         with:
           context: devcontainers/base
           file: devcontainers/base/Dockerfile
-          push: true
+          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -306,7 +306,7 @@ jobs:
         with:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
-          push: true
+          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
