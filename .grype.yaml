@@ -48,6 +48,10 @@ ignore:
   - vulnerability: GO-2026-4337
     package:
       location: "/usr/local/bin/age*"
+  # CVE-2026-27143 is the CVE alias grype <=0.110 reports for GO-2026-4337
+  - vulnerability: CVE-2026-27143
+    package:
+      location: "/usr/local/bin/age*"
   - vulnerability: GO-2026-5005
     package:
       location: "/usr/local/bin/age*"
@@ -57,3 +61,13 @@ ignore:
   - vulnerability: GO-2026-5020
     package:
       location: "/usr/local/bin/age*"
+
+  # CVE-2026-27143 - Go stdlib in terragrunt (FALSE POSITIVE)
+  # terragrunt v1.1.0 is built with go1.26.0 (verified via embedded build
+  # info), which is not affected (fix: 1.25.7 / 1.26.0-rc.3). grype 0.110
+  # (bundled by anchore/scan-action v7.4.0) mis-compares 1.26.0 against the
+  # 1.26.0-rc.3 fix tag; newer grype engines do not flag it.
+  # Remove when: scan-action bundles grype > 0.110
+  - vulnerability: CVE-2026-27143
+    package:
+      location: "/usr/local/bin/terragrunt"
