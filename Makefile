@@ -33,8 +33,8 @@ security: ## Run security scans
 	@echo "🔒 Running security scans..."
 	@echo "Checking for secrets..."
 	@uvx pre-commit run detect-secrets --all-files || true
-	@echo "Running Trivy scan..."
-	@trivy fs . --severity HIGH,CRITICAL || echo "Trivy not installed, skipping"
+	@echo "Running Grype scan..."
+	@grype dir:. --only-fixed --fail-on high || echo "Grype not installed, skipping"
 	@echo "✅ Security scan complete!"
 
 .PHONY: test
@@ -116,7 +116,10 @@ validate-yaml: ## Validate all YAML files
 .PHONY: validate-docker
 validate-docker: ## Validate all Dockerfiles
 	@echo "🐳 Validating Dockerfiles..."
-	@find . -name "Dockerfile*" | xargs -I {} docker run --rm -i hadolint/hadolint < {} || true
+	@for f in $$(find . -name "Dockerfile*" -not -path "./.git/*" -not -path "./.venv/*"); do \
+		echo "Linting $$f"; \
+		docker run --rm -i hadolint/hadolint < "$$f" || exit 1; \
+	done
 
 .PHONY: ci-local
 ci-local: lint security validate-yaml validate-docker ## Run full CI pipeline locally

@@ -310,8 +310,7 @@ gh api repos/malpanez/ansible-devcontainer-vscode/code-scanning/alerts \
   --jq 'map({number, rule: .rule.id, state, severity: .rule.severity})'
 
 # Run security scan locally
-trivy config .
-trivy fs --scanners vuln .
+grype dir:. --only-fixed --fail-on high
 
 # View recent workflow runs
 gh run list --limit 10

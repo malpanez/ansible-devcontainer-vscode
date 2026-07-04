@@ -198,35 +198,37 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Scan base image with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+      - name: Scan base image with Grype
+        id: grype_base
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
         continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
-          version: v0.72.0
-          image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-base:main
-          format: sarif
-          output: trivy-base.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '0'
+          image: ghcr.io/${{ github.repository_owner }}/devcontainer-base:main
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
 
       - name: Check if SARIF file exists
         id: sarif_check
         if: always()
+        env:
+          SARIF_FILE: ${{ steps.grype_base.outputs.sarif }}
         run: |
-          if [ -f "trivy-base.sarif" ]; then
+          if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "::warning::SARIF file not generated for base image"
           fi
 
-      - name: Upload Trivy SARIF for base
+      - name: Upload Grype SARIF for base
         uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
-          sarif_file: trivy-base.sarif
-          category: trivy-base
+          sarif_file: ${{ steps.grype_base.outputs.sarif }}
+          category: grype-base
 
   build-all:
     if: |
@@ -323,32 +325,34 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+      - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Grype
+        id: grype_scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
         continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
-          version: v0.72.0
-          image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}@${{ steps.build.outputs.digest }}
-          format: sarif
-          output: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '0'
+          image: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}@${{ steps.build.outputs.digest }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
 
       - name: Check if SARIF file exists
         id: sarif_check
         if: always()
+        env:
+          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
         run: |
-          if [ -f "trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif" ]; then
+          if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "::warning::SARIF file not generated for ${{ matrix.stack }}${{ matrix.variant }}"
           fi
 
-      - name: Upload Trivy SARIF for ${{ matrix.stack }}${{ matrix.variant }}
+      - name: Upload Grype SARIF for ${{ matrix.stack }}${{ matrix.variant }}
         uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
-          sarif_file: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
-          category: trivy-${{ matrix.stack }}${{ matrix.variant }}
+          sarif_file: ${{ steps.grype_scan.outputs.sarif }}
+          category: grype-${{ matrix.stack }}${{ matrix.variant }}

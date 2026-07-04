@@ -72,7 +72,7 @@ jobs:
             ./scripts/smoke-devcontainer-image.sh "${args[@]}"
           done
 
-      - name: Trivy scan preflight images
+      - name: Grype scan preflight images
         run: |
           set -euo pipefail
           images=(
@@ -82,19 +82,18 @@ jobs:
             devcontainer-golang:preflight
             devcontainer-latex:preflight
           )
-          mkdir -p "$HOME/.cache/trivy"
+          mkdir -p "$HOME/.cache/grype"
           for image in "${images[@]}"; do
             echo "Scanning ${image}"
             docker run --rm \
-              -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              aquasec/trivy:0.72.0 \
-              image \
-                --scanners vuln \
-                --severity CRITICAL,HIGH \
-                --ignore-unfixed \
-                --no-progress \
-                --exit-code 1 \
-                "${image}"
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$HOME/.cache/grype:/.cache/grype" \
+              -v "${GITHUB_WORKSPACE}/.grype.yaml:/.grype.yaml:ro" \
+              -e GRYPE_CONFIG=/.grype.yaml \
+              anchore/grype:v0.110.0 \
+                --only-fixed \
+                --fail-on high \
+                "docker:${image}"
           done
 
       - name: Login to GitHub Container Registry
