@@ -34,8 +34,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
         gnupg \
         jq \
         openssh-client \
+        rsync \
         sshpass \
         sudo \
+        unzip \
         vim-tiny \
         yamllint \
     && apt-get autoremove -y --purge \

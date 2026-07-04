@@ -135,8 +135,6 @@ jobs:
         with:
           context: .
           file: devcontainers/ansible/Dockerfile
-          build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
@@ -149,8 +147,6 @@ jobs:
         with:
           context: .
           file: devcontainers/terraform/Dockerfile
-          build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
