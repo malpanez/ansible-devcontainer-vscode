@@ -115,7 +115,11 @@ jobs:
         if: always()
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          # BOT_TOKEN (PAT) instead of GITHUB_TOKEN: merges performed by
+          # auto-merge enabled with GITHUB_TOKEN do not trigger workflows,
+          # which left sync-main-to-develop dormant after promotions and
+          # let the branches diverge.
+          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
           # Get the PR number (works whether we just created it or it already exists)
           PR_NUMBER=$(gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open --json number --jq '.[0].number')
