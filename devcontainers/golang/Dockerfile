@@ -49,9 +49,6 @@ ARG USER_GID=${USER_UID}
 
 RUN addgroup -g ${USER_GID} ${USERNAME} \
     && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
-    && printf '%s ALL=(root) NOPASSWD: /sbin/apk, /usr/local/bin/uv, /usr/local/bin/uvx\n' \
-        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
