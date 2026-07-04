@@ -32,52 +32,10 @@ variable "pm_timeout" {
   default     = 60
 }
 
-variable "pm_log_enable" {
-  description = "Enable provider logging."
-  type        = bool
-  default     = false
-}
-
-variable "pm_log_file" {
-  description = "Optional log file path when logging is enabled."
-  type        = string
-  default     = ""
-}
-
-variable "pm_log_levels" {
-  description = "Map of log categories to levels when logging is enabled."
-  type        = map(string)
-  default     = {}
-}
-
 variable "pm_parallel" {
   description = "Number of parallel API calls."
   type        = number
   default     = 4
-}
-
-variable "pm_task_timeout" {
-  description = "Timeout (seconds) for Proxmox tasks."
-  type        = number
-  default     = 180
-}
-
-variable "pm_http_headers" {
-  description = "Additional HTTP headers for API calls."
-  type        = map(string)
-  default     = {}
-}
-
-variable "pm_api_token_ttl" {
-  description = "Optional TTL for auto-generated API tokens (seconds)."
-  type        = number
-  default     = null
-}
-
-variable "pm_api_token_renew" {
-  description = "Automatically renew API tokens when TTL is set."
-  type        = bool
-  default     = false
 }
 
 variable "authorized_ssh_keys" {

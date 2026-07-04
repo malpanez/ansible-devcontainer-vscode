@@ -1,10 +1,23 @@
 terraform {
-  required_version = "~> 1.7.0"
+  required_version = ">= 1.7.0"
 
-  required_providers {}
+  required_providers {
+    proxmox = {
+      source  = "Telmate/proxmox"
+      version = "3.0.2-rc07"
+    }
+  }
 }
 
-provider "proxmox" {}
+provider "proxmox" {
+  pm_api_url          = var.pm_api_url
+  pm_user             = var.pm_user
+  pm_api_token_id     = var.pm_token_id
+  pm_api_token_secret = var.pm_token_secret
+  pm_tls_insecure     = var.pm_tls_insecure
+  pm_timeout          = var.pm_timeout
+  pm_parallel         = var.pm_parallel
+}
 
 locals {
   lab_vms = {
@@ -23,25 +36,36 @@ resource "proxmox_vm_qemu" "lab" {
   clone      = each.value.clone
   full_clone = true
 
-  cores   = each.value.cores
-  sockets = each.value.sockets
-  memory  = each.value.memory_mebibytes
-  balloon = coalesce(each.value.balloon_memory, each.value.memory_mebibytes)
-  cpu     = each.value.cpu_type
-  onboot  = true
+  cores    = each.value.cores
+  sockets  = each.value.sockets
+  memory   = each.value.memory_mebibytes
+  balloon  = coalesce(each.value.balloon_memory, each.value.memory_mebibytes)
+  cpu_type = each.value.cpu_type
+  onboot   = true
 
   scsihw = each.value.scsi_controller
 
   disks {
-    slot     = 0
-    size     = each.value.disk_gib
-    storage  = each.value.storage_pool
-    type     = "scsi"
-    format   = "qcow2"
-    discard  = true
-    ssd      = each.value.disk_is_ssd
-    cache    = each.value.disk_cache_mode
-    iothread = true
+    scsi {
+      scsi0 {
+        disk {
+          size       = "${each.value.disk_gib}G"
+          storage    = each.value.storage_pool
+          format     = "qcow2"
+          discard    = true
+          emulatessd = each.value.disk_is_ssd
+          cache      = each.value.disk_cache_mode
+          iothread   = true
+        }
+      }
+    }
+    ide {
+      ide2 {
+        cloudinit {
+          storage = each.value.storage_pool
+        }
+      }
+    }
   }
 
   network {
@@ -54,11 +78,10 @@ resource "proxmox_vm_qemu" "lab" {
 
   ssh_user     = each.value.provision_user
   sshkeys      = var.authorized_ssh_keys
-  nameserver   = var.nameservers
-  searchdomain = var.search_domains
+  nameserver   = join(" ", var.nameservers)
+  searchdomain = join(" ", var.search_domains)
 
-  agent     = each.value.enable_qemu_agent
-  cloudinit = true
+  agent = each.value.enable_qemu_agent
 
   lifecycle {
     ignore_changes = [
@@ -77,7 +100,6 @@ output "vm_summary" {
       ip_config    = vm.ipconfig0
       mac_address  = vm.network[0].macaddr
       bridge       = vm.network[0].bridge
-      disks        = [for disk in vm.disks : disk.storage]
       clone_source = vm.clone
     }
   }

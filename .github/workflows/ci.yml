@@ -18,8 +18,8 @@ concurrency:
 env:
   ANSIBLE_FORCE_COLOR: "1"
   PYTHON_VERSION: "3.12"
-  GO_VERSION: "1.23"
-  TERRAFORM_VERSION: "1.9.6"
+  GO_VERSION: "1.25"
+  TERRAFORM_VERSION: "1.15.7"
 
 jobs:
   changes:
