@@ -28,10 +28,16 @@ def test_main_allows_hotfix():
     assert "allowed to target main" in proc.stdout
 
 
+def test_main_allows_dependabot():
+    proc = _run("--base", "main", "--head", "dependabot/uv/idna-3.15")
+    assert proc.returncode == 0
+    assert "allowed to target main" in proc.stdout
+
+
 def test_main_rejects_feature_branch():
     proc = _run("--base", "main", "--head", "feature/new-ui")
     assert proc.returncode == 1
-    assert "must come from 'develop' or 'hotfix/*'" in proc.stderr
+    assert "must come from 'develop', 'hotfix/*' or 'dependabot/*'" in proc.stderr
 
 
 def test_develop_accepts_feature_branch():
