@@ -1,5 +1,5 @@
 {
-  "name": "Terraform Dev Container",
+  "name": "Terraform Dev Container (docker-socket)",
   "build": {
     "dockerfile": "devcontainers/terraform/Dockerfile",
     "context": "../.."
@@ -29,6 +29,7 @@
     }
   },
   "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
     "source=${localWorkspaceFolder}/.terraform.d/plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=bind"
   ],

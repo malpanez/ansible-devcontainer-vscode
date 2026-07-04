@@ -8,15 +8,15 @@ A production-ready Ansible development container with hardened defaults, multipl
 - **Ansible** with ansible-lint, molecule, and testing tools pre-installed
 - **Pre-commit hooks** automatically configured
 - **VS Code extensions** for Ansible, Python, YAML, and Docker
-- **Hardened security defaults** (opt-in for insecure modes)
-- **Multiple runtime profiles** (docker-socket, dind, podman, insecure)
+- **Hardened security defaults** (no sudo rules, docker socket only by opt-in)
+- **Multiple runtime profiles** (default, docker-socket, dind, podman)
 - **Podman + Execution Environments** support for modern Ansible workflows
 
 ## Quick Start
 
-### Default Profile (docker-socket)
+### Default Profile
 
-The default configuration uses your host's Docker daemon via socket mounting:
+The default configuration has no access to the host Docker daemon:
 
 ```bash
 # 1. Open this repository in VS Code
@@ -24,30 +24,53 @@ The default configuration uses your host's Docker daemon via socket mounting:
 # 3. Select: devcontainers/ansible/devcontainer.json
 ```
 
-This is the **recommended** profile for most use cases.
+This is the **recommended** profile for most use cases. Pick the
+docker-socket or dind profile only when you need to run containers
+(e.g. molecule with the docker driver) from inside the devcontainer.
 
 ## Runtime Profiles
 
-### 1. docker-socket (Default) ✅ Recommended
+### 1. default ✅ Recommended
 
 **File:** `devcontainer.json`
 
 **When to use:**
-- Standard development
-- You have Docker Desktop or Docker Engine running on the host
-- You want to share the host's Docker daemon
+- Standard development (playbooks, roles, linting, unit tests)
+- You do not need to launch containers from inside the devcontainer
 
 **Characteristics:**
-- Mounts `/var/run/docker.sock` from host
-- No Docker-in-Docker overhead
+- No Docker socket access — the container cannot control the host
 - Fast and lightweight
-- Shared Docker images/containers with host
 
 **Select in VS Code:**
 ```json
 // .devcontainer/devcontainer.json
 {
   "extends": "../devcontainers/ansible/devcontainer.json"
+}
+```
+
+---
+
+### 1b. docker-socket ⚠️ Host-equivalent access
+
+**File:** `devcontainer.docker-socket.json`
+
+**When to use:**
+- Running molecule with the docker driver inside the devcontainer
+- You explicitly want to share the host's Docker daemon
+
+**Characteristics:**
+- Mounts `/var/run/docker.sock` from host
+- **Grants root-equivalent control of the host Docker daemon** — treat
+  it as trusted-workload-only
+- No Docker-in-Docker overhead; shares images/containers with the host
+
+**Select in VS Code:**
+```json
+// .devcontainer/devcontainer.json
+{
+  "extends": "../devcontainers/ansible/devcontainer.docker-socket.json"
 }
 ```
 
@@ -78,34 +101,7 @@ This is the **recommended** profile for most use cases.
 
 ---
 
-### 3. insecure (Labs/Testing Only) ⚠️
-
-**File:** `devcontainer.insecure.json`
-
-**When to use:**
-- Lab environments only
-- Testing against hosts with unknown SSH keys
-- Environments where DNS override is needed
-
-**Characteristics:**
-- Sets `ANSIBLE_HOST_KEY_CHECKING=false` ⚠️
-- Uses custom DNS (`1.1.1.1`, `1.0.0.1`) ⚠️
-- **NOT for production use**
-
-**Select in VS Code:**
-```json
-// .devcontainer/devcontainer.json
-{
-  "extends": "../devcontainers/ansible/devcontainer.insecure.json"
-}
-```
-
-> **⚠️ Security Warning:** The insecure profile disables SSH host key checking and overrides DNS.
-> Only use in isolated lab/testing environments. Never use against production systems.
-
----
-
-### 4. podman (Podman + Execution Environments) 🚀 **Best for AAP/Collections**
+### 3. podman (Podman + Execution Environments) 🚀 **Best for AAP/Collections**
 
 **File:** `devcontainer.podman.json`
 
@@ -206,9 +202,6 @@ All profiles set:
 - `PRE_COMMIT_HOME=/workspace/.cache/pre-commit` - Pre-commit cache
 - `ANSIBLE_LOCAL_TEMP=/workspace/.cache/ansible/tmp` - Ansible temp directory
 
-**Only insecure profile adds:**
-- `ANSIBLE_HOST_KEY_CHECKING=false` ⚠️
-
 ### Post-Create Command
 
 On container creation, the following runs automatically:
@@ -224,48 +217,34 @@ This is **idempotent** and safe to run multiple times.
 
 ## Hardened Security Defaults
 
-### Sudoers Configuration
+### No sudo rules
 
-The `vscode` user can only run these commands with `sudo` without password:
-
-```
-/usr/bin/uv
-/usr/bin/uvx
-/usr/local/bin/ansible-galaxy
-```
-
-**Not allowed:** `apt-get`, `pip`, other system commands
-
-**Rationale:** Forces all package installations to happen during container build, not at runtime. This makes the environment reproducible and auditable.
+The `vscode` user has **no passwordless sudo grants** — every package is
+installed at image build time. To add tooling, extend the Dockerfile and
+rebuild; for ad-hoc Python packages use user-scoped installs
+(`uv tool install <pkg>` or a virtualenv), which need no root.
 
 ### SSH Host Key Checking
 
-**Default profiles** (docker-socket, dind):
-- `ANSIBLE_HOST_KEY_CHECKING` is **NOT set**
-- Ansible will use its default behavior (strict host key checking)
-
-**Insecure profile only:**
-- `ANSIBLE_HOST_KEY_CHECKING=false` ⚠️
-- Use only in lab environments
+`ANSIBLE_HOST_KEY_CHECKING` is **not set** in any profile — Ansible uses
+strict host key checking by default. For throwaway lab hosts, export
+`ANSIBLE_HOST_KEY_CHECKING=false` in that shell session only.
 
 ### DNS Configuration
 
-**Default profiles:**
-- Use system DNS (respects VPN/corporate networks)
-
-**Insecure profile only:**
-- Forces `--dns=1.1.1.1` and `--dns=1.0.0.1` ⚠️
-- May break VPN/corporate network access
+All profiles use system DNS (respects VPN/corporate networks). If you
+need custom DNS, add `--dns` entries to `runArgs` in your local
+`.devcontainer/devcontainer.json`.
 
 ## Reproducibility
 
 ### Pinned UV Version
 
-The Dockerfile uses a pinned version of `uv`:
+The Dockerfile installs a pinned `uv` release as a direct binary
+download (no pipe-to-shell) and verifies its published SHA-256 checksum:
 
 ```dockerfile
-ARG UV_VERSION="0.5.11"
-RUN curl -fsSL https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+ARG UV_VERSION="0.9.13"
 ```
 
 ### Base Image Pinning (Optional)
@@ -296,11 +275,13 @@ ansible==9.13.0 \
 
 ```
 devcontainers/ansible/
-├── Dockerfile                    # Multi-arch Ansible image
-├── devcontainer.json             # Default profile (docker-socket)
-├── devcontainer.dind.json        # Docker-in-Docker profile
-├── devcontainer.insecure.json    # Insecure lab profile
-└── README.md                     # This file
+├── Dockerfile                     # Multi-arch Ansible image
+├── Dockerfile.podman              # Podman + Execution Environments image
+├── devcontainer.json              # Default profile (no docker socket)
+├── devcontainer.docker-socket.json # Host Docker daemon profile (opt-in)
+├── devcontainer.dind.json         # Docker-in-Docker profile
+├── devcontainer.podman.json       # Podman profile
+└── README.md                      # This file
 ```
 
 ## Troubleshooting
@@ -323,13 +304,13 @@ devcontainers/ansible/
 
 **Solutions:**
 1. **Recommended:** Add the target host to `~/.ssh/known_hosts` manually first
-2. **For labs only:** Use the `devcontainer.insecure.json` profile
+2. **For throwaway lab hosts only:** export `ANSIBLE_HOST_KEY_CHECKING=false` in that shell session
 
 ### VPN/Corporate Network Issues
 
 **Symptom:** Cannot resolve internal hostnames or access internal resources
 
-**Solution:** Use the default profile (docker-socket or dind), NOT the insecure profile. The default profiles respect system DNS and VPN settings.
+**Solution:** All profiles respect system DNS and VPN settings; if you need custom DNS, add `--dns` entries to `runArgs` in your local `.devcontainer/devcontainer.json`.
 
 ## Advanced Usage
 
@@ -403,17 +384,17 @@ For most users (docker-socket):
 }
 ```
 
+For the host Docker daemon (docker-socket):
+```json
+{
+  "extends": "../devcontainers/ansible/devcontainer.docker-socket.json"
+}
+```
+
 For isolated Docker (dind):
 ```json
 {
   "extends": "../devcontainers/ansible/devcontainer.dind.json"
-}
-```
-
-For lab environments (insecure):
-```json
-{
-  "extends": "../devcontainers/ansible/devcontainer.insecure.json"
 }
 ```
 
@@ -648,7 +629,7 @@ Only include collections you actually use. Smaller EEs = faster pulls and builds
 
 When making changes to this devcontainer:
 
-1. **Test all profiles** - Ensure docker-socket, dind, podman, and insecure all work
+1. **Test all profiles** - Ensure default, docker-socket, dind, and podman all work
 2. **Update this README** - Document any new features or changes
 3. **Keep dependencies locked** - Regenerate `requirements-ansible.txt` with `uv export`
 4. **Maintain security defaults** - Don't weaken the hardened configuration without good reason

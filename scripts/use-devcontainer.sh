@@ -66,7 +66,7 @@ metadata = {
     "signature": signature,
 }
 metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-' "${stack}" "${template_dir}" "${signature}" "${METADATA_FILE}"
+' "${stack}" "${template_dir#"${REPO_ROOT}"/}" "${signature}" "${METADATA_FILE}"
 }
 
 STACK=""
