@@ -46,18 +46,18 @@ jobs:
       security-events: write
 
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
         with:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -99,7 +99,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
@@ -128,7 +128,7 @@ jobs:
           sbom: true
 
       - name: Attest
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -149,18 +149,18 @@ jobs:
       security-events: write
 
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
         with:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -168,7 +168,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           tags: |
@@ -178,7 +178,7 @@ jobs:
 
       - name: Build and push base
         id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: devcontainers/base
           file: devcontainers/base/Dockerfile
@@ -192,7 +192,7 @@ jobs:
           sbom: true
 
       - name: Attest
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -224,7 +224,7 @@ jobs:
           fi
 
       - name: Upload Grype SARIF for base
-        uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: ${{ steps.grype_base.outputs.sarif }}
@@ -273,18 +273,18 @@ jobs:
             platforms: linux/amd64,linux/arm64
 
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8  # v4.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
         with:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -292,7 +292,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           tags: |
@@ -302,7 +302,7 @@ jobs:
 
       - name: Build and push ${{ matrix.stack }}${{ matrix.variant }}
         id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
@@ -319,7 +319,7 @@ jobs:
           sbom: true
 
       - name: Attest
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3.0.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -351,7 +351,7 @@ jobs:
           fi
 
       - name: Upload Grype SARIF for ${{ matrix.stack }}${{ matrix.variant }}
-        uses: github/codeql-action/upload-sarif@fdbfb4d2750291e159f0156def62b853c2798ca2  # v4
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
