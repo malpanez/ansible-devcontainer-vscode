@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+  # Fallback: pushes made with GITHUB_TOKEN (e.g. auto-merge enabled by a
+  # workflow) do not emit push events, so sweep periodically as well.
+  schedule:
+    - cron: '15 */6 * * *'
   workflow_dispatch:
     inputs:
       force:
