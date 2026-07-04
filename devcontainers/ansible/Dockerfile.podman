@@ -1,26 +1,15 @@
 # syntax=docker/dockerfile:1.7
-# Multi-stage Dockerfile for Ansible DevContainer with Podman + Execution Environments
+# Ansible DevContainer with Podman + Execution Environments
 #
-# Strategy: Use official Podman binaries + Python slim base for maximum compatibility
-# and minimal maintenance burden.
+# Podman comes from Debian's own packages (trixie ships 5.4.x with
+# Debian security backports). The previous approach — copying binaries
+# from quay.io/containers/podman — never worked at runtime: those are
+# Fedora builds that need GLIBC 2.38, libsubid.so.5 and libgpgme.so.45,
+# none of which exist on the Debian bases.
+# trixie base (not bookworm like the other stacks): podman >= 5 needs
+# the newer userland.
+ARG BASE_IMAGE=python:3.12-slim-trixie@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf
 
-# Global build arguments must be declared before the first FROM
-ARG BASE_IMAGE=python:3.12-slim-bookworm@sha256:8a7e7cc04fd3e2bd787f7f24e22d5d119aa590d429b50c95dfe12b3abe52f48b
-
-# Stage 1: Get Podman binaries and configuration from official image
-# Using v5.7.0 (released 2025-11-11) which includes all CVE fixes
-# Known: Trivy may report v5.0.0 from binary metadata (false positive)
-# Verified: Runtime version matches tag specification
-# Note: Digest pinning removed due to frequent re-pushes by upstream
-FROM quay.io/containers/podman:v5.8.2 AS podman-source
-
-# Verify the Podman version to catch upstream tagging issues
-# hadolint ignore=DL4006,SC2015
-RUN podman --version && \
-    podman --version | grep -qE "^podman version (5\.[5-9]|[6-9]|[1-9][0-9])\." || \
-    (echo "ERROR: Podman version < 5.5, build will fail." && exit 1)
-
-# Stage 2: Build our Ansible devcontainer with Podman support
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
 
@@ -48,7 +37,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=ansible \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
-# Install system dependencies for Podman rootless + Ansible build tools
+# Install system dependencies for Podman rootless.
+# build-essential / libffi-dev / libonig-dev / libssl-dev / python3-dev /
+# pkg-config are intentionally omitted: uv resolves manylinux binary
+# wheels for everything in pyproject.toml plus ansible-navigator and
+# ansible-builder (incl. onigurumacffi), saving ~400 MB.
 # Note: git is installed via apt (no feature git:1) to keep it simple
 # Note: NOT installing tini since we use --init in runArgs
 # hadolint ignore=DL3008
@@ -63,31 +56,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates \
       unzip \
       sudo \
-      # Build essentials for Python packages
-      build-essential \
-      libffi-dev \
-      libonig-dev \
-      libssl-dev \
-      python3-dev \
-      pkg-config \
-      # Podman rootless dependencies
+      # Podman (Debian build, ABI-coherent) + rootless dependencies
+      podman \
+      conmon \
+      crun \
       uidmap \
       slirp4netns \
       fuse-overlayfs \
       iptables \
-      crun \
       dbus-user-session \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Podman binaries and configuration from official image
-COPY --from=podman-source /usr/bin/podman /usr/local/bin/podman
-COPY --from=podman-source /usr/bin/conmon /usr/local/bin/conmon
-COPY --from=podman-source /etc/containers /etc/containers
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# The old quay-binary approach shipped a podman that could not even load;
+# verify the installed one actually runs in THIS image.
+RUN podman --version; \
+    if ! podman --version | grep -qE "^podman version (5\.[4-9]|[6-9]|[1-9][0-9])\."; then \
+      echo "ERROR: Podman version < 5.4" >&2; exit 1; \
+    fi
 
 # Install uv with pinned version (direct binary, no pipe-to-shell)
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     case "$(dpkg --print-architecture)" in \
       amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
@@ -132,7 +123,15 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/containers \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/containers \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/systemd/user \
-    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible
+    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible \
+    # install -d creates intermediate directories as root; podman refuses
+    # to run when ~/.config or ~/.local are not owned by the user
+    && chown ${USERNAME}:${USERNAME} \
+         /home/${USERNAME}/.config \
+         /home/${USERNAME}/.config/systemd \
+         /home/${USERNAME}/.local \
+         /home/${USERNAME}/.local/share \
+         /home/${USERNAME}/.cache
 
 # Configure Podman storage for rootless
 RUN printf '[storage]\n\
