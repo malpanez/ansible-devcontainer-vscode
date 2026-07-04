@@ -7,11 +7,11 @@ def _load_json(host, path):
     return json.loads(data.content_string)
 
 
-def test_latex_devcontainer_uses_texlive(host):
+def test_latex_devcontainer_build_config(host):
     payload = _load_json(host, "/workspace/.devcontainer/devcontainer.json")
-    build_args = payload.get("build", {}).get("args", {})
-    assert build_args.get("LATEX_DISTRO") == "texlive"
-    assert build_args.get("LATEX_IMAGE") == "ghcr.io/xu-cheng/texlive-full:latest"
+    build = payload.get("build", {})
+    assert build.get("dockerfile") == "devcontainers/latex/Dockerfile"
+    assert build.get("context") == "../.."
 
 
 def test_template_metadata_records_stack(host):
