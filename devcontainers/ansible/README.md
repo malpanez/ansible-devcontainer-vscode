@@ -157,10 +157,12 @@ podman images
 ## What Gets Installed
 
 ### System Packages
-- `git` (via apt, not feature - simpler and faster)
+- `git`, `gh` (via apt, not features - simpler and faster)
 - `openssh-client`, `rsync` (for Ansible connectivity)
 - `curl`, `ca-certificates`, `unzip` (for downloads)
-- Build tools: `build-essential`, `libffi-dev`, `libssl-dev`, etc.
+- `jq`, `yamllint`, `vim-tiny` (from the shared devcontainer-base)
+- No compiler toolchain: Python packages install from wheels, and the
+  one source build (onigurumacffi on arm64) happens in a builder stage
 
 ### Python Packages (via uv)
 - `ansible` + `ansible-core`
