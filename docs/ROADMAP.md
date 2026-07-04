@@ -10,13 +10,13 @@ The repository has evolved into a **TOP 0.1% enterprise-grade DevContainer solut
 - [x] **Recurring Image Hardening** – Weekly container builds with automated security scanning (Trivy + CodeQL), 0 open vulnerabilities.
 - [x] **Security Excellence** – CodeQL analysis, enhanced pre-commit hooks (10 repos), comprehensive security review documentation.
 - [x] **Developer Experience** – Pre-installed tools (gh, make, yamllint, jq, git-lfs, vim, ripgrep), 30-60s faster startup.
-- [x] **Documentation** – CONTRIBUTING.md, SECURITY_REVIEW.md, IMPLEMENTATION_SUMMARY.md, enhanced issue/PR templates.
+- [x] **Documentation** – CONTRIBUTING.md, enhanced issue/PR templates.
 
 ## Short Term (Q1 2025)
 
 - [ ] **WSL2 Onboarding Flow** – Enhance Windows bootstrap script for one-command setup (WSL2 + Docker/Podman + DevContainer).
 - [ ] **Context Switch Tasks** – VS Code tasks or Make targets to rebuild `.devcontainer/` for different stacks in one command.
-- [ ] **OSSF Scorecard 7.5+** – Improve from current 4.9/10 (roadmap documented in SECURITY_REVIEW.md).
+- [ ] **OSSF Scorecard 7.5+** – Improve from current 4.9/10.
 
 ## Medium Term
 

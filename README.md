@@ -48,28 +48,8 @@ Pull a pre-built infrastructure workspace from GHCR and start writing Terraform 
 
 ## Why not Microsoft's devcontainer images?
 
-Microsoft's universal images ship tools for every possible use case. That's convenient but you pay for it every time you pull.
-
-| Stack            | These images | Microsoft devcontainers | Difference |
-| ---------------- | ------------ | ----------------------- | ---------- |
-| Ansible / Python | ~650 MB      | ~1.8 GB                 | **–64 %**  |
-| Terraform        | ~240 MB      | ~1.5 GB                 | **–84 %**  |
-| Golang           | ~210 MB      | ~1.4 GB                 | **–85 %**  |
-
-Each image here includes only what the stack actually needs — a pinned toolchain, `uv` for Python, and nothing else. Pre-built on GHCR so VS Code pulls them directly; no local build step.
-
-A weekly CI run rebuilds every image from scratch, so OS-level security patches land automatically even when the repository is quiet.
-
-### AI agents inside devcontainers
-
-Giving an AI agent (Claude Code, Copilot, Cursor, etc.) broad file-system and shell permissions on your laptop is a real risk. The same agent running inside a devcontainer has a naturally bounded blast radius:
-
-- **Host OS is untouched** — the agent can only affect the mounted workspace
-- **Recovery is trivial** — `git reset --hard` + rebuild restores the full environment in seconds
-- **Credentials stay isolated** — only what you explicitly mount is visible
-- **Audit trail is git** — every change the agent makes is tracked and reversible
-
-The devcontainer is not just a development convenience. For AI-assisted workflows, it is a safe execution sandbox.
+Full digest pinning, checksum-verified tooling and slimmer bases — the
+complete rationale lives in [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md).
 
 ## Quick Start
 
@@ -127,59 +107,13 @@ This keeps developer experience consistent:
 
 ## Why not distroless or Alpine?
 
-Dev Containers are interactive workstations: developers expect `bash`, package managers, `sudo`, and diagnostics tooling to be available. Distroless or scratch images deliberately omit those layers, which makes them great for production workloads but painful for day-to-day debugging. Alpine’s `musl` libc often breaks prebuilt Python wheels and forces slow source builds—exactly what we are trying to avoid when bootstrapping Ansible or `pre-commit`—so the Python stacks stay on slim Debian / Wolfi bases. The Go stack is the exception because it only needs the Go toolchain and busybox utilities, so `golang:1.23-alpine` keeps it lightweight without impacting DX.
+See [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md).
 
 ## Image Publishing & GHCR
 
-This repository publishes six container images to GHCR:
-
-| Image                         | Variants | Platforms    | Purpose                                              |
-| ----------------------------- | -------- | ------------ | ---------------------------------------------------- |
-| `devcontainer-base`           | `py312`  | amd64, arm64 | Shared Python 3.12 base layer with uv and pre-commit |
-| `devcontainer-ansible`        | `latest` | amd64, arm64 | Standard Ansible environment                         |
-| `devcontainer-ansible-podman` | `latest` | amd64, arm64 | Ansible + Podman for rootless container workflows    |
-| `devcontainer-terraform`      | `latest` | amd64, arm64 | Terraform + Terragrunt + TFLint + SOPS + age         |
-| `devcontainer-golang`         | `latest` | amd64, arm64 | Go development environment                           |
-| `devcontainer-latex`          | `latest` | amd64 only   | LaTeX with Tectonic engine                           |
-
-Tag pushes (via `.github/workflows/release.yml`) and pushes to `main` trigger multi-arch builds, upload build caches, and push both `:latest` and `:<tag>` (for releases) or `:sha-<commit>` (for main branch) variants to GHCR.
-
-> **Security hygiene** – `.github/workflows/build-containers.yml` runs on a weekly schedule so GHCR images automatically pick up Debian security fixes (`apt full-upgrade`) and refreshed tooling even when the repository is quiet.
-
-To build or test images locally:
-
-```bash
-# Ansible stack (override BASE_IMAGE if you want to test the Chainguard variant)
-docker build devcontainers/ansible \
-  --build-arg BASE_IMAGE=python:3.12-slim-bookworm \
-  -t ghcr.io/<org>/devcontainer-ansible:local
-
-# Terraform stack (ships without Python, relies on uvx pre-commit)
-docker build \
-  --file devcontainers/terraform/Dockerfile \
-  -t ghcr.io/<org>/devcontainer-terraform:local \
-  .
-```
-
-You can now reference the local tag from `.devcontainer/devcontainer.json` or push it to GHCR with `docker push`.
-
-Release builds sign every image with [cosign](https://github.com/sigstore/cosign) and attach SPDX SBOMs generated with [Syft](https://github.com/anchore/syft). Verify a published image with:
-
-```bash
-cosign verify ghcr.io/malpanez/devcontainer-ansible:latest \
-  --certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
-```
-
-Replace `<tag>` with the release you want to verify (for example `v1.2.3`). Published images are consumed from the public owner-level namespace such as `ghcr.io/malpanez/devcontainer-ansible:latest`; SBOMs ship as release workflow artifacts under the `devcontainer-sbom` name so you can audit dependencies alongside the signed image.
-
-If a published image ever becomes unavailable or `latest` resolves to a broken manifest, run the manual GitHub Actions workflow `Repair GHCR Images` to republish `devcontainer-base` and the affected stack, then verify `docker pull` and `docker buildx imagetools inspect` against the public tags.
-
-To reproduce the Ansible stack outside of the Dev Container run:
-
-```bash
-ansible-playbook playbooks/setup-workspace.yml -K
-```
+Images for every stack are built, scanned, attested and published to
+GHCR by CI. See [docs/IMAGE_PUBLISHING.md](docs/IMAGE_PUBLISHING.md)
+for tags, pull commands and the publishing pipeline.
 
 ## Toolchain Overview
 
@@ -198,22 +132,15 @@ All Python dependencies for the Ansible stack are declared in `pyproject.toml` a
 
 ## Pinned Tool Versions
 
-| Tool            | Version          | Notes                                                                         |
-| --------------- | ---------------- | ----------------------------------------------------------------------------- |
-| Python          | `3.12.12`        | Base image for Ansible and base layers                                        |
-| uv              | `0.9.13`         | Fast Python package manager (10-100x faster than pip)                         |
-| Ansible         | `9.14.0`         | Locked in `uv.lock` via `pyproject.toml`; smoke playbooks enforce the version |
-| Terraform       | `1.14.0`         | Pinned in Terraform Dev Container Dockerfile                                  |
-| Terragrunt      | `0.93.11`        | Installed globally in the Terraform container for Terragrunt workflows        |
-| TFLint          | `0.60.0`         | Available in the Terraform container; initialise rules with `tflint --init`   |
-| SOPS            | `3.11.0`         | Secret encryption tool (Terraform container)                                  |
-| age             | `1.2.1`          | Modern encryption tool for SOPS (Terraform container)                         |
-| AWS CLI         | `v2` (latest)    | Pre-installed in Terraform container to avoid DevContainer features rebuild   |
-| github-cli (gh) | latest           | Pre-installed in all containers to avoid DevContainer features rebuild        |
-| Go              | `1.25`           | Golang container base image                                                   |
-| Checkov         | `>=3.0.0,<4.0.0` | Installed via `uv`; run `checkov -d infrastructure/` for policy scans         |
+Tool versions are pinned at their single source of truth — duplicated
+version tables rot:
 
-Update this table whenever you bump toolchains so contributors stay aligned with CI.
+- **Python packages**: `pyproject.toml` + `uv.lock` (exports:
+  `requirements.txt`, `requirements-ansible.txt`)
+- **CLI tools** (terraform, terragrunt, tflint, sops, age, uv, AWS CLI,
+  tectonic): `ARG *_VERSION` at the top of each `devcontainers/*/Dockerfile`,
+  each download verified against its upstream checksum
+- **Base images**: digest-pinned `FROM` lines in the same Dockerfiles
 
 ## Local Workflow
 
@@ -284,7 +211,7 @@ Override defaults in `roles/*/defaults/main.yml` or pass extra vars (`-e variabl
 
 - `./scripts/run-smoke-tests.sh` — fast smoke test that also asserts Ansible/ansible-core match the pinned requirements.
 - `./scripts/run-ansible-tests.sh` — runs `ansible-test sanity` against every role (set `ANSIBLE_TEST_PYTHON_VERSION` to change the interpreter).
-- `./scripts/check-devcontainer.sh` — builds each Dev Container template locally via the Dev Containers CLI (compatible with Docker Desktop or Podman).
+- `./scripts/smoke-devcontainer-image.sh` — builds a Dev Container image and runs per-stack smoke checks (compatible with Docker Desktop or Podman).
 - `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `terraform`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
 - `molecule test` — spins up Debian with all roles applied and verifies via Testinfra (`molecule/default/tests/test_default.py`).
 - GitHub Actions runs `uvx pre-commit`, targeted playbook/Molecule checks, Go/Terraform tests when relevant, and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
@@ -301,55 +228,9 @@ Each scenario lists the recommended stack, prerequisite commands, and smoke test
 
 ## Customising the Environment
 
-- Switch Dev Container stacks with `./scripts/use-devcontainer.sh [--prune] <ansible|golang|latex|terraform>` (or the PowerShell variant, `-Prune`). The script copies the chosen template from `devcontainers/<stack>` into `.devcontainer/`; add the prune flag to remove stopped containers and volumes tied to the workspace before reopening in VS Code.
-- The LaTeX stack defaults to MiKTeX but accepts build args in `devcontainers/latex/devcontainer.json` (`LATEX_DISTRO`/`LATEX_IMAGE`). Set them to `texlive` and a TeX Live image (e.g. `ghcr.io/xu-cheng/texlive-full:latest`) to switch distributions without editing the Dockerfile.
-- Add workspace-specific mounts or environment overrides in `.devcontainer/devcontainer.json`. For example, mount a host inventory and tweak Ansible caches:
-  ```jsonc
-  {
-    "mounts": [
-      "source=${localWorkspaceFolder},target=/workspace,type=bind",
-      "source=/home/$USER/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
-      "source=/home/$USER/ansible-inventory,target=/workspace/inventory/hosts,type=bind",
-    ],
-    "remoteEnv": {
-      "ANSIBLE_INVENTORY": "/workspace/inventory/hosts",
-      "ANSIBLE_GALAXY_CACHE_DIR": "/home/vscode/.ansible/galaxy_cache",
-      "UV_CACHE_DIR": "/home/vscode/.cache/uv",
-    },
-  }
-  ```
-- Use `inventory/cloud-example.yml` as a starting point for remote or cloud inventories; copy it, replace the placeholder host data, and point `ANSIBLE_INVENTORY` (or update `ansible.cfg`) to the new file.
-- Update `pyproject.toml` dependencies and re-run `uv lock && uv pip install --system .` to add Python tooling (Molecule/Testinfra depends on `pytest-testinfra`, already included).
-- Add collections to `requirements.yml` and rerun `ansible-galaxy collection install -r requirements.yml`.
-- Adjust VS Code defaults by editing the templates under `roles/vscode_config/templates/` so the changes apply to every workspace bootstrap.
-- Use `playbooks/setup-workspace.yml --tags …` to run only selected roles (e.g. `--tags vscode` to refresh editor settings).
-- Set `workspace_stack=<stack>` when running `playbooks/setup-workspace.yml` to copy the matching Dev Container template automatically (handled by the `devcontainer_template` role; defaults to `ansible`; valid values: `ansible`, `golang`, `latex`, `terraform`).
-- The workspace playbook sets `devcontainer_template_skip_when_unchanged: true`; metadata in `.devcontainer/.template-metadata.json` keeps track of the stack and template checksum so reruns only copy when the source changes.
-- Override role defaults using the namespaced variables (for example `devcontainer_base_user`, `python_tools_ansible_config_dir`, or `vscode_config_workspace_dir`). Legacy variable names are still accepted for backward compatibility but will be removed in a future release.
-
-### Using Podman for Dev Containers
-
-- On Windows, run `scripts/bootstrap-windows.ps1 -ContainerEngine Podman` to install Podman Desktop instead of Docker Desktop (no commercial licensing fees). Start the Podman machine afterwards: `podman machine init --now` (first run only) and `podman machine start`.
-- In VS Code, set `"dev.containers.dockerPath": "podman"` in `.vscode/settings.json` (or user settings) so Remote Containers calls the Podman CLI. On Linux, ensure the Podman socket is available by enabling the user service (`systemctl --user enable --now podman.socket`).
-- When using CLI workflows, export `DOCKER_HOST` from `podman system service --time=0` (Linux) or rely on Podman Desktop’s Docker API compatibility (Windows). The clean-up flags in `scripts/use-devcontainer.sh`/`.ps1` already work with Podman for removing stopped containers and volumes.
-- To make the VS Code setting easy to adopt across the team, add `.vscode/settings.json` with:
-  ```json
-  {
-    "dev.containers.dockerPath": "podman"
-  }
-  ```
-  Commit it (or share via `.vscode.example/`) so Remote Containers targets Podman automatically when contributors clone the repo.
-  The repository includes `.vscode/settings.example.json` if you want to distribute a starter config instead of committing the settings file directly.
-
-### Dev Container Diagnostics
-
-- `./scripts/doctor-devcontainer.sh` — one-shot health check for the active `.devcontainer/`; validates metadata, compares the active files against the template, and reports whether local container tooling is installed. Add `--strict` when you want missing local tooling to fail the run.
-- `./scripts/debug-devcontainer.sh` — builds and brings up a chosen stack (default `ansible`) and optionally runs a command inside it. Handy for quickly testing `./scripts/run-smoke-tests.sh` or dropping into a shell without leaving VS Code.
-- `./scripts/devcontainer-metadata.py` — inspects `.devcontainer/.template-metadata.json` and validates that the recorded signature still matches the template under `devcontainers/<stack>`. Exit code `0` means metadata matches, `2` indicates drift.
-- `./scripts/devcontainer-diff.py` — shows file-level diffs between `.devcontainer/` and the source template (useful when metadata reports drift). Exit code `2` indicates differences were found.
-- `./scripts/check-devcontainer.sh` — builds each Dev Container template locally via the Dev Containers CLI (compatible with Docker Desktop or Podman).
-  Pair it with `DEVCONTAINER_CONTAINER_ENGINE=podman` to reproduce the CI job locally.
-- See `docs/DEVCONTAINER_DEBUG.md` for end-to-end debugging workflows that combine these scripts.
+Extend a stack profile from your own `.devcontainer/devcontainer.json`,
+add tools at build time, or layer extra VS Code settings — recipes in
+[docs/CUSTOMISING.md](docs/CUSTOMISING.md).
 
 ## Branch Flow
 
@@ -403,7 +284,6 @@ This repository implements comprehensive security scanning and automated alert m
 - 🔒 **Trivy Scanning**: All container images scanned for CVEs during build
 - 📊 **SARIF Upload**: Security findings integrated into GitHub Security tab
 - 🤖 **Automated Alert Management**: Weekly cleanup of stale/false-positive alerts
-- 📝 **Security Review**: Detailed analysis in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md)
 
 **For security reports**: See [`SECURITY.md`](SECURITY.md) for responsible disclosure guidelines.
 
@@ -452,6 +332,9 @@ curl -fsSL https://raw.githubusercontent.com/malpanez/ansible-devcontainer-vscod
 - `docs/CHANGELOG.md` tracks notable changes between releases.
 - `docs/RELEASE_FLOW.md` documents the `develop -> main` promotion path and the `hotfix/* -> main` escape hatch.
 - `docs/SECRETS.md` explains how to handle credentials safely across Terraform and Ansible workflows.
+- [`docs/IMAGE_PUBLISHING.md`](docs/IMAGE_PUBLISHING.md) – GHCR tags, pull commands and the publishing pipeline.
+- [`docs/CUSTOMISING.md`](docs/CUSTOMISING.md) – extending stack profiles and adding tools.
+- [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md) – why not Microsoft's images, distroless or Alpine.
 
 ## Windows Bootstrap
 

@@ -418,7 +418,6 @@ syft sbom:./sbom.spdx.json -o json | \
 
 - [SECURITY.md](../SECURITY.md) - Security policy and vulnerability reporting
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Container build architecture
-- [docs/OSSF_SCORECARD_PROGRESS.md](OSSF_SCORECARD_PROGRESS.md) - Supply chain security scorecard
 
 ---
 

@@ -249,7 +249,7 @@ When a new CVE alert appears:
    - **False positive**: Dismiss with justification
 
 3. **Document**
-   - Update `SECURITY_REVIEW.md` if needed
+   - Update `SECURITY.md` or the .grype.yaml rationale comments if needed
    - Add to exceptions config
    - Create issue if requires upstream fix
 
@@ -328,9 +328,6 @@ pre-commit run --all-files --show-diff-on-failure
 
 ### Related Documentation
 
-- [SECURITY_REVIEW.md](SECURITY_REVIEW.md) - Detailed security analysis
-- [SECURITY_ALERT_MANAGEMENT_SUMMARY.md](SECURITY_ALERT_MANAGEMENT_SUMMARY.md) - Alert management guide
-- [OSSF_SCORECARD_PROGRESS.md](OSSF_SCORECARD_PROGRESS.md) - Scorecard improvement tracking
 - [.github/security-alert-exceptions.yml](.github/security-alert-exceptions.yml) - CVE exceptions config
 
 ---
