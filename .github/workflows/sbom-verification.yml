@@ -62,7 +62,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=sbom-${{ matrix.target.name }}
 
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
         with:
           image: sbom-${{ matrix.target.name }}:latest
           artifact-name: sbom-${{ matrix.target.name }}.spdx.json

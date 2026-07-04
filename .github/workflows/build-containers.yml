@@ -199,10 +199,10 @@ jobs:
           push-to-registry: true
 
       - name: Scan base image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8  # 0.33.1
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         continue-on-error: true
         with:
-          version: v0.58.2
+          version: v0.72.0
           image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-base:main
           format: sarif
           output: trivy-base.sarif
@@ -324,10 +324,10 @@ jobs:
           push-to-registry: true
 
       - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8  # 0.33.1
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         continue-on-error: true
         with:
-          version: v0.58.2
+          version: v0.72.0
           image-ref: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}@${{ steps.build.outputs.digest }}
           format: sarif
           output: trivy-${{ matrix.stack }}${{ matrix.variant }}.sarif
