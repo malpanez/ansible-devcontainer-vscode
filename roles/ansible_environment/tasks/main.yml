@@ -193,6 +193,11 @@
       {{
         {'UV_CACHE_DIR': ansible_environment_uv_cache_dir}
         | combine(ansible_environment_uv_proxy_overrides | default({}))
+        | combine(
+            {'UV_BREAK_SYSTEM_PACKAGES': 'true'}
+            if (ansible_environment_uv_break_system_packages | bool)
+            else {}
+          )
       }}
   changed_when: false
   vars:

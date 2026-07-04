@@ -123,6 +123,13 @@
   become: false
   when: not devcontainer_template_skip_copy
 
+- name: Determine whether rsync transport is usable
+  ansible.builtin.set_fact:
+    devcontainer_template_use_rsync: >-
+      {{ (devcontainer_template_rsync.stat.exists | default(false))
+         and ((ansible_connection | default('smart')) in ['ssh', 'smart', 'local', 'paramiko']) }}
+  when: not devcontainer_template_skip_copy
+
 - name: Copy template with rsync
   ansible.posix.synchronize:
     src: "{{ devcontainer_template_source_path }}/"
@@ -134,7 +141,7 @@
   become: false
   when:
     - not devcontainer_template_skip_copy
-    - devcontainer_template_rsync.stat.exists
+    - devcontainer_template_use_rsync
 
 - name: Copy template with cp fallback
   ansible.builtin.command:
@@ -147,12 +154,12 @@
   become: false
   when:
     - not devcontainer_template_skip_copy
-    - not devcontainer_template_rsync.stat.exists
+    - not devcontainer_template_use_rsync
 
 - name: Record template metadata
   ansible.builtin.copy:
     dest: "{{ devcontainer_template_metadata_file }}"
-    content: >-
+    content: >
       {{
         {
           'stack': devcontainer_template_stack,
@@ -160,6 +167,6 @@
           'signature': devcontainer_template_source_signature
         }
         | to_nice_json
-      }}\n
+      }}
     mode: "0644"
   become: false

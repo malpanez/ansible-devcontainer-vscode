@@ -6,8 +6,8 @@ driver:
   name: docker
 
 platforms:
-  - name: ${TEST_DISTRO:-debian12}
-    image: ${TEST_IMAGE:-geerlingguy/docker-debian12-ansible:latest}
+  - name: ${TEST_DISTRO:-debian13}
+    image: ${TEST_IMAGE:-geerlingguy/docker-debian13-ansible:latest}
     privileged: true
     override_command: true
     command: sleep infinity
@@ -26,7 +26,7 @@ provisioner:
     converge: converge.yml
   inventory:
     host_vars:
-      ${TEST_DISTRO:-debian12}:
+      ${TEST_DISTRO:-debian13}:
         ansible_python_interpreter: /usr/bin/python3
 
 verifier:

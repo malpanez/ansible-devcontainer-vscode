@@ -551,7 +551,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [debian12, ubuntu2204, ubuntu2404]
+        # ansible 13.x (core 2.20) requires Python >= 3.12 on the node where
+        # the tooling is installed: debian13 ships 3.13, ubuntu2404 ships 3.12
+        distro: [debian13, ubuntu2404]
 
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
