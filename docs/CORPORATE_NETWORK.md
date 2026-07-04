@@ -15,7 +15,7 @@ If you opt for Podman:
   export DOCKER_HOST=unix://$(podman info --format '{{ .Host.RemoteSocket.Path }}')
   ```
 - **VS Code** – add `"dev.containers.dockerPath": "podman"` to your settings so the Remote Containers extension invokes the Podman CLI.
-- **Smoke tests** – run `./scripts/check-devcontainer.sh` (builds every template) or `./scripts/debug-devcontainer.sh --stack <name> -- ./scripts/run-smoke-tests.sh` to validate container engines behind the firewall.
+- **Smoke tests** – run `./scripts/smoke-devcontainer-image.sh` (builds every template) or `./scripts/debug-devcontainer.sh --stack <name> -- ./scripts/run-smoke-tests.sh` to validate container engines behind the firewall.
 
 ## 1. VPN Access for Docker Desktop
 

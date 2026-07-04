@@ -128,7 +128,7 @@ Fixed the thing           # What thing?
 
 - **Never push directly to `main` or `develop`** - always use pull requests
 - **All PRs must pass CI checks** before merging (linting, tests, security scans)
-- **Renovate PRs** automatically target `develop` and will auto-merge if tests pass
+- **Dependabot version PRs** target `develop`; security PRs target `main` and need a review before merge
 - **Release flow:** `develop` → `main` happens automatically when `develop` is stable
 
 ## 3. Using the Makefile

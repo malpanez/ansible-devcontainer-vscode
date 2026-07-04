@@ -292,29 +292,6 @@ done
 
 ---
 
-### check-devcontainer.sh
-
-Validates devcontainer.json configuration files.
-
-**What it checks:**
-
-- JSON syntax validity
-- Required fields present
-- Feature compatibility
-- Extension IDs
-
-**Usage:**
-
-```bash
-# Check current .devcontainer
-./scripts/check-devcontainer.sh
-
-# Check specific stack
-./scripts/check-devcontainer.sh devcontainers/terraform/devcontainer.json
-```
-
----
-
 ### debug-devcontainer.sh
 
 Debugging helper for devcontainer issues.
@@ -343,32 +320,6 @@ Debugging helper for devcontainer issues.
 - Permission errors
 - Missing tools
 - Volume mount issues
-
----
-
-### fix-dockerfiles.sh
-
-Applies automated fixes to Dockerfiles.
-
-**What it fixes:**
-
-- Line ending issues (CRLF → LF)
-- Trailing whitespace
-- Missing newlines at EOF
-- Common linting errors
-
-**Usage:**
-
-```bash
-# Fix all Dockerfiles
-./scripts/fix-dockerfiles.sh
-
-# Dry run (show what would change)
-./scripts/fix-dockerfiles.sh --dry-run
-
-# Fix specific file
-./scripts/fix-dockerfiles.sh devcontainers/ansible/Dockerfile
-```
 
 ---
 
@@ -678,9 +629,6 @@ echo "✅ All checks passed!"
 ```bash
 # Get detailed debug information
 ./scripts/debug-devcontainer.sh > debug.txt
-
-# Check container configuration
-./scripts/check-devcontainer.sh
 
 # Verify template hasn't drifted
 python3 scripts/devcontainer-metadata.py

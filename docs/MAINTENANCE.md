@@ -20,29 +20,27 @@ This document describes the automated and manual maintenance procedures for the 
 
 ### 1. Dependency Updates 🤖
 
-**Renovate Bot** automatically manages all dependencies:
+**Dependabot** manages dependency updates:
 
 #### What It Does
-- **Weekly scans** for outdated dependencies
-- **Auto-creates PRs** for:
-  - Python packages (pyproject.toml, uv.lock)
+- **Weekly version-update PRs** (Mondays, targeting `develop`) for:
+  - Python packages (pyproject.toml + uv.lock, via the uv ecosystem)
   - GitHub Actions (workflows/*.yml)
-  - Docker base images
-  - Tool versions (terraform, ansible, etc.)
+  - Docker base images (digest bumps in devcontainers/*/Dockerfile)
+- **Security updates** open PRs against `main` as soon as an advisory
+  matches a pinned dependency (this always targets the default branch)
+- The **Dependency Refresh** workflow re-resolves `uv.lock` weekly and
+  regenerates the requirements exports via PR
 
 #### Configuration
-- File: [`.github/renovate.json`](.github/renovate.json)
-- Schedule: Weekly (Mondays)
-- Auto-merge: Patch and minor updates (after CI passes)
-- Manual review: Major updates
+- File: [`.github/dependabot.yml`](.github/dependabot.yml)
+- Lock refresh: [`.github/workflows/dependency-refresh.yml`](workflows/dependency-refresh.yml)
+- Manual review + merge; the branch-flow guard allows dependabot/* into main
 
 #### How to Monitor
 ```bash
-# View recent Renovate PRs
+# View recent dependency PRs
 gh pr list --label "dependencies"
-
-# View Renovate dashboard
-# https://github.com/malpanez/ansible-devcontainer-vscode/issues/4
 ```
 
 ---
@@ -218,12 +216,12 @@ When adding a new tool (e.g., new CLI utility):
    ```
 
 2. **Update README.md**
-   - Add to "Pinned Tool Versions" table
+   - Document it in the relevant docs/ page
    - Document purpose and usage
 
-3. **Update Renovate**
-   - Add to `.github/renovate.json` if possible
-   - Configure auto-update rules
+3. **Update Dependabot coverage**
+   - Confirm the ecosystem is covered in `.github/dependabot.yml`
+   - Pin the version as a Dockerfile ARG with its checksum
 
 4. **Test**
    ```bash
@@ -249,7 +247,7 @@ When a new CVE alert appears:
    - **False positive**: Dismiss with justification
 
 3. **Document**
-   - Update `SECURITY_REVIEW.md` if needed
+   - Update `SECURITY.md` or the .grype.yaml rationale comments if needed
    - Add to exceptions config
    - Create issue if requires upstream fix
 
@@ -310,8 +308,7 @@ gh api repos/malpanez/ansible-devcontainer-vscode/code-scanning/alerts \
   --jq 'map({number, rule: .rule.id, state, severity: .rule.severity})'
 
 # Run security scan locally
-trivy config .
-trivy fs --scanners vuln .
+grype dir:. --only-fixed --fail-on high
 
 # View recent workflow runs
 gh run list --limit 10
@@ -329,9 +326,6 @@ pre-commit run --all-files --show-diff-on-failure
 
 ### Related Documentation
 
-- [SECURITY_REVIEW.md](SECURITY_REVIEW.md) - Detailed security analysis
-- [SECURITY_ALERT_MANAGEMENT_SUMMARY.md](SECURITY_ALERT_MANAGEMENT_SUMMARY.md) - Alert management guide
-- [OSSF_SCORECARD_PROGRESS.md](OSSF_SCORECARD_PROGRESS.md) - Scorecard improvement tracking
 - [.github/security-alert-exceptions.yml](.github/security-alert-exceptions.yml) - CVE exceptions config
 
 ---

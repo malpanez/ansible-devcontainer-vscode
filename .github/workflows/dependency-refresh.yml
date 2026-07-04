@@ -3,7 +3,7 @@ name: Dependency Refresh
 
 on:
   schedule:
-    - cron: "0 4 * * *"
+    - cron: "0 4 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,8 @@ jobs:
       - name: Refresh dependency locks
         run: |
           uv lock --upgrade
-          uv export --format requirements-txt --frozen > requirements.txt
+          uv export --format requirements-txt --no-hashes --frozen > requirements.txt
+          uv export --format requirements-txt --frozen > requirements-ansible.txt
 
       - name: Record changes
         run: |
@@ -46,6 +47,7 @@ jobs:
         with:
           token: ${{ secrets.BOT_TOKEN }}
           branch: automation/dependency-refresh
+          base: develop
           delete-branch: true
           commit-message: "chore: refresh dependency locks"
           title: "chore: refresh dependency locks"
@@ -53,5 +55,6 @@ jobs:
             Automated dependency refresh.
 
             - `uv lock --upgrade`
-            - `uv export --format requirements-txt --frozen > requirements.txt`
+            - `uv export --format requirements-txt --no-hashes --frozen > requirements.txt`
+            - `uv export --format requirements-txt --frozen > requirements-ansible.txt`
           labels: dependencies

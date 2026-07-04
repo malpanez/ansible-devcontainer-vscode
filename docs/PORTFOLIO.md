@@ -16,7 +16,7 @@ This repository documents the way I automate my technical workflow. It doubles a
 - Opinionated VS Code tasks for linting, health checks, dependency refresh, and Molecule tests.
 - Multiple Dev Container templates (`ansible`, `golang`, `latex`, `terraform`) with helper scripts to switch stacks instantly.
 - LaTeX Dev Container includes a build-time toggle for MiKTeX vs TeX Live to match CI or on-demand needs.
-- Dev Container tooling: `scripts/check-devcontainer.sh` exercises every template headlessly, `scripts/debug-devcontainer.sh` drops you into a live stack for smoke tests, `scripts/devcontainer-metadata.py` verifies provisioning metadata, and `scripts/devcontainer-diff.py` highlights local tweaks versus the template.
+- Dev Container tooling: `scripts/debug-devcontainer.sh` drops you into a live stack for smoke tests, `scripts/devcontainer-metadata.py` verifies provisioning metadata, and `scripts/devcontainer-diff.py` highlights local tweaks versus the template.
 - Terraform workflow script (`scripts/run-terraform-tests.sh`) runs fmt/validate across modules so infrastructure changes stay healthy in CI and locally.
 - Starter Proxmox Terraform module under `infrastructure/proxmox_lab/` with documentation and tfvars template for homelab services.
 - Molecule scenarios cover both the default stack and a LaTeX toggle run (MiKTeX → TeX Live) ensuring reproducible template switches.

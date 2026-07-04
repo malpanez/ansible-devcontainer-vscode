@@ -44,15 +44,6 @@
       group: root
       mode: '0755'
   block:
-    - name: Validate uv checksum requirement
-      ansible.builtin.assert:
-        that:
-          - ansible_environment_uv_effective_checksum | length > 0
-        fail_msg: >-
-          ansible_environment_uv_checksum is empty. Provide the release checksum or set
-          ansible_environment_uv_enforce_checksum=false to bypass enforcement (not recommended).
-      when: ansible_environment_uv_enforce_checksum | bool
-
     - name: Create temporary directory for uv archive
       ansible.builtin.tempfile:
         state: directory
@@ -95,13 +86,24 @@
             ~ (
               ansible_environment_uv_checksum_manifest_lookup.stdout
               | trim
-              | regex_replace('\\s+.*$', '')
+              | split
+              | first
             )
           }}
       changed_when: false
       when:
         - ansible_environment_uv_enforce_checksum | bool
         - ansible_environment_uv_effective_checksum | length == 0
+
+    - name: Validate uv checksum requirement
+      ansible.builtin.assert:
+        that:
+          - ansible_environment_uv_effective_checksum | length > 0
+        fail_msg: >-
+          No uv checksum available: set ansible_environment_uv_checksum, or ensure the
+          release checksum manifest is reachable, or set
+          ansible_environment_uv_enforce_checksum=false to bypass (not recommended).
+      when: ansible_environment_uv_enforce_checksum | bool
 
     - name: Download uv archive
       ansible.builtin.get_url:

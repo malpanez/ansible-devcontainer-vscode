@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:?Usage: install_age.sh <version> <arch>}"
-ARCH="${2:?Usage: install_age.sh <version> <arch>}"
+VERSION="${1:?Usage: install_age.sh <version> <arch> [sha256]}"
+ARCH="${2:?Usage: install_age.sh <version> <arch> [sha256]}"
+EXPECTED_SHA256="${3:-}"
 
 # Validate inputs
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -23,6 +24,13 @@ trap 'rm -rf "$TMP"' EXIT
 curl -fsSL \
   "https://github.com/FiloSottile/age/releases/download/v${VERSION}/age-v${VERSION}-linux-${ARCH}.tar.gz" \
   -o "$TMP/age.tar.gz"
+
+# age publishes no checksum files, so callers pin the expected hash
+if [[ -n "$EXPECTED_SHA256" ]]; then
+  printf '%s  %s\n' "$EXPECTED_SHA256" "$TMP/age.tar.gz" | sha256sum -c -
+else
+  printf 'WARNING: no sha256 provided for age archive; skipping verification\n' >&2
+fi
 
 tar -xzf "$TMP/age.tar.gz" -C "$TMP"
 

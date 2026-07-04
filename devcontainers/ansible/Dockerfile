@@ -63,11 +63,14 @@ RUN set -eux; \
       *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
-      -o /tmp/uv.tar.gz; \
-    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+      -o "/tmp/uv-${UV_ARCH}.tar.gz"; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
+      -o "/tmp/uv-${UV_ARCH}.tar.gz.sha256"; \
+    echo "$(cut -d' ' -f1 "/tmp/uv-${UV_ARCH}.tar.gz.sha256")  /tmp/uv-${UV_ARCH}.tar.gz" | sha256sum -c -; \
+    tar -xzf "/tmp/uv-${UV_ARCH}.tar.gz" -C /tmp; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
-    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
+    rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}"
 
 COPY --link pyproject.toml /tmp/pyproject.toml
 
@@ -84,9 +87,6 @@ ARG USER_GID=${USER_UID}
 # This forces package installations to happen during build, not at runtime
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx, /usr/local/bin/ansible-galaxy\n' \
-        "${USERNAME}" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME} \
     && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
     && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
