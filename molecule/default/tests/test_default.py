@@ -26,7 +26,7 @@ def test_devcontainer_user_exists(host):
 def test_devcontainer_template_applied(host):
     devcontainer_json = host.file("/workspace/.devcontainer/devcontainer.json")
     assert devcontainer_json.exists
-    assert devcontainer_json.contains('"name": "Ansible DevOps Environment"')
+    assert devcontainer_json.contains('"name": "Ansible Dev Container')
 
 
 def test_template_metadata_records_stack(host):

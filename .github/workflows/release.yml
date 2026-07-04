@@ -87,7 +87,7 @@ jobs:
             echo "Scanning ${image}"
             docker run --rm \
               -v "$HOME/.cache/trivy:/root/.cache/trivy" \
-              aquasec/trivy:0.58.2 \
+              aquasec/trivy:0.72.0 \
               image \
                 --scanners vuln \
                 --severity CRITICAL,HIGH \
@@ -108,10 +108,15 @@ jobs:
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad  # v4.0.0
 
       - name: Install syft
-        run: |
-          set -euo pipefail
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh |
-            sudo sh -s -- -b /usr/local/bin
+        id: install_syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          syft-version: v1.46.0
+
+      - name: Expose syft on PATH
+        env:
+          SYFT_CMD: ${{ steps.install_syft.outputs.cmd }}
+        run: sudo ln -sf "${SYFT_CMD}" /usr/local/bin/syft
 
       - name: Build and push base image
         id: build_base

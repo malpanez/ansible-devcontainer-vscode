@@ -54,3 +54,4 @@
         ansible_environment_python_requirements_file: "{{ test_python_requirements_file }}"
         ansible_environment_collection_requirements_file: "{{ test_collection_requirements_file }}"
         ansible_environment_uv_enforce_checksum: false
+        ansible_environment_uv_break_system_packages: true

@@ -47,13 +47,15 @@ require_args() {
 }
 
 check_main_flow() {
+  # dependabot/* is allowed because Dependabot security updates always
+  # target the default branch; GitHub does not honor a custom target there.
   case "${HEAD_REF}" in
-    develop|hotfix/*)
+    develop|hotfix/*|dependabot/*)
       echo "Source branch '${HEAD_REF}' is allowed to target main."
       return 0
       ;;
     *)
-      echo "Pull requests into main must come from 'develop' or 'hotfix/*'. Current source: '${HEAD_REF}'." >&2
+      echo "Pull requests into main must come from 'develop', 'hotfix/*' or 'dependabot/*'. Current source: '${HEAD_REF}'." >&2
       return 1
       ;;
   esac

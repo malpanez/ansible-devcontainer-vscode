@@ -5,7 +5,7 @@
 # and minimal maintenance burden.
 
 # Global build arguments must be declared before the first FROM
-ARG BASE_IMAGE=python:3.12-slim-bookworm@sha256:5621ae4640bf259c8a9f09c513cd6c80fc14b3fab3d9cf99f3227637cdf78525
+ARG BASE_IMAGE=python:3.12-slim-bookworm@sha256:8a7e7cc04fd3e2bd787f7f24e22d5d119aa590d429b50c95dfe12b3abe52f48b
 
 # Stage 1: Get Podman binaries and configuration from official image
 # Using v5.7.0 (released 2025-11-11) which includes all CVE fixes
@@ -86,9 +86,20 @@ COPY --from=podman-source /usr/bin/podman /usr/local/bin/podman
 COPY --from=podman-source /usr/bin/conmon /usr/local/bin/conmon
 COPY --from=podman-source /etc/containers /etc/containers
 
-# Install uv with pinned version for reproducibility
+# Install uv with pinned version (direct binary, no pipe-to-shell)
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
+      *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+      -o /tmp/uv.tar.gz; \
+    tar -xzf /tmp/uv.tar.gz -C /tmp; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
+    install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_ARCH}"
 
 COPY pyproject.toml /tmp/pyproject.toml
 

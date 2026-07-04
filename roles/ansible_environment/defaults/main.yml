@@ -5,7 +5,7 @@ ansible_environment_devcontainer_user: "{{ devcontainer_user | default('vscode',
 ansible_environment_devcontainer_user_home: "/home/{{ ansible_environment_devcontainer_user }}"
 ansible_environment_uv_install_dir: "{{ uv_install_dir | default('/usr/local/bin', true) }}"
 ansible_environment_uv_binary_path: "{{ uv_binary_path | default('/usr/local/bin/uv', true) }}"
-ansible_environment_uv_version: "{{ uv_version | default('0.4.12', true) }}"
+ansible_environment_uv_version: "{{ uv_version | default('0.9.13', true) }}"
 ansible_environment_uv_release_arch: "{{ uv_release_arch | default('x86_64', true) }}"
 ansible_environment_uv_release_platform: "{{ uv_release_platform | default('unknown-linux-gnu', true) }}"
 ansible_environment_uv_archive_filename: >-
@@ -33,6 +33,10 @@ ansible_environment_uv_download_url: >-
   }}
 ansible_environment_uv_checksum: "{{ uv_checksum | default('', true) }}"
 ansible_environment_uv_enforce_checksum: "{{ uv_enforce_checksum | default(false, true) }}"
+# Required on targets whose distro Python is PEP 668 externally managed
+# (e.g. Debian 12+ system interpreters); devcontainer images built from
+# python:*-slim do not need it.
+ansible_environment_uv_break_system_packages: "{{ uv_break_system_packages | default(false, true) }}"
 ansible_environment_uv_checksums_manifest: >-
   {{
     uv_checksums_manifest
