@@ -44,8 +44,9 @@ jobs:
             echo "DRY_RUN=${{ github.event.inputs.dry_run }}" >> "$GITHUB_ENV"
             echo "MAX_ALERT_AGE_DAYS=${{ github.event.inputs.max_age_days }}" >> "$GITHUB_ENV"
           else
-            # Scheduled runs: default to dry_run=false for actual cleanup
-            echo "DRY_RUN=false" >> "$GITHUB_ENV"
+            # Scheduled runs: report-only; dismissals require an explicit
+            # workflow_dispatch with dry_run=false
+            echo "DRY_RUN=true" >> "$GITHUB_ENV"
             echo "MAX_ALERT_AGE_DAYS=90" >> "$GITHUB_ENV"
           fi
 

@@ -106,6 +106,7 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     CREATED_AT=$(echo "${alert}" | jq -r '.created_at')
     RULE_ID=$(echo "${alert}" | jq -r '.rule.id')
     SEVERITY=$(echo "${alert}" | jq -r '.rule.severity')
+    SECURITY_SEVERITY=$(echo "${alert}" | jq -r '.rule.security_severity_level // "unknown"')
     TOOL=$(echo "${alert}" | jq -r '.tool.name')
     LOCATION=$(echo "${alert}" | jq -r '.most_recent_instance.location.path // "unknown"')
 
@@ -138,18 +139,12 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     # - Trivy version detection issue (examining binary metadata vs actual runtime)
     # - The v5.7.0 tag contains older binaries (upstream issue)
     # - Build cache serving stale binaries
+    # Only CVEs individually verified as fixed in the pinned Podman version:
+    # CVE-2024-1753 (fixed 5.0.1), CVE-2024-9407 (5.2.4), CVE-2025-6032 (5.5.2),
+    # CVE-2025-9566 (5.6.1), CVE-2025-47914 / CVE-2025-58181 (golang.org/x/crypto)
     if [[ "${LOCATION}" =~ usr/local/bin/podman ]] \
-      && [[ "${RULE_ID}" =~ ^CVE-(2024|2025) ]] \
+      && [[ "${RULE_ID}" =~ ^CVE-(2024-1753|2024-9407|2025-6032|2025-9566|2025-47914|2025-58181)$ ]] \
       && [[ "${AGE_DAYS}" -ge 14 ]]; then
-        # Check if this is a known Podman CVE that should be fixed in v5.7.0
-        # CVE-2024-1753: Fixed in 5.0.1 (should be fixed in 5.7.0)
-        # CVE-2024-9407: Fixed in 5.2.4 (should be fixed in 5.7.0)
-        # CVE-2025-6032: Fixed in 5.5.2 (should be fixed in 5.7.0)
-        # CVE-2025-9566: Fixed in 5.6.1 (should be fixed in 5.7.0)
-        # CVE-2025-47914 & CVE-2025-58181: golang.org/x/crypto - should be fixed in 5.7.0
-
-        # Note: Only auto-dismiss if the alert has been open for 14+ days AND we've verified
-        # that our Dockerfile uses a version that should have the fix
         SHOULD_DISMISS=true
         DISMISS_REASON="false positive"
         DISMISS_COMMENT="Dockerfile specifies Podman v5.7.0 which includes the fix for ${RULE_ID}. Trivy appears to be detecting version from binary metadata which may not reflect actual security patches. Verified via: devcontainers/ansible/Dockerfile.podman line 11."
@@ -219,6 +214,15 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
                 DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream. See SECURITY_REVIEW.md"
                 log_warning "  → Marked for dismissal: Go stdlib vendor binary CVE"
             fi
+        fi
+    fi
+
+    # Safety guard: high/critical findings always require manual review
+    if [[ "${SHOULD_DISMISS}" = true ]]; then
+        if [[ "${SEVERITY}" == "error" || "${SEVERITY}" == "critical" ]] \
+          || [[ "${SECURITY_SEVERITY}" == "high" || "${SECURITY_SEVERITY}" == "critical" ]]; then
+            SHOULD_DISMISS=false
+            log_warning "  → Dismissal blocked: severity ${SEVERITY}/${SECURITY_SEVERITY} requires manual review"
         fi
     fi
 
