@@ -153,8 +153,10 @@ run_smoke() {
         bash -lc "uv pip install --system --requirement /tmp/requirements-ansible.txt && ansible --version && ansible-lint --version && uv --version"
       ;;
     terraform)
-      docker run --rm --user root "${IMAGE_TAG}" \
-        bash -lc "uv pip install --system \"\${CHECKOV_CONSTRAINT}\" && terraform version && terragrunt --version && tflint --version && checkov --version"
+      # checkov left the image long ago (CHECKOV_CONSTRAINT is unset);
+      # verify the toolchain the image actually ships.
+      docker run --rm "${IMAGE_TAG}" \
+        bash -lc "terraform version && terragrunt --version && tflint --version && sops --version && age --version && aws --version && uv --version"
       ;;
     golang)
       docker run --rm "${IMAGE_TAG}" bash -lc "go version && goimports -h >/dev/null && golangci-lint --version"
