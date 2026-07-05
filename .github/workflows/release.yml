@@ -19,18 +19,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate changelog
-        id: changelog
-        uses: metcalfc/changelog-generator@0440d0932f9a0dd1cc9ecd8412830761351323bd  # v4.7.0
-        with:
-          myToken: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b  # v3.0.1
-        with:
-          body: ${{ steps.changelog.outputs.changelog }}
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # --generate-notes works with zero prior releases, unlike
+          # changelog actions that 404 on "latest release" (first-run trap).
+          gh release create "${TAG}" --generate-notes --verify-tag
 
   publish-container:
     name: Publish Devcontainer Images
