@@ -216,16 +216,15 @@ jobs:
         run: |
           set -euo pipefail
           for sbom in sbom/*.spdx.json; do
-            # .sigstore (no .json) and the detached .sig are the suffixes
-            # OpenSSF Scorecard recognises as release signatures; the .pem
-            # certificate lets verify-blob work without the bundle.
+            # cosign v3 --bundle writes ONLY the sigstore bundle (it ignores
+            # the legacy --output-signature/-certificate flags). The
+            # .sigstore suffix is what OpenSSF Scorecard recognises as a
+            # release signature; verify with `cosign verify-blob --bundle`.
             cosign sign-blob --yes "${sbom}" \
-              --bundle "${sbom%.spdx.json}.sigstore" \
-              --output-signature "${sbom}.sig" \
-              --output-certificate "${sbom}.pem"
+              --bundle "${sbom%.spdx.json}.sigstore"
           done
           gh release upload "${TAG}" \
-            sbom/*.spdx.json sbom/*.sigstore sbom/*.sig sbom/*.pem --clobber
+            sbom/*.spdx.json sbom/*.sigstore --clobber
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
