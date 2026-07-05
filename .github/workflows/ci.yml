@@ -597,10 +597,11 @@ jobs:
           }
 
           if command -v molecule &> /dev/null; then
-            run_scenario default
-            if [ -d "molecule/latex" ]; then
-              run_scenario latex
-            fi
+            for scenario in default latex ansible_environment devcontainer_base python_tools vscode_config; do
+              if [ -d "molecule/${scenario}" ]; then
+                run_scenario "${scenario}"
+              fi
+            done
           else
             echo "::notice::Molecule not installed"
           fi

@@ -7,7 +7,14 @@
     test_workspace_dir: /workspace
     test_python_requirements_file: /workspace/requirements-ansible.txt
     test_collection_requirements_file: /workspace/requirements.yml
+  gather_facts: false
   pre_tasks:
+    - name: Bootstrap writable Ansible tmp directory
+      ansible.builtin.raw: mkdir -p /tmp/ansible-remote && chmod 1777 /tmp/ansible-remote
+      changed_when: false
+
+    - name: Gather facts after bootstrap
+      ansible.builtin.setup:
     - name: Ensure devcontainer user exists
       ansible.builtin.user:
         name: "{{ test_devcontainer_user }}"

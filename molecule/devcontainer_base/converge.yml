@@ -2,6 +2,14 @@
 - name: Converge devcontainer_base role
   hosts: all
   become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Bootstrap writable Ansible tmp directory
+      ansible.builtin.raw: mkdir -p /tmp/ansible-remote && chmod 1777 /tmp/ansible-remote
+      changed_when: false
+
+    - name: Gather facts after bootstrap
+      ansible.builtin.setup:
   vars:
     devcontainer_base_timezone: Etc/UTC
     devcontainer_base_user: vscode
