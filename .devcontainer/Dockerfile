@@ -12,7 +12,6 @@ ARG SOPS_VERSION=3.13.2
 ARG AGE_VERSION=1.3.1
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.11.26
-ARG BASE_IMAGE=debian:${DEBIAN_VERSION}@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df AS fetch
 ARG TARGETARCH
@@ -69,8 +68,7 @@ RUN set -eux; \
     cd /; \
     rm -rf /tmp/dl
 
-# hadolint ignore=DL3006
-FROM ${BASE_IMAGE}
+FROM debian:bookworm-slim@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"

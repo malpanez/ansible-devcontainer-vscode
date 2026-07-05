@@ -3,7 +3,7 @@
 # tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
 # several stacks reuses it. release.yml preflight overrides BASE_IMAGE
 # with a locally built base; bump the digest when base:main is rebuilt.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:36ba638727b31ad66c122aba9c22e6f07c017c01813f092cc7e6d86d9ec8038a
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:8043e0eaa06f6e30b72b805d745b0476f60b16c3956459dd7f788f9a3f77d975
 
 # Stage 1: resolve the Python stack. Build tools live only in this stage:
 # arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
