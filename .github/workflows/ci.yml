@@ -162,14 +162,6 @@ jobs:
       - name: Run go test
         run: go test -v -race -coverprofile=coverage.txt ./...
 
-      - name: Upload coverage
-        if: always()
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
-        with:
-          file: ./coverage.txt
-          flags: golang
-          fail_ci_if_error: false
-        continue-on-error: true
 
   terraform-ci:
     name: Terraform Checks
@@ -469,35 +461,19 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Run pytest with coverage
+      - name: Run pytest
         run: |
           if [ -d "tests" ] && [ -n "$(ls -A tests/*.py 2>/dev/null)" ]; then
             uv run pytest tests/ \
               --verbose \
               --tb=short \
               --maxfail=5 \
-              --cov=roles \
-              --cov=playbooks \
-              --cov=scripts \
-              --cov-report=xml:coverage.xml \
-              --cov-report=html:htmlcov \
-              --cov-report=term-missing \
+              --no-cov \
               -p no:ansible \
-              -p no:pytest-ansible \
-              || echo "::warning::Some pytest tests failed"
+              -p no:pytest-ansible
           else
             echo "::notice::No Python tests found, skipping"
           fi
-
-      - name: Upload Python coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
-        with:
-          files: ./coverage.xml
-          flags: python
-          name: python-coverage
-          fail_ci_if_error: false
-        continue-on-error: true
 
   ansible-test:
     name: Ansible Test
