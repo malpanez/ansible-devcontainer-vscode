@@ -4,11 +4,6 @@
 # See: https://github.com/aquasecurity/trivy/discussions/10425
 
 ignore:
-  # CVE-2024-45337 - golang.org/x/crypto in age binary (LOW)
-  # Affected: age v1.2.1 pre-compiled binary
-  # Reason: SSH server code path not used by age (file encryption tool)
-  - vulnerability: CVE-2024-45337
-
   # CVE-2025-61727 / CVE-2025-61729 - Go stdlib in Podman v5.7.0 (MEDIUM/HIGH)
   # Reason: Pre-compiled binary from upstream, cannot patch ourselves
   - vulnerability: CVE-2025-61727
