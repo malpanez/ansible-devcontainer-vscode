@@ -182,9 +182,13 @@ if command -v ansible-navigator &> /dev/null; then
     info "Pre-pulling Execution Environment image (${DEFAULT_EE}) in background..."
     info "This may take a few minutes on first run..."
 
-    (podman pull "${DEFAULT_EE}" &> /tmp/podman-pull.log && \
-     success "EE image pulled successfully" || \
-     warning "EE image pull failed (check /tmp/podman-pull.log)") &
+    (
+        if podman pull "${DEFAULT_EE}" &> /tmp/podman-pull.log; then
+            success "EE image pulled successfully"
+        else
+            warning "EE image pull failed (check /tmp/podman-pull.log)"
+        fi
+    ) &
 
 else
     warning "ansible-navigator not found"
