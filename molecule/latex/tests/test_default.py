@@ -10,7 +10,7 @@ def _load_json(host, path):
 def test_latex_devcontainer_build_config(host):
     payload = _load_json(host, "/workspace/.devcontainer/devcontainer.json")
     build = payload.get("build", {})
-    assert build.get("dockerfile") == "devcontainers/latex/Dockerfile"
+    assert build.get("dockerfile") == "Dockerfile"
     assert build.get("context") == "../.."
 
 

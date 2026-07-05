@@ -1,7 +1,7 @@
 {
   "name": "Ansible Dev Container (docker-in-docker)",
   "build": {
-    "dockerfile": "devcontainers/ansible/Dockerfile",
+    "dockerfile": "Dockerfile",
     "context": "../.."
   },
   "runArgs": [

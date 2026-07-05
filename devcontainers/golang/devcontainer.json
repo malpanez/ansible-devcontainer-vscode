@@ -1,7 +1,7 @@
 {
   "name": "Go Dev Container",
   "build": {
-    "dockerfile": "devcontainers/golang/Dockerfile",
+    "dockerfile": "Dockerfile",
     "context": "../.."
   },
   "features": {
