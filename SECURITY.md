@@ -49,13 +49,11 @@ gh attestation verify oci://ghcr.io/malpanez/devcontainer-ansible:main \
 ```
 
 Tagged releases additionally attach per-image SPDX SBOMs to the GitHub
-release, each with a detached Cosign signature (`.sig`) and certificate
-(`.pem`):
+release, each with a keyless Cosign signature bundle (`.sigstore`):
 
 ```bash
 cosign verify-blob devcontainer-ansible.spdx.json \
-  --signature devcontainer-ansible.spdx.json.sig \
-  --certificate devcontainer-ansible.spdx.json.pem \
+  --bundle devcontainer-ansible.sigstore \
   --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode/\.github/workflows/.+' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
