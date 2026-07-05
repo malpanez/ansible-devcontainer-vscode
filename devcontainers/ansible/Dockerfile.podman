@@ -8,11 +8,8 @@
 # none of which exist on the Debian bases.
 # trixie base (not bookworm like the other stacks): podman >= 5 needs
 # the newer userland.
-ARG BASE_IMAGE=python:3.12-slim-trixie@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf
-
 # Stage 1: trixie + checksum-verified uv, shared by builder and runtime
-# hadolint ignore=DL3006
-FROM ${BASE_IMAGE} AS uv-base
+FROM python:3.12-slim-trixie@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf AS uv-base
 
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION="0.11.26"
