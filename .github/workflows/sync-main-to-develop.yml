@@ -31,7 +31,10 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # develop requires the "CI Success" status check; direct pushes
+          # from github-actions[bot] are rejected (GH006). BOT_TOKEN is an
+          # admin PAT and bypasses (enforce_admins is off).
+          token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         run: |
