@@ -33,8 +33,8 @@ docker run --rm \
   -v "${EXAMPLES_DIR}:/workspace/examples" \
   --workdir /workspace/examples \
   "${LATEX_IMAGE}" \
-  bash -lc 'latexmk -pdf -interaction=nonstopmode resume.tex'
+  bash -lc 'tectonic resume.tex'
 
-rm -f "${EXAMPLES_DIR}"/resume.{pdf,aux,log,fdb_latexmk,fls} 2>/dev/null || true
+rm -f "${EXAMPLES_DIR}"/resume.pdf 2>/dev/null || true
 
 echo "LaTeX resume compiled successfully."
