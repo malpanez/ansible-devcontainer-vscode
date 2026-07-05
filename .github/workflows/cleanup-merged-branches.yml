@@ -109,7 +109,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
           script: |
-            core.summary.addHeading("Branch Cleanup Summary", 2).addBlankLine();
+            core.summary.addHeading("Branch Cleanup Summary", 2).addBreak();
 
             if (context.eventName === "pull_request") {
               const branch = context.payload.pull_request.head.ref;
@@ -127,6 +127,6 @@ jobs:
               ]);
             }
 
-            core.summary.addBlankLine();
+            core.summary.addBreak();
             core.summary.addRaw("Check job logs for details");
             await core.summary.write();
