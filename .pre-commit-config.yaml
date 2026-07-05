@@ -15,8 +15,9 @@ repos:
         args: ['--unsafe']  # Allow custom YAML tags
       - id: check-json
         name: Check JSON Syntax
-        # devcontainer.json is JSONC by spec (comments + trailing commas)
-        exclude: 'devcontainer.*\.json$'
+        # devcontainer.json and VS Code settings are JSONC by spec
+        # (comments + trailing commas)
+        exclude: '(devcontainer.*|\.vscode/.*)\.json$'
       - id: check-toml
         name: Check TOML Syntax
       - id: check-added-large-files
