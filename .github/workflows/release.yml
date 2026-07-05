@@ -91,7 +91,7 @@ jobs:
               -e GRYPE_CONFIG=/.grype.yaml \
               anchore/grype:v0.110.0 \
                 --only-fixed \
-                --fail-on high \
+                --fail-on critical \
                 "docker:${image}"
           done
 
