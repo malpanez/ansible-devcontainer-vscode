@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
-ARG TECTONIC_VERSION=0.15.0
+ARG TECTONIC_VERSION=0.16.9
 FROM debian:bookworm-slim@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
 
 ARG TECTONIC_VERSION
@@ -33,8 +33,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl \
       fontconfig \
       git \
-      # runtime dependency of the tectonic gnu binary
-      libgraphite2-3 \
       perl \
       sudo \
       unzip \
@@ -44,14 +42,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # Tectonic publishes no checksum manifest; hashes pinned per release.
-# Note: 0.15.0 ships no aarch64 gnu artifact, only musl.
+# musl artifacts on both arches: they are static, so they keep working
+# regardless of the base image's glibc (the gnu builds broke on 0.16.9).
 RUN set -eux; \
     ARCH="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     case "${ARCH}" in \
-      amd64|x86_64) TECTONIC_ARCH="x86_64-unknown-linux-gnu"; \
-        TECTONIC_SHA256="875fbbc9ab48560d7776088c608e0beee49197b57ab4a2f6c5385b2c661c842f" ;; \
+      amd64|x86_64) TECTONIC_ARCH="x86_64-unknown-linux-musl"; \
+        TECTONIC_SHA256="60b13a0826ae7ad9ce34b4a2df06bff2cfcfa6dda8a915477c0cbb84e1a4a902" ;; \
       arm64|aarch64) TECTONIC_ARCH="aarch64-unknown-linux-musl"; \
-        TECTONIC_SHA256="1f59f9fb8eb65e8ba18658fc9016767e7d3e12488ded8b8fffa34254e51ce42c" ;; \
+        TECTONIC_SHA256="f9aa39017dbd51f111fdb93dda222178cbe51c8193508fc567b523cc74fff9c1" ;; \
       *) echo "Unsupported architecture ${ARCH}" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}.tar.gz" \

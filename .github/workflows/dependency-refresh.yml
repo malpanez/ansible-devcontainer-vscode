@@ -35,6 +35,15 @@ jobs:
           uv export --format requirements-txt --no-hashes --frozen --all-groups > requirements.txt
           uv export --format requirements-txt --frozen --no-default-groups > requirements-ansible.txt
 
+      - name: Refresh tool version pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/refresh-tool-pins.py
+          if ! git diff --quiet devcontainers/terraform/; then
+            bash scripts/use-devcontainer.sh terraform
+          fi
+
       - name: Refresh devcontainer-base digest pin
         run: |
           set -euo pipefail
