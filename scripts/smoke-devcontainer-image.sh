@@ -158,7 +158,9 @@ run_smoke() {
       docker run --rm "${IMAGE_TAG}" bash -lc "go version && goimports -h >/dev/null && golangci-lint --version"
       ;;
     latex)
-      docker run --rm "${IMAGE_TAG}" bash -lc "kpsewhich latex.fmt >/dev/null && latexmk -v"
+      # The stack is Tectonic-based; kpsewhich/latexmk belonged to the
+      # old TeXLive image and have not existed since the migration.
+      docker run --rm "${IMAGE_TAG}" bash -lc "tectonic --version && perl --version >/dev/null"
       ;;
     *)
       echo "No smoke test defined for '${STACK}'." >&2
