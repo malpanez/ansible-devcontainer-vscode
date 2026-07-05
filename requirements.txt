@@ -272,7 +272,7 @@ s3transfer==0.19.0
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2'
     # via molecule-plugins
-setuptools==82.0.1
+setuptools==83.0.0
     # via
     #   ansible-navigator
     #   pbr
