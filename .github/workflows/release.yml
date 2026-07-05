@@ -241,19 +241,9 @@ jobs:
       matrix:
         stack: [ansible, terraform, golang, latex]
 
-    env:
-      DEVCONTAINER_PREFER_LOCAL_BUILD: "false"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-
-      - name: Install Dev Containers CLI
-        run: |
-          set -euo pipefail
-          export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-          npm install --global @devcontainers/cli
-          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
 
       - name: Login to GHCR
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
@@ -262,24 +252,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run devcontainer up for ${{ matrix.stack }} @ latest
-        env:
-          WORKSPACE_FOLDER: devcontainers/${{ matrix.stack }}
-          IMAGE_TAG: latest
+      # Smoke the PUBLISHED image, not a local rebuild: the devcontainer.json
+      # builds from Dockerfile (ignoring the tag), so 'devcontainer up' never
+      # exercised what was pushed. docker run auto-pulls the GHCR ref.
+      - name: Smoke published ${{ matrix.stack }} @ latest
         run: |
-          set -euo pipefail
-          devcontainer up --workspace-folder "$WORKSPACE_FOLDER"
-          devcontainer exec \
-            --workspace-folder "$WORKSPACE_FOLDER" \
-            -- bash -lc "echo '${{ matrix.stack }} latest ready'"
+          bash scripts/smoke-devcontainer-image.sh \
+            --stack "${{ matrix.stack }}" \
+            --image "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:latest"
 
-      - name: Run devcontainer up for ${{ matrix.stack }} @ release tag
-        env:
-          WORKSPACE_FOLDER: devcontainers/${{ matrix.stack }}
-          IMAGE_TAG: ${{ github.ref_name }}
+      - name: Smoke published ${{ matrix.stack }} @ ${{ github.ref_name }}
         run: |
-          set -euo pipefail
-          devcontainer up --workspace-folder "$WORKSPACE_FOLDER"
-          devcontainer exec \
-            --workspace-folder "$WORKSPACE_FOLDER" \
-            -- bash -lc "echo '${{ matrix.stack }} $IMAGE_TAG ready'"
+          bash scripts/smoke-devcontainer-image.sh \
+            --stack "${{ matrix.stack }}" \
+            --image "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:${{ github.ref_name }}"
