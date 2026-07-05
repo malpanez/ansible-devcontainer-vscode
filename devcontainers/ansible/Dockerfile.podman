@@ -100,6 +100,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends \
       # Base tools
       git \
+      gh \
       openssh-client \
       rsync \
       unzip \
@@ -114,6 +115,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fuse-overlayfs \
       iptables \
       dbus-user-session \
+    # podman 5 uses netavark; the CNI plugins only add ~15 Go binaries
+    # of scanner noise and are not a podman dependency
+    && apt-get remove -y --purge containernetworking-plugins \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
