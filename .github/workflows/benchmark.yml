@@ -28,6 +28,9 @@ env:
   BENCHMARK_ITERATIONS: 3
   BENCHMARK_RESULTS_DIR: benchmark-results
 
+permissions:
+  contents: read
+
 jobs:
   container-startup-benchmark:
     name: Container Startup Time
