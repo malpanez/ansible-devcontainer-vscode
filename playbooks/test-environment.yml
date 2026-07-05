@@ -5,6 +5,12 @@
   gather_facts: no
   vars:
     requirements_file_path: "{{ playbook_dir ~ '/../requirements-ansible.txt' }}"
+  # Tools live next to the interpreter running this playbook (venv or
+  # system); module subprocesses do not inherit an activated venv PATH
+  environment:
+    PATH: "{{ ansible_playbook_python | dirname }}:{{ lookup('env', 'PATH') }}"
+    # ansible-lint/rich embed ANSI codes in --version output otherwise
+    NO_COLOR: "1"
 
   tasks:
     - name: Check Ansible is installed
@@ -81,9 +87,10 @@
         argv:
           - "{{ ansible_playbook_python }}"
           - "-c"
-          - "import ansible; print(ansible.__version__)"
+          - "from importlib.metadata import version; print(version('ansible'))"
       register: ansible_python_version
       changed_when: false
+      check_mode: false
 
     - name: Assert detected Python Ansible version
       ansible.builtin.assert:
@@ -96,11 +103,13 @@
       ansible.builtin.command: ansible-lint --version
       register: lint_version
       changed_when: false
+      check_mode: false
 
     - name: Locate ansible-lint binary
       ansible.builtin.command: which ansible-lint
       register: lint_binary_path
       changed_when: false
+      check_mode: false
 
     - name: Assert ansible-lint version detected
       ansible.builtin.assert:
@@ -126,11 +135,13 @@
       ansible.builtin.command: uv --version
       register: uv_version
       changed_when: false
+      check_mode: false
 
     - name: Locate uv binary
       ansible.builtin.command: which uv
       register: uv_binary_path
       changed_when: false
+      check_mode: false
 
     - name: Assert uv version detected
       ansible.builtin.assert:
@@ -144,6 +155,7 @@
       ansible.builtin.command: pytest --version
       register: pytest_version
       changed_when: false
+      check_mode: false
 
     - name: Assert pytest version detected
       ansible.builtin.assert:
@@ -156,6 +168,7 @@
       ansible.builtin.command: ansible-galaxy collection list
       register: collections_list
       changed_when: false
+      check_mode: false
 
     - name: Display installed collections
       ansible.builtin.debug:

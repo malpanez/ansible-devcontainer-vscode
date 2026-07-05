@@ -110,7 +110,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system .
+          uv pip install --system --group dev .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
@@ -122,7 +122,6 @@ jobs:
           else
             echo "::warning::Test playbook not found, skipping"
           fi
-        continue-on-error: true
 
   golang-ci:
     name: Golang CI
@@ -436,9 +435,8 @@ jobs:
             DEVCONTAINER_ARGS=(--workspace-folder . --config devcontainer.json)
             devcontainer up "${DEVCONTAINER_ARGS[@]}"
             devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${{ matrix.stack }} container is running'"
-            devcontainer stop "${DEVCONTAINER_ARGS[@]}"
+            # no 'devcontainer stop' subcommand exists; the runner cleans up
           fi
-        continue-on-error: true
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
@@ -467,7 +465,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system .
+          uv pip install --system --group dev .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -524,7 +522,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system .
+          uv pip install --system --group dev .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -576,7 +574,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system .
+          uv pip install --system --group dev .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
@@ -634,14 +632,12 @@ jobs:
           if [ -x "./scripts/scenarios/run-terraform-proxmox.sh" ]; then
             ./scripts/scenarios/run-terraform-proxmox.sh
           fi
-        continue-on-error: true
 
       - name: Run LaTeX scenario
         run: |
           if [ -x "./scripts/scenarios/run-latex-cv.sh" ]; then
             ./scripts/scenarios/run-latex-cv.sh
           fi
-        continue-on-error: true
 
   publish-base:
     name: Publish Base to GHCR
@@ -807,7 +803,9 @@ jobs:
     permissions:
       security-events: write
       contents: read
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # PRs get the scan too so dependency vulns surface before merge;
+    # SARIF upload stays main-only (PR uploads pollute branch alerts)
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -825,7 +823,7 @@ jobs:
 
       - name: Upload Grype SARIF
         uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a  # v4
-        if: always()
+        if: always() && github.event_name == 'push'
         with:
           sarif_file: ${{ steps.grype-fs.outputs.sarif }}
           category: grype-fs

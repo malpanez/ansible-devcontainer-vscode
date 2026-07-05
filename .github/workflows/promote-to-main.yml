@@ -120,15 +120,21 @@ jobs:
           # which left sync-main-to-develop dormant after promotions and
           # let the branches diverge.
           GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          FALLBACK_TOKEN: ${{ github.token }}
         run: |
           # Get the PR number (works whether we just created it or it already exists)
-          PR_NUMBER=$(gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open --json number --jq '.[0].number')
+          PR_NUMBER=$(GH_TOKEN="${FALLBACK_TOKEN}" gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open --json number --jq '.[0].number')
 
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Found PR #$PR_NUMBER from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-            # Enable auto-merge with squash strategy
-            gh pr merge "$PR_NUMBER" --auto --squash || echo "Auto-merge might already be enabled or permissions insufficient"
-          else
+          if [ -z "$PR_NUMBER" ]; then
             echo "No open PR found from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
             exit 0
+          fi
+
+          echo "Found PR #$PR_NUMBER from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
+          if gh pr merge "$PR_NUMBER" --auto --squash; then
+            echo "Auto-merge enabled with BOT_TOKEN"
+          else
+            echo "::warning::BOT_TOKEN could not enable auto-merge (expired or missing scopes?). Falling back to GITHUB_TOKEN: the eventual merge push will NOT trigger workflows; the scheduled sync/publish sweeps cover the gap. Renew BOT_TOKEN."
+            GH_TOKEN="${FALLBACK_TOKEN}" gh pr merge "$PR_NUMBER" --auto --squash \
+              || echo "::warning::Auto-merge could not be enabled at all; merge the promotion PR manually."
           fi

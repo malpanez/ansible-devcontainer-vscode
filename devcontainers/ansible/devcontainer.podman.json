@@ -1,7 +1,7 @@
 {
   "name": "Ansible Dev Container (Podman + Execution Environments)",
   "build": {
-    "dockerfile": "devcontainers/ansible/Dockerfile.podman",
+    "dockerfile": "Dockerfile.podman",
     "context": "../.."
   },
   "runArgs": [

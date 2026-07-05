@@ -31,7 +31,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       bash \
       ca-certificates \
       curl \
+      fontconfig \
       git \
+      # runtime dependency of the tectonic gnu binary
+      libgraphite2-3 \
       perl \
       sudo \
       unzip \

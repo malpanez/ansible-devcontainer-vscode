@@ -28,13 +28,19 @@ jobs:
           - devcontainer-golang
           - devcontainer-latex
     steps:
-      - name: Delete untagged container versions
-        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55  # v5.1.0
+      # actions/delete-package-versions is not multi-arch aware: the
+      # platform manifests and attestations of a tagged index show up as
+      # "untagged" versions, and deleting them hollows out every
+      # published tag (2026-07-05 incident: all :latest/:main/py312 tags
+      # broke). ghcr-cleanup-action resolves manifest references and
+      # only deletes truly orphaned versions.
+      - name: Delete orphaned container versions
+        uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f  # v1.2.2
         with:
-          package-name: ${{ matrix.image }}
-          package-type: container
-          min-versions-to-keep: 3
-          delete-only-untagged-versions: true
+          package: ${{ matrix.image }}
+          delete-untagged: true
+          validate: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   verify-protected-tags:
     name: Verify Protected Tags
@@ -48,8 +54,12 @@ jobs:
         include:
           - image: devcontainer-base
             tag: py312
+          - image: devcontainer-base
+            tag: main
           - image: devcontainer-ansible
             tag: latest
+          - image: devcontainer-ansible
+            tag: main
           - image: devcontainer-terraform
             tag: latest
           - image: devcontainer-golang
@@ -64,10 +74,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify manifest exists
+      - name: Verify manifest and platform children resolve
         run: |
+          # --format .Image forces resolution of the per-platform child
+          # manifests and configs; a bare inspect only fetches the index
+          # and reported success while every child was missing.
           docker buildx imagetools inspect \
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.tag }}
+            "ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.tag }}" \
+            --format '{{json .Image}}' > /dev/null
+          echo "OK: all platform manifests resolve"
 
   report-tagged-cleanup-policy:
     name: Tagged Cleanup Policy

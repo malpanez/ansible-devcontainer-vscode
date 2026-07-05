@@ -17,7 +17,9 @@ on:
           - terraform
           - latex
   schedule:
-    - cron: '0 3 * * 1'
+    # Daily: keeps published images at most ~24h behind security updates
+    # and covers promotions merged by tokens whose pushes emit no events
+    - cron: '0 3 * * *'
   push:
     branches: [main]
     paths:

@@ -29,12 +29,13 @@ trap cleanup EXIT
 ./scripts/smoke-devcontainer-image.sh --stack latex --build --image "${LATEX_IMAGE}" --base-image "${BASE_IMAGE}"
 
 echo "==> Compiling resume.tex inside LaTeX image"
+# Read-only mount + container-local build dir: the runner checkout is
+# owned by a different UID than the container user, so writing the PDF
+# into the bind mount fails on CI.
 docker run --rm \
-  -v "${EXAMPLES_DIR}:/workspace/examples" \
-  --workdir /workspace/examples \
+  -v "${EXAMPLES_DIR}:/workspace/examples:ro" \
+  --workdir /tmp \
   "${LATEX_IMAGE}" \
-  bash -lc 'latexmk -pdf -interaction=nonstopmode resume.tex'
-
-rm -f "${EXAMPLES_DIR}"/resume.{pdf,aux,log,fdb_latexmk,fls} 2>/dev/null || true
+  bash -lc 'cp /workspace/examples/resume.tex . && tectonic resume.tex && test -s resume.pdf'
 
 echo "LaTeX resume compiled successfully."
