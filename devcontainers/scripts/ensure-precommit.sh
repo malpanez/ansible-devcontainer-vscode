@@ -41,6 +41,10 @@ if ! command -v pre-commit >/dev/null 2>&1; then
 fi
 
 cd "${WORKSPACE_DIR}"
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "Workspace is not a git repository; skipping pre-commit hook installation"
+  exit 0
+fi
 pre-commit install -f
 # Deliberately NOT running 'pre-commit autoupdate': container startup
 # must never mutate the user's pinned hook versions.
