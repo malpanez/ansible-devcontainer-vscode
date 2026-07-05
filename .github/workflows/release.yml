@@ -213,7 +213,10 @@ jobs:
         run: |
           set -euo pipefail
           for sbom in sbom/*.spdx.json; do
+            # cosign v3 sign-blob requires the bundle output; keep the
+            # detached .sig/.pem pair for legacy verify-blob flows.
             cosign sign-blob --yes "${sbom}" \
+              --bundle "${sbom}.sigstore.json" \
               --output-signature "${sbom}.sig" \
               --output-certificate "${sbom}.pem"
           done
