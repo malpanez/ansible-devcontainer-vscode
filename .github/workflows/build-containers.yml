@@ -209,6 +209,13 @@ jobs:
           severity-cutoff: high
           only-fixed: true
           fail-build: "false"
+      - name: Keep only high/critical findings in SARIF
+        if: always() && steps.grype_base.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_base.outputs.sarif }}
+        run: |
+          jq '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" > sarif-filtered.json
+          mv sarif-filtered.json "${SARIF_FILE}"
 
       - name: Check if SARIF file exists
         id: sarif_check
@@ -336,6 +343,13 @@ jobs:
           severity-cutoff: high
           only-fixed: true
           fail-build: "false"
+      - name: Keep only high/critical findings in SARIF
+        if: always() && steps.grype_scan.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+        run: |
+          jq '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" > sarif-filtered.json
+          mv sarif-filtered.json "${SARIF_FILE}"
 
       - name: Check if SARIF file exists
         id: sarif_check
