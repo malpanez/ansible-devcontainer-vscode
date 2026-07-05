@@ -145,14 +145,16 @@ run_smoke() {
       docker run --rm --user vscode "${IMAGE_TAG}" bash -lc "whoami | grep -q vscode && uv --version && pre-commit --version"
       ;;
     ansible)
-      docker run --rm \
+      # Root user for the system-wide install: the images dropped the
+      # NOPASSWD uv sudoers rule (it was a root escalation vector).
+      docker run --rm --user root \
         --mount type=bind,src="${REPO_ROOT}/requirements-ansible.txt",target=/tmp/requirements-ansible.txt,readonly \
         "${IMAGE_TAG}" \
-        bash -lc "sudo uv pip install --system --requirement /tmp/requirements-ansible.txt && ansible --version && ansible-lint --version && uv --version"
+        bash -lc "uv pip install --system --requirement /tmp/requirements-ansible.txt && ansible --version && ansible-lint --version && uv --version"
       ;;
     terraform)
-      docker run --rm "${IMAGE_TAG}" \
-        bash -lc "sudo --preserve-env=CHECKOV_CONSTRAINT uv pip install --system \"\${CHECKOV_CONSTRAINT}\" && terraform version && terragrunt --version && tflint --version && checkov --version"
+      docker run --rm --user root "${IMAGE_TAG}" \
+        bash -lc "uv pip install --system \"\${CHECKOV_CONSTRAINT}\" && terraform version && terragrunt --version && tflint --version && checkov --version"
       ;;
     golang)
       docker run --rm "${IMAGE_TAG}" bash -lc "go version && goimports -h >/dev/null && golangci-lint --version"
