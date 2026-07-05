@@ -435,7 +435,7 @@ jobs:
             DEVCONTAINER_ARGS=(--workspace-folder . --config devcontainer.json)
             devcontainer up "${DEVCONTAINER_ARGS[@]}"
             devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${{ matrix.stack }} container is running'"
-            devcontainer stop "${DEVCONTAINER_ARGS[@]}"
+            # no 'devcontainer stop' subcommand exists; the runner cleans up
           fi
 
   unit-tests:
