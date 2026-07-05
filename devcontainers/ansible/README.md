@@ -248,7 +248,7 @@ The Dockerfile installs a pinned `uv` release as a direct binary
 download (no pipe-to-shell) and verifies its published SHA-256 checksum:
 
 ```dockerfile
-ARG UV_VERSION="0.9.13"
+ARG UV_VERSION="0.11.26"
 ```
 
 ### Base Image Pinning (Optional)

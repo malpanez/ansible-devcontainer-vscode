@@ -19,7 +19,7 @@ ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.9.13
+ARG UV_VERSION=0.11.26
 
 # Common system packages used across Python-based stacks.
 # hadolint ignore=DL3008,DL3015
