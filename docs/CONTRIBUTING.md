@@ -189,14 +189,6 @@ ansible-lint
 ruff check .
 ```
 
-### Code Coverage
-
-We track code coverage with [Codecov](https://codecov.io/gh/malpanez/ansible-devcontainer-vscode):
-
-- **Minimum coverage**: 60% (enforced in CI)
-- **New code**: Should maintain or improve coverage
-- **View reports**: Check the Codecov badge in README or run `make coverage-report`
-
 Run coverage locally:
 
 ```bash

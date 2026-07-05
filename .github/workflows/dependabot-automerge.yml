@@ -1,0 +1,38 @@
+---
+name: Dependabot Auto-Merge
+
+# develop is protected with a required "CI Success" check, so enabling
+# auto-merge here means "merge when the pipeline is green" — nothing
+# lands unverified. Version updates target develop; the promotion gate
+# to main still requires a human approval.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  automerge:
+    name: Enable Auto-Merge
+    runs-on: ubuntu-slim
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.base.ref == 'develop'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge
+        env:
+          # BOT_TOKEN so the eventual merge push emits events (triggers
+          # the promotion workflow); GITHUB_TOKEN fallback keeps the
+          # merge working but event-less if the PAT expires.
+          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          FALLBACK_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if ! gh pr merge --auto --squash "${PR_URL}"; then
+            echo "::warning::BOT_TOKEN failed to enable auto-merge (expired?); retrying with GITHUB_TOKEN. The merge push will not trigger the promotion workflow — renew BOT_TOKEN."
+            GH_TOKEN="${FALLBACK_TOKEN}" gh pr merge --auto --squash "${PR_URL}" \
+              || echo "::warning::Auto-merge could not be enabled; merge manually."
+          fi
