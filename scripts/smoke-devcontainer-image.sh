@@ -159,7 +159,10 @@ run_smoke() {
         bash -lc "terraform version && terragrunt --version && tflint --version && sops --version && age --version && aws --version && uv --version"
       ;;
     golang)
-      docker run --rm "${IMAGE_TAG}" bash -lc "go version && goimports -h >/dev/null && golangci-lint --version"
+      # Non-login shell: alpine's /etc/profile resets PATH and drops
+      # /usr/local/go/bin. goimports/golangci-lint install per-user at
+      # devcontainer creation and are not baked into the image.
+      docker run --rm "${IMAGE_TAG}" bash -c "go version && uv --version"
       ;;
     latex)
       # The stack is Tectonic-based; kpsewhich/latexmk belonged to the
