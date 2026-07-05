@@ -155,10 +155,14 @@ jobs:
           fi
 
           echo "Found PR #$PR_NUMBER from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
-          if gh pr merge "$PR_NUMBER" --auto --squash; then
+          # Merge commit, NOT squash: squashing promotions keeps main and
+          # develop permanently divergent by history (every develop commit
+          # re-listed in every promotion body — which also inflated semver
+          # bumps) and hides the real commit subjects from tooling.
+          if gh pr merge "$PR_NUMBER" --auto --merge; then
             echo "Auto-merge enabled with BOT_TOKEN"
           else
             echo "::warning::BOT_TOKEN could not enable auto-merge (expired or missing scopes?). Falling back to GITHUB_TOKEN: the eventual merge push will NOT trigger workflows; the scheduled sync/publish sweeps cover the gap. Renew BOT_TOKEN."
-            GH_TOKEN="${FALLBACK_TOKEN}" gh pr merge "$PR_NUMBER" --auto --squash \
+            GH_TOKEN="${FALLBACK_TOKEN}" gh pr merge "$PR_NUMBER" --auto --merge \
               || echo "::warning::Auto-merge could not be enabled at all; merge the promotion PR manually."
           fi
