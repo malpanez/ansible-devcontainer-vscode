@@ -140,7 +140,9 @@ run_smoke() {
   echo ">> Running smoke checks for stack '${STACK}' ..."
   case "${STACK}" in
     base)
-      docker run --rm "${IMAGE_TAG}" bash -lc "whoami | grep -q vscode && uv --version"
+      # base is a build layer and stays root; stacks set USER later.
+      # Verify the vscode user exists and the toolchain works as them.
+      docker run --rm --user vscode "${IMAGE_TAG}" bash -lc "whoami | grep -q vscode && uv --version && pre-commit --version"
       ;;
     ansible)
       docker run --rm \
