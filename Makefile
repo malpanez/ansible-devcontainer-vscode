@@ -118,7 +118,7 @@ validate-docker: ## Validate all Dockerfiles
 	@echo "🐳 Validating Dockerfiles..."
 	@for f in $$(find . -name "Dockerfile*" -not -path "./.git/*" -not -path "./.venv/*"); do \
 		echo "Linting $$f"; \
-		docker run --rm -i hadolint/hadolint < "$$f" || exit 1; \
+		docker run --rm -i hadolint/hadolint:v2.14.0 < "$$f" || exit 1; \
 	done
 
 .PHONY: ci-local

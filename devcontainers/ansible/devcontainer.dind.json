@@ -9,8 +9,7 @@
     "--privileged"
   ],
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
   "customizations": {
     "vscode": {
@@ -42,7 +41,9 @@
           "editor.formatOnSave": true,
           "editor.tabSize": 2
         },
-        "editor.rulers": [120],
+        "editor.rulers": [
+          120
+        ],
         "files.trimTrailingWhitespace": true,
         "files.insertFinalNewline": true
       }

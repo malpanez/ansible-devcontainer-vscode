@@ -33,9 +33,14 @@ export PATH="${HOME}/.local/bin:${PATH}"
 export PRE_COMMIT_HOME="${PRE_COMMIT_HOME:-${WORKSPACE_DIR}/.cache/pre-commit}"
 mkdir -p "${PRE_COMMIT_HOME}"
 
-# Ensure pre-commit is installed via uv toolchain (idempotent).
-uv tool install pre-commit >/dev/null 2>&1
+# pre-commit ships preinstalled in the images; install user-scoped only
+# as a fallback, loudly, so failures are visible.
+if ! command -v pre-commit >/dev/null 2>&1; then
+  echo "pre-commit not found in image; installing user-scoped via uv"
+  uv tool install pre-commit
+fi
 
 cd "${WORKSPACE_DIR}"
-uvx pre-commit install -f
-uvx pre-commit autoupdate || true
+pre-commit install -f
+# Deliberately NOT running 'pre-commit autoupdate': container startup
+# must never mutate the user's pinned hook versions.

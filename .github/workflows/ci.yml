@@ -253,7 +253,7 @@ jobs:
           for dockerfile in devcontainers/*/Dockerfile; do
             if [ -f "$dockerfile" ]; then
               echo "Linting $dockerfile"
-              docker run --rm -i hadolint/hadolint:latest hadolint \
+              docker run --rm -i hadolint/hadolint:v2.14.0 hadolint \
                 --failure-threshold error \
                 - < "$dockerfile"
             fi
