@@ -28,8 +28,37 @@ We support the latest tagged release and the `main` branch. Older tags may remai
 ## Supply-Chain Expectations
 
 - All third-party binaries should be fetched over HTTPS with checksum validation. Multi-architecture builds must verify the checksum that matches the target platform.
-- Pin dependency versions (Python, Go, Terraform, etc.) to avoid unexpected upgrades. Re-run the security scans in CI (`hadolint`, `trivy`) after any bump.
-- Sign published container images with Cosign (this repository uses keyless signing in `release.yml`) and push to GHCR from protected branches or tagged releases only.
+- Pin dependency versions (Python, Go, Terraform, etc.) to avoid unexpected upgrades. Re-run the security scans in CI (`hadolint`, `grype`) after any bump.
+- Sign published container images with Cosign (this repository signs every published digest keyless from `build-containers.yml` and `release.yml`) and push to GHCR from protected branches or tagged releases only.
+
+## Verifying Published Images
+
+Every image digest published to GHCR carries a keyless Cosign signature and a
+GitHub build-provenance attestation. To verify before use:
+
+```bash
+# Cosign signature (keyless, Fulcio certificate tied to the publishing workflow)
+cosign verify \
+  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode/\.github/workflows/.+' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/malpanez/devcontainer-ansible:main
+
+# Build provenance attestation (SLSA)
+gh attestation verify oci://ghcr.io/malpanez/devcontainer-ansible:main \
+  --owner malpanez
+```
+
+Tagged releases additionally attach per-image SPDX SBOMs to the GitHub
+release, each with a detached Cosign signature (`.sig`) and certificate
+(`.pem`):
+
+```bash
+cosign verify-blob devcontainer-ansible.spdx.json \
+  --signature devcontainer-ansible.spdx.json.sig \
+  --certificate devcontainer-ansible.spdx.json.pem \
+  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode/\.github/workflows/.+' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 ## Operational Recommendations
 

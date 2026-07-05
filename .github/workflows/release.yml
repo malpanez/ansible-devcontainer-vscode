@@ -35,9 +35,11 @@ jobs:
   publish-container:
     name: Publish Devcontainer Images
     runs-on: ubuntu-latest
+    needs: create-release
     permissions:
-      contents: read
+      contents: write
       packages: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -66,7 +68,7 @@ jobs:
           stacks=(base ansible terraform golang latex)
           for stack in "${stacks[@]}"; do
             args=(--stack "${stack}" --build --image "devcontainer-${stack}:preflight")
-            if [[ "${stack}" == "ansible" || "${stack}" == "terraform" ]]; then
+            if [[ "${stack}" == "ansible" ]]; then
               args+=(--base-image devcontainer-base:preflight)
             fi
             ./scripts/smoke-devcontainer-image.sh "${args[@]}"
@@ -209,6 +211,19 @@ jobs:
           syft "${registry}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}" \
             -o spdx-json > sbom/devcontainer-latex.spdx.json
 
+      - name: Sign SBOMs and attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for sbom in sbom/*.spdx.json; do
+            cosign sign-blob --yes "${sbom}" \
+              --output-signature "${sbom}.sig" \
+              --output-certificate "${sbom}.pem"
+          done
+          gh release upload "${TAG}" sbom/* --clobber
+
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -259,7 +274,6 @@ jobs:
           devcontainer exec \
             --workspace-folder "$WORKSPACE_FOLDER" \
             -- bash -lc "echo '${{ matrix.stack }} latest ready'"
-          devcontainer stop --workspace-folder "$WORKSPACE_FOLDER"
 
       - name: Run devcontainer up for ${{ matrix.stack }} @ release tag
         env:
@@ -271,4 +285,3 @@ jobs:
           devcontainer exec \
             --workspace-folder "$WORKSPACE_FOLDER" \
             -- bash -lc "echo '${{ matrix.stack }} $IMAGE_TAG ready'"
-          devcontainer stop --workspace-folder "$WORKSPACE_FOLDER"
