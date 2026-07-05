@@ -188,8 +188,9 @@ ARG_DEFAULT_RE = re.compile(r"^ARG\s+(?P<name>\w+)=(?P<value>\S+)$", re.MULTILIN
 
 
 def registry_digest(image: str, tag: str) -> str:
-    if image.startswith("ghcr.io/"):
-        name = image.removeprefix("ghcr.io/")
+    host, _, path = image.partition("/")
+    if host == "ghcr.io":
+        name = path
         token_url = f"https://ghcr.io/token?scope=repository:{name}:pull"
         registry = "ghcr.io"
     else:
