@@ -27,7 +27,7 @@
   "mounts": [
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
-    "source=${localWorkspaceFolder}/.terraform.d/plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=bind"
+    "source=terraform-plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=volume"
   ],
   "remoteEnv": {
     "TF_PLUGIN_CACHE_DIR": "/workspaces/.terraform.d/plugin-cache",
