@@ -44,25 +44,6 @@ jobs:
             bash scripts/use-devcontainer.sh terraform
           fi
 
-      - name: Refresh devcontainer-base digest pin
-        run: |
-          set -euo pipefail
-          # Dependabot does not track digests in ARG defaults, so the
-          # weekly refresh keeps the ansible image's base pin current.
-          digest=$(docker buildx imagetools inspect \
-            "ghcr.io/${{ github.repository_owner }}/devcontainer-base:main" \
-            --format '{{json .Manifest.Digest}}' | tr -d '"')
-          case "${digest}" in
-            sha256:*)
-              sed -i -E "s|(devcontainer-base:main@)sha256:[a-f0-9]{64}|\1${digest}|" \
-                devcontainers/ansible/Dockerfile
-              grep -n "devcontainer-base:main@" devcontainers/ansible/Dockerfile
-              ;;
-            *)
-              echo "::warning::could not resolve base digest; pin left unchanged"
-              ;;
-          esac
-
       - name: Record changes
         run: |
           git status --short

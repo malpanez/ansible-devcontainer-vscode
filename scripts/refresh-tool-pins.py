@@ -172,6 +172,81 @@ TOOLS: list[Tool] = [
 ]
 
 
+MANIFEST_ACCEPT = ", ".join(
+    [
+        "application/vnd.oci.image.index.v1+json",
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+        "application/vnd.oci.image.manifest.v1+json",
+        "application/vnd.docker.distribution.manifest.v2+json",
+    ]
+)
+
+IMAGE_PIN_RE = re.compile(
+    r"(?P<image>[\w./-]+):(?P<tag>[^\s@\"']+)@sha256:(?P<digest>[a-f0-9]{64})"
+)
+ARG_DEFAULT_RE = re.compile(r"^ARG\s+(?P<name>\w+)=(?P<value>\S+)$", re.MULTILINE)
+
+
+def registry_digest(image: str, tag: str) -> str:
+    if image.startswith("ghcr.io/"):
+        name = image.removeprefix("ghcr.io/")
+        token_url = f"https://ghcr.io/token?scope=repository:{name}:pull"
+        registry = "ghcr.io"
+    else:
+        name = image if "/" in image else f"library/{image}"
+        token_url = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{name}:pull"
+        registry = "registry-1.docker.io"
+    token = json.loads(http_get(token_url))["token"]
+    request = urllib.request.Request(
+        f"https://{registry}/v2/{name}/manifests/{tag}",
+        headers={
+            "Accept": MANIFEST_ACCEPT,
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "refresh-tool-pins",
+        },
+        method="HEAD",
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return response.headers["Docker-Content-Digest"]
+
+
+def refresh_image_digests() -> bool:
+    """Refresh every image:tag@sha256 pin found in the Dockerfiles.
+
+    Tags stay put (Dependabot bumps those); only the digest behind each
+    tag is re-resolved, so weekly base-image rebuilds (distro patches)
+    reach the pins without manual edits. ${VAR} tags are expanded from
+    ARG defaults in the same Dockerfile.
+    """
+    changed = False
+    resolved: dict[tuple[str, str], str] = {}
+    for path in sorted(REPO_ROOT.glob("devcontainers/*/Dockerfile*")):
+        text = path.read_text()
+        args = {m["name"]: m["value"] for m in ARG_DEFAULT_RE.finditer(text)}
+        for match in IMAGE_PIN_RE.finditer(text):
+            image, tag, digest = match["image"], match["tag"], match["digest"]
+            for name, value in args.items():
+                tag = tag.replace(f"${{{name}}}", value)
+            key = (image, tag)
+            if key not in resolved:
+                try:
+                    resolved[key] = registry_digest(image, tag)
+                except Exception as error:  # noqa: BLE001 - report and continue
+                    print(f"digest {image}:{tag}: SKIPPED ({error})")
+                    resolved[key] = f"sha256:{digest}"
+            latest = resolved[key]
+            if latest != f"sha256:{digest}":
+                print(
+                    f"digest {image}:{tag}: sha256:{digest[:12]}... -> {latest[:19]}..."
+                )
+                text = text.replace(f"@sha256:{digest}", f"@{latest}")
+                changed = True
+        path.write_text(text)
+    if not changed:
+        print("image digests: all current")
+    return changed
+
+
 def current_version(tool: Tool) -> str:
     path, pattern = tool.version_patterns[0]
     match = re.search(pattern, path.read_text())
@@ -213,6 +288,7 @@ def main() -> int:
         print(f"{tool.name}: {current} -> {latest}")
         bump(tool, latest)
         changed = True
+    changed = refresh_image_digests() or changed
     print("changes applied" if changed else "everything current")
     return 0
 
