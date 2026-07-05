@@ -165,12 +165,14 @@ podman images
   one source build (onigurumacffi on arm64) happens in a builder stage
 
 ### Python Packages (via uv)
-- `ansible` + `ansible-core`
-- `ansible-lint`
-- `molecule` + `molecule-plugins[docker]`
-- `ansible-navigator`
-- Testing: `pytest`, `pytest-ansible`, `pytest-testinfra`
-- See `requirements-ansible.txt` for full list
+The image ships the runtime toolchain: `ansible` + `ansible-core`,
+`ansible-lint`, `ansible-navigator`, `yamllint`, `pre-commit` (see
+`requirements-ansible.txt` for the full pinned list).
+
+Development/test tooling (molecule, pytest family, black/ruff/mypy,
+ipython) lives in the `dev` dependency group — run `uv sync` in a
+workspace with a pyproject to get it, or `uv sync --group aws` for
+boto3/botocore.
 
 ### VS Code Extensions
 - `redhat.ansible` - Ansible language support

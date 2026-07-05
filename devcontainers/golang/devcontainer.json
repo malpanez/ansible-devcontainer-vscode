@@ -1,12 +1,8 @@
 {
   "name": "Go Dev Container",
   "build": {
-    "dockerfile": "devcontainers/golang/Dockerfile",
+    "dockerfile": "Dockerfile",
     "context": "../.."
-  },
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "customizations": {
     "vscode": {
