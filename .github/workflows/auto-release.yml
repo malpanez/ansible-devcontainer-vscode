@@ -1,0 +1,55 @@
+---
+name: Auto Release
+
+# Cuts a semver tag after each promotion when the promoted commits
+# warrant one (feat/fix/breaking — chore/docs-only promotions are
+# skipped). The tag push triggers release.yml, which preflights,
+# publishes versioned images, signs them and attaches signed SBOMs.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  tag-release:
+    name: Tag Release
+    runs-on: ubuntu-slim
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          # release.yml triggers on the tag push, so it must not be
+          # pushed with GITHUB_TOKEN (event-less). BOT_TOKEN fallback
+          # keeps tagging working but skips the release build.
+          token: ${{ secrets.BOT_TOKEN || github.token }}
+
+      - name: Compute next version
+        id: version
+        run: |
+          set -euo pipefail
+          version=$(python3 scripts/next-version.py)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if [ -z "${version}" ]; then
+            echo "No release-worthy commits since the last tag."
+          else
+            echo "Next version: ${version}"
+          fi
+
+      - name: Create and push tag
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "malpanez"
+          git config user.email "14823990+malpanez@users.noreply.github.com"
+          git tag -a "${VERSION}" -m "Release ${VERSION}"
+          git push origin "${VERSION}"
