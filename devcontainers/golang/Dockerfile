@@ -27,7 +27,6 @@ RUN apk add --no-cache \
       bash=~5 \
       curl=~8 \
       git=~2 \
-      github-cli=~2 \
       sudo=~1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
