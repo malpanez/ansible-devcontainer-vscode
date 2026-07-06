@@ -128,7 +128,9 @@ RUN podman --version; \
       echo "ERROR: Podman version < 5.4" >&2; exit 1; \
     fi
 
-COPY --link --from=python-builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+# Copy the whole lib tree rather than a version-pinned site-packages path,
+# so a Python minor bump needs no edit here (builder and final share a base).
+COPY --link --from=python-builder /usr/local/lib /usr/local/lib
 COPY --link --from=python-builder /usr/local/bin /usr/local/bin
 
 ARG USERNAME=vscode

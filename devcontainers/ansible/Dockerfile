@@ -61,7 +61,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --link --from=python-builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+# Copy the whole lib tree (not a version-pinned site-packages path): the
+# builder shares this stage's base, so its Python minor always matches —
+# hardcoding it only breaks while the pinned base lags a version bump.
+COPY --link --from=python-builder /usr/local/lib /usr/local/lib
 COPY --link --from=python-builder /usr/local/bin /usr/local/bin
 
 ARG USERNAME=vscode
