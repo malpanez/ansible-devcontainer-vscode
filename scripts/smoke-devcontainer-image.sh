@@ -20,7 +20,7 @@ Options:
   --image <tag>            Tag/name to assign to the locally built image (default: devcontainer-<stack>:ci).
   --build                  Build the image before running the smoke test (default: reuse existing tag).
   --base-image <ref>       Base image reference passed via BASE_IMAGE build arg for Python stacks
-                           (default: python:3.12-slim-bookworm).
+                           (default: python:3.13-slim-bookworm).
   -h, --help               Show this message.
 
 Examples:
