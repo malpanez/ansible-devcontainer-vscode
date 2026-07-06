@@ -61,7 +61,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --link --from=python-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --link --from=python-builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --link --from=python-builder /usr/local/bin /usr/local/bin
 
 ARG USERNAME=vscode

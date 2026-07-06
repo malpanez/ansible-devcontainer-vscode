@@ -17,7 +17,7 @@ concurrency:
 
 env:
   ANSIBLE_FORCE_COLOR: "1"
-  PYTHON_VERSION: "3.12"
+  PYTHON_VERSION: "3.13"
   GO_VERSION: "1.25"
   TERRAFORM_VERSION: "1.15.7"
 
@@ -442,7 +442,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.13"]
     permissions:
       contents: read
     steps:
@@ -656,7 +656,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           tags: |
             type=raw,value=latest
-            type=raw,value=py312
+            type=raw,value=py313
             type=sha
 
       - name: Build and push base

@@ -84,7 +84,7 @@ jobs:
           if [ "${{ steps.stack.outputs.stack }}" = "base" ]; then
             {
               echo "tags<<EOF"
-              echo "type=raw,value=py312"
+              echo "type=raw,value=py313"
               echo "type=sha"
               echo "type=ref,event=branch"
               echo "EOF"
@@ -182,7 +182,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           tags: |
-            type=raw,value=py312
+            type=raw,value=py313
             type=sha
             type=ref,event=branch
 

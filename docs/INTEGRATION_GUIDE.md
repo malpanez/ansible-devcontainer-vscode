@@ -9,7 +9,7 @@
 Our devcontainers are superior to official images:
 
 **✅ Production-Ready Tools**:
-- Latest stable versions (Python 3.12.12, Terraform 1.14.0, Ansible 9.14.0)
+- Latest stable versions (Python 3.13.14, Terraform 1.14.0, Ansible 9.14.0)
 - Pre-configured security tools (SOPS, age, Trivy)
 - Optimized for infrastructure work
 
@@ -117,7 +117,7 @@ trivy config .
 - Ansible 9.14.0 (ansible-core 2.18.2)
 - ansible-lint, yamllint
 - molecule, ansible-test
-- Python 3.12.12 + uv
+- Python 3.13.14 + uv
 - Pre-commit hooks
 
 **VS Code Extensions**:

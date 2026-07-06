@@ -126,8 +126,8 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312-${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py313
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py313-${{ github.ref_name }}
 
       - name: Build and push Ansible image
         id: build_ansible

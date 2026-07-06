@@ -63,7 +63,7 @@ If you skip these steps the first container build uses the ansible template. You
 
 ## 5. What happens during the build
 
-- VS Code pulls the prebuilt GHCR image for the selected stack (Ansible by default). When the registry is unreachable the helper scripts rebuild the image locally, including the shared Python base `devcontainer-base:py312`.
+- VS Code pulls the prebuilt GHCR image for the selected stack (Ansible by default). When the registry is unreachable the helper scripts rebuild the image locally, including the shared Python base `devcontainer-base:py313`.
 - The image already includes system packages and `uv`; only stack-specific tooling needs to install at runtime.
 - On first launch the post-create hook runs `sudo uv pip install --system ...` inside the container to fetch Python tooling (Ansible lint stack, Checkov); subsequent restarts reuse the cached volume.
 - For the Ansible stack the `postCreateCommand` installs collections via `ansible-galaxy collection install -r requirements.yml`.
