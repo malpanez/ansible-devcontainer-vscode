@@ -33,10 +33,10 @@ fileExistenceTests:
 
 commandTests:
   # Python version
-  - name: 'Python 3.12 available'
+  - name: 'Python 3.13 available'
     command: 'python3'
     args: ['--version']
-    expectedOutput: ['Python 3.12']
+    expectedOutput: ['Python 3.13']
 
   # uv works
   - name: 'uv functional'

@@ -62,13 +62,13 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+            ghcr.io/${{ github.repository_owner }}/devcontainer-base:py313
             ghcr.io/${{ github.repository_owner }}/devcontainer-base:sha-${{ github.sha }}
 
       - name: Verify base tags
         run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
-          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/devcontainer-base:py313
+          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-base:py313
 
   repair-stack:
     name: Repair ${{ github.event.inputs.stack }}
@@ -108,7 +108,7 @@ jobs:
           push: true
           platforms: ${{ github.event.inputs.stack == 'latex' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py312
+            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/devcontainer-base:py313
           tags: |
             ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest
             ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:sha-${{ github.sha }}

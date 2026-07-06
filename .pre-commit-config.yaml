@@ -45,7 +45,7 @@ repos:
       - id: ansible-lint
         name: Lint Ansible Files
         files: \.(yaml|yml)$
-        language_version: python3.12
+        language_version: python3
         args:
           - --profile=production
           - --offline
@@ -99,7 +99,7 @@ repos:
 
 # Configuration
 default_language_version:
-  python: python3.12
+  python: python3
 
 fail_fast: false  # Continue checking all hooks even if one fails
 minimum_pre_commit_version: '3.0.0'

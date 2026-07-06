@@ -27,8 +27,8 @@ graph TD
 
 ### Build Strategy
 
-- **Base Layer** (`devcontainer-base`): Shared Python 3.12 foundation with uv and pre-commit
-  - Published as: `ghcr.io/malpanez/devcontainer-base:py312`
+- **Base Layer** (`devcontainer-base`): Shared Python 3.13 foundation with uv and pre-commit
+  - Published as: `ghcr.io/malpanez/devcontainer-base:py313`
   - Platforms: `linux/amd64`, `linux/arm64`
 
 - **Ansible Stacks**: Extend base with Ansible tooling
@@ -323,7 +323,7 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    A[build-base job] -->|Builds & pushes| B[devcontainer-base:py312]
+    A[build-base job] -->|Builds & pushes| B[devcontainer-base:py313]
 
     B -->|needs: build-base| C[build-all matrix]
 
@@ -351,7 +351,7 @@ ghcr.io/malpanez/devcontainer-<stack>[variant]:<tag>
 ```
 
 Examples:
-- `ghcr.io/malpanez/devcontainer-base:py312`
+- `ghcr.io/malpanez/devcontainer-base:py313`
 - `ghcr.io/malpanez/devcontainer-ansible:latest`
 - `ghcr.io/malpanez/devcontainer-ansible-podman:latest`
 - `ghcr.io/malpanez/devcontainer-terraform:sha-5575e8d`
