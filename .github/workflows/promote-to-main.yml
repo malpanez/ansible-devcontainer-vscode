@@ -26,13 +26,15 @@ on:
         default: main
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   create-promotion-pr:
     name: Create promotion PR
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     env:
       SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_branch || 'develop' }}

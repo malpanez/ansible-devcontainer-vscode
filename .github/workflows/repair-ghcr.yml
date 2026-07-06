@@ -23,9 +23,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
 
 jobs:
   repair-base:
@@ -33,6 +30,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event.inputs.include_base == 'true' || github.event.inputs.stack == 'base'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
@@ -74,6 +76,11 @@ jobs:
     timeout-minutes: 45
     needs: repair-base
     if: github.event.inputs.stack != 'base' && always() && (needs.repair-base.result == 'success' || needs.repair-base.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 

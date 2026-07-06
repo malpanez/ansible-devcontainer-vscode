@@ -17,13 +17,15 @@ on:
         default: 'false'
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   sync:
     name: Sync Main to Develop
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     # Only run on main branch or manual workflow_dispatch with force=true
     if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true')
     steps:
