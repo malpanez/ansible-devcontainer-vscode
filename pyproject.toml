@@ -24,19 +24,19 @@ dependencies = [
 [dependency-groups]
 dev = [
   "molecule>=26.6.0,<27.0.0",
-  "molecule-plugins[docker]>=25.8.12,<26.0.0",
+  "molecule-plugins[docker]>=26.7.8,<27.0.0",
   "pytest>=9.0.3",
   "pytest-ansible>=26.6.0,<26.7.0",
   "pytest-cov>=4.1.0",
   "pytest-testinfra>=10.1.0",
   "black>=26.3.1",
-  "ruff>=0.3.0",
-  "mypy>=1.8.0",
+  "ruff>=0.15.21",
+  "mypy>=2.3.0",
   "ipython>=8.20.0",
 ]
 aws = [
-  "boto3>=1.43.41",
-  "botocore>=1.43.41",
+  "boto3>=1.43.47",
+  "botocore>=1.43.47",
 ]
 
 [tool.uv]
