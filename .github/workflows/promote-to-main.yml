@@ -14,6 +14,12 @@ on:
   push:
     branches:
       - develop
+  # Sweep: Dependabot auto-merges push to develop with GITHUB_TOKEN, which
+  # emits no events, so a push-triggered promotion never fires for them.
+  # This catches any develop-ahead-of-main content on a schedule (the
+  # tree-diff guard skips it when there is nothing to promote).
+  schedule:
+    - cron: '45 */6 * * *'
   workflow_dispatch:
     inputs:
       source_branch:
@@ -35,7 +41,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     env:
       SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_branch || 'develop' }}
       TARGET_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_branch || 'main' }}
