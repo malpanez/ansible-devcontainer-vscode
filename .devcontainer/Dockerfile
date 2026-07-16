@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
 ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.15.7
+ARG TERRAFORM_VERSION=1.15.8
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
-ARG TERRAGRUNT_VERSION=1.1.0
+ARG TERRAGRUNT_VERSION=1.1.1
 # renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.63.1
 # renovate: datasource=github-releases depName=getsops/sops
@@ -11,9 +11,9 @@ ARG SOPS_VERSION=3.13.2
 # renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.3.1
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.11.26
+ARG UV_VERSION=0.11.29
 
-FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df AS fetch
+FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS fetch
 ARG TARGETARCH
 ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
@@ -68,7 +68,7 @@ RUN set -eux; \
     cd /; \
     rm -rf /tmp/dl
 
-FROM debian:bookworm-slim@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
@@ -134,13 +134,13 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.35.15
+ARG AWS_CLI_VERSION=2.35.24
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64"; AWS_SHA256="50692e3e2a606007d7789b5a307dca41452a965dea1f3d3687972da6e5adc86c" ;; \
-      arm64) AWS_ARCH="aarch64"; AWS_SHA256="8d8a76903f6c7b6a941ae2a3b5ca82125f732c6168b16ea2d02366a3056e2ca4" ;; \
+      amd64) AWS_ARCH="x86_64"; AWS_SHA256="d71b4388a3f9e2c56819de40936b018674b04352766eef615b444c4c38b043d7" ;; \
+      arm64) AWS_ARCH="aarch64"; AWS_SHA256="e73c406c2ec97440be3e88504d4f83804c5606ad15fcd42c2f4456faab4a77a8" ;; \
       *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \
