@@ -30,7 +30,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install analysis tools
         run: |
@@ -103,7 +103,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install Ansible
         run: |
@@ -135,7 +135,7 @@ jobs:
 
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9  # v4
+        uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a  # v4
         with:
           sarif_file: hadolint-results.sarif
           category: hadolint

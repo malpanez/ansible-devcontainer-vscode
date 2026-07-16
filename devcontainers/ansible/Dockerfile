@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.25
 # Runtime and builder share the hardened devcontainer-base layer (apt
 # tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
 # several stacks reuses it. release.yml preflight overrides BASE_IMAGE
 # with a locally built base; bump the digest when base:main is rebuilt.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:18000de681b9b2f0ba84f83b297ee76a14aa4147ca792b00e7f6b74367b0ea63
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:21e6ea936134ad3b171132894117d29d923d4ab062c124b86a4d1f3e4db56774
 
 # Stage 1: resolve the Python stack. Build tools live only in this stage:
 # arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by

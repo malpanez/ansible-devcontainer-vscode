@@ -69,12 +69,12 @@ check_develop_flow() {
     main)
       echo "Sync from main to develop is allowed."
       ;;
-    feature/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|perf/*|security/*|hotfix/*)
+    feature/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|perf/*|security/*|hotfix/*|renovate/*)
       echo "Source branch '${HEAD_REF}' is allowed to target develop."
       ;;
     *)
       printf 'Warning: source branch %q does not follow the documented naming convention.\n' "${HEAD_REF}" >&2
-      printf 'Accepted prefixes: feature|fix|docs|chore|refactor|test|ci|perf|security|hotfix\n' >&2
+      printf 'Accepted prefixes: feature|fix|docs|chore|refactor|test|ci|perf|security|hotfix|renovate\n' >&2
       ;;
   esac
   return 0

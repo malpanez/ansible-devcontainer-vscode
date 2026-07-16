@@ -1,0 +1,85 @@
+---
+name: Renovate Post-Process
+
+# Renovate runs in a container without uv, docker or rsync, so its
+# postUpgradeTasks cannot regenerate everything this repo derives from a
+# dependency bump. This companion runs on Renovate PRs in a full runner
+# and, when a change needs it, recomputes the age/tectonic/aws-cli hashes
+# (no upstream checksum manifest), regenerates the requirements exports
+# from uv.lock, and resyncs the active .devcontainer against its template.
+# It pushes the result back with BOT_TOKEN so CI re-runs and Renovate's
+# auto-merge waits for the corrected branch. Every step is idempotent, so
+# the push it triggers re-runs this job to a clean no-op (no loop).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  postprocess:
+    name: Post-process
+    if: startsWith(github.head_ref, 'renovate/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          # BOT_TOKEN so the push-back emits events and CI re-runs.
+          token: ${{ secrets.BOT_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+
+      - name: Sync only what this PR changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          echo "Changed files:"; echo "${changed}"
+          # A devcontainer/tool bump: recompute the checksum-less hashes and
+          # resync the active .devcontainer against its (bumped) template.
+          if echo "${changed}" | grep -qE '^devcontainers/.*/Dockerfile'; then
+            python3 scripts/refresh-tool-pins.py --sync-hashes
+            stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
+            bash scripts/use-devcontainer.sh "${stack}"
+          fi
+          # A Python dependency change: regenerate the requirements exports.
+          if echo "${changed}" | grep -qE '^(uv\.lock|pyproject\.toml)$'; then
+            uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
+            uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt
+          fi
+
+      - name: Commit and push if anything changed
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Nothing to sync."
+            exit 0
+          fi
+          git config user.name "malpanez"
+          git config user.email "14823990+malpanez@users.noreply.github.com"
+          git commit -am "chore(deps): sync hashes, requirements and devcontainer"
+          # Renovate may update the branch under us; rebase and retry on the
+          # non-fast-forward race rather than failing red.
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${HEAD_REF}"; then exit 0; fi
+            echo "push rejected (attempt ${attempt}); rebasing on latest"
+            git fetch origin "${HEAD_REF}"
+            git rebase "origin/${HEAD_REF}" || { git rebase --abort; exit 1; }
+          done
+          exit 1

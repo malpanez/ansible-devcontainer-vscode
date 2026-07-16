@@ -20,22 +20,29 @@ This document describes the automated and manual maintenance procedures for the 
 
 ### 1. Dependency Updates 🤖
 
-**Dependabot** manages dependency updates:
+**Renovate** (self-hosted, in GitHub Actions) manages dependency updates.
+It replaced Dependabot because this repo pins tool versions in Dockerfile
+`ARG`s that Dependabot cannot reach.
 
 #### What It Does
-- **Weekly version-update PRs** (Mondays, targeting `develop`) for:
-  - Python packages (pyproject.toml + uv.lock, via the uv ecosystem)
-  - GitHub Actions (workflows/*.yml)
-  - Docker base images (digest bumps in devcontainers/*/Dockerfile)
-- **Security updates** open PRs against `main` as soon as an advisory
-  matches a pinned dependency (this always targets the default branch)
-- The **Dependency Refresh** workflow re-resolves `uv.lock` weekly and
-  regenerates the requirements exports via PR
+- **Weekly PRs** (Mondays, targeting `develop`, auto-merged on green) for:
+  - Python packages (pyproject.toml + uv.lock)
+  - GitHub Actions (SHA-pinned) and Docker base-image digests
+  - The `ARG`-pinned CLI tools (terraform, terragrunt, tflint, sops, age,
+    tectonic, aws-cli, uv) via regex custom managers
+  - Ansible Galaxy collections and Terraform providers
+- A companion workflow (`renovate-postprocess.yml`) runs on each Renovate
+  PR in a full runner and, when needed, recomputes the age/tectonic/
+  aws-cli hashes (`scripts/refresh-tool-pins.py --sync-hashes`),
+  regenerates the `requirements*.txt` exports from uv.lock, and resyncs
+  the active `.devcontainer` — then pushes the fix back so CI re-runs.
+- Runs with `BOT_TOKEN`; the Dependency Dashboard issue lists everything.
 
 #### Configuration
-- File: [`.github/dependabot.yml`](.github/dependabot.yml)
-- Lock refresh: [`.github/workflows/dependency-refresh.yml`](workflows/dependency-refresh.yml)
-- Manual review + merge; the branch-flow guard allows dependabot/* into main
+- Config: [`renovate.json`](renovate.json)
+- Workflows: [`renovate.yml`](workflows/renovate.yml) (scheduled Monday +
+  `workflow_dispatch`, `force` input to ignore the schedule) and
+  [`renovate-postprocess.yml`](workflows/renovate-postprocess.yml)
 
 #### How to Monitor
 ```bash
@@ -219,9 +226,11 @@ When adding a new tool (e.g., new CLI utility):
    - Document it in the relevant docs/ page
    - Document purpose and usage
 
-3. **Update Dependabot coverage**
-   - Confirm the ecosystem is covered in `.github/dependabot.yml`
+3. **Update Renovate coverage**
+   - Add a regex custom manager in `renovate.json` for the new `ARG`
    - Pin the version as a Dockerfile ARG with its checksum
+   - If the tool ships no upstream checksum manifest, add it to
+     `scripts/refresh-tool-pins.py` (the post-process hash sync)
 
 4. **Test**
    ```bash
