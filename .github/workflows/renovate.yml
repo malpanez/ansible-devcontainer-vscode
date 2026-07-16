@@ -25,6 +25,10 @@ on:
         type: choice
         options: ["info", "debug"]
         default: "debug"
+      force:
+        description: 'Ignore the schedule for this run (create PRs now)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +51,8 @@ jobs:
           token: ${{ secrets.BOT_TOKEN }}
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_BINARY_SOURCE: install
+          RENOVATE_FORCE: ${{ inputs.force && '{"schedule":null}' || '' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun || 'full' }}
           LOG_LEVEL: ${{ inputs.logLevel || 'debug' }}
           # postUpgradeTasks must be explicitly allow-listed (regex). These

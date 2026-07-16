@@ -17,21 +17,32 @@
     "enabled": true,
     "schedule": ["* 4 * * 1"]
   },
-  "postUpgradeTasks": {
-    "description": "Recompute the pinned hashes Renovate can't (age/tectonic/aws-cli) and regenerate the generated requirements from uv.lock",
-    "commands": [
-      "python3 scripts/refresh-tool-pins.py --sync-hashes",
-      "uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt",
-      "uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt"
-    ],
-    "fileFilters": ["devcontainers/**/Dockerfile*", "requirements.txt", "requirements-ansible.txt"],
-    "executionMode": "branch"
-  },
   "packageRules": [
     {
       "description": "Do not try to pin GitHub Actions runner labels (ubuntu-latest etc.)",
       "matchDatasources": ["github-runners"],
       "enabled": false
+    },
+    {
+      "description": "After a uv.lock change, regenerate the derived requirements exports (uv is installed by binarySource=install for the pep621 manager)",
+      "matchManagers": ["pep621"],
+      "postUpgradeTasks": {
+        "commands": [
+          "uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt",
+          "uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt"
+        ],
+        "fileFilters": ["requirements.txt", "requirements-ansible.txt"],
+        "executionMode": "update"
+      }
+    },
+    {
+      "description": "Recompute the pinned SHA-256 for tools with no upstream checksum manifest (python3 is native to the renovate image)",
+      "matchDepNames": ["FiloSottile/age", "tectonic-typesetting/tectonic", "aws/aws-cli"],
+      "postUpgradeTasks": {
+        "commands": ["python3 scripts/refresh-tool-pins.py --sync-hashes"],
+        "fileFilters": ["devcontainers/**/Dockerfile*"],
+        "executionMode": "update"
+      }
     },
     {
       "description": "Auto-merge digest, pin, lockfile and non-major updates on green (develop is protected by CI Success)",
