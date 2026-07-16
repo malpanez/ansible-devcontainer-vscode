@@ -85,7 +85,7 @@ TOOLS: list[Tool] = [
             ),
             (
                 REPO_ROOT / "devcontainers/golang/Dockerfile",
-                r'(ARG UV_VERSION=")([0-9.]+)(")',
+                r"(ARG UV_VERSION=)([0-9.]+)()",
             ),
             (LATEX_DOCKERFILE, r"(ARG UV_VERSION=)([0-9.]+)()"),
             (TF_DOCKERFILE, r"(ARG UV_VERSION=)([0-9.]+)()"),
@@ -257,11 +257,18 @@ def current_version(tool: Tool) -> str:
 
 
 def bump(tool: Tool, new: str) -> None:
+    # Resolve every version substitution before writing anything: a
+    # pattern mismatch must fail the whole tool, never leave some
+    # Dockerfiles bumped and others not (a partial write desyncs the
+    # pins and breaks the next build).
+    pending: list[tuple[Path, str]] = []
     for path, pattern in tool.version_patterns:
         text = path.read_text()
         updated, count = re.subn(pattern, rf"\g<1>{new}\g<3>", text)
         if count == 0:
             raise RuntimeError(f"{tool.name}: pattern missing in {path}")
+        pending.append((path, updated))
+    for path, updated in pending:
         path.write_text(updated)
     for path, pattern, url_template in tool.hash_patterns:
         url = url_template.format(v=new)
