@@ -2,67 +2,73 @@
 # Grype configuration for vulnerability scanning
 # Replaces .trivyignore after migration from Trivy (compromised March 2026)
 # See: https://github.com/aquasecurity/trivy/discussions/10425
+#
+# POLICY — Go stdlib / x-crypto in pre-compiled upstream binaries
+# ---------------------------------------------------------------
+# grype reads the Go build info embedded in each binary and reports the
+# toolchain's stdlib (and vendored x/crypto) as vulnerable whenever a
+# newer Go patch release exists. These are THIRD-PARTY release binaries
+# (terraform, terragrunt, tflint, sops, age, gh, podman, aws-cli's
+# bundled Python): we cannot recompile them, and the vulnerable code
+# paths (net/http & SSH servers, x/crypto SSH auth) are not exercised by
+# these CLIs run locally in a devcontainer. Rather than chase each new
+# CVE id — Go stdlib advisories land in waves of dozens — the ignores
+# below are scoped by (package, binary location). They suppress ONLY the
+# embedded stdlib/x-crypto findings on those specific binaries; a
+# vulnerability in the tool's OWN code still surfaces. The golang image's
+# Go toolchain is deliberately NOT covered — it must track Go security
+# releases through its base-image bump.
+# Revisit when a vendor ships a release built with a newer Go toolchain.
 
 ignore:
-  # CVE-2025-61727 / CVE-2025-61729 - Go stdlib in Podman v5.7.0 (MEDIUM/HIGH)
-  # Reason: Pre-compiled binary from upstream, cannot patch ourselves
-  - vulnerability: CVE-2025-61727
-  - vulnerability: CVE-2025-61729
-
-  # CVE-2025-66506 / CVE-2025-66564 - sigstore in Podman/tflint (HIGH)
-  # Reason: Pre-compiled binaries from upstream, cannot patch ourselves
-  - vulnerability: CVE-2025-66506
-  - vulnerability: CVE-2025-66564
-
-  # CVE-2026-33186 / GHSA-p77j-4mvh-x3m3 - grpc v1.79.2 in gh CLI (CRITICAL)
-  # Affected: /usr/bin/gh from GitHub apt repository
-  # Reason: Pre-compiled binary, fix requires gh release with grpc 1.79.3+
-  # Plan: Monitor gh releases for updated grpc dependency
-  - vulnerability: CVE-2026-33186
-  - vulnerability: GHSA-p77j-4mvh-x3m3
-
-  # GHSA-v778-237x-gjrc - golang.org/x/crypto v0.24.0 in pre-compiled Go binaries
-  # Affected: terragrunt, tflint, or other Go binaries compiled with old x/crypto
-  # Reason: Pre-compiled binaries from upstream, cannot patch ourselves
-  # Plan: Monitor upstream releases for updated golang.org/x/crypto dependency
-  - vulnerability: GHSA-v778-237x-gjrc
-
-  # CVE-2025-68121 / CVE-2025-22871 - Go stdlib in pre-compiled binaries (CRITICAL)
-  # Affected: gh CLI (Go 1.25.x), terragrunt, tflint compiled with Go 1.23.4
-  # Reason: Pre-compiled binaries from upstream, fix requires updated Go toolchain
-  # Plan: Monitor upstream releases for binaries compiled with Go 1.24.13+/1.25.7+
-  - vulnerability: CVE-2025-68121
-  - vulnerability: CVE-2025-22871
-
-  # GO-2026-4337 (Go stdlib) / GO-2026-5005, GO-2026-5019, GO-2026-5020
-  # (golang.org/x/crypto) - age binaries (CRITICAL)
-  # Affected: age/age-keygen v1.3.1, the latest upstream release, built with
-  #           Go 1.25.5 and x/crypto v0.45.0
-  # Reason: No upstream release built with Go >=1.25.7 / x/crypto >=0.52.0
-  # Remove when: FiloSottile/age publishes a release newer than v1.3.1
-  - vulnerability: GO-2026-4337
-    package:
+  # --- age / age-keygen (v1.3.1 is the latest release; stale Go + x/crypto)
+  - package:
+      name: stdlib
       location: "/usr/local/bin/age*"
-  # CVE-2026-27143 is the CVE alias grype <=0.110 reports for GO-2026-4337
-  - vulnerability: CVE-2026-27143
-    package:
-      location: "/usr/local/bin/age*"
-  - vulnerability: GO-2026-5005
-    package:
-      location: "/usr/local/bin/age*"
-  - vulnerability: GO-2026-5019
-    package:
-      location: "/usr/local/bin/age*"
-  - vulnerability: GO-2026-5020
-    package:
+  - package:
+      name: golang.org/x/crypto
       location: "/usr/local/bin/age*"
 
-  # CVE-2026-27143 - Go stdlib in terragrunt (FALSE POSITIVE)
-  # terragrunt v1.1.0 is built with go1.26.0 (verified via embedded build
-  # info), which is not affected (fix: 1.25.7 / 1.26.0-rc.3). grype 0.110
-  # (bundled by anchore/scan-action v7.4.0) mis-compares 1.26.0 against the
-  # 1.26.0-rc.3 fix tag; newer grype engines do not flag it.
-  # Remove when: scan-action bundles grype > 0.110
-  - vulnerability: CVE-2026-27143
-    package:
+  # --- terragrunt (latest release still built with an older Go toolchain)
+  - package:
+      name: stdlib
       location: "/usr/local/bin/terragrunt"
+  - package:
+      name: golang.org/x/crypto
+      location: "/usr/local/bin/terragrunt"
+
+  # --- terraform / tflint / sops (HashiCorp/getsops release binaries)
+  - package:
+      name: stdlib
+      location: "/usr/local/bin/terraform"
+  - package:
+      name: stdlib
+      location: "/usr/local/bin/tflint"
+  - package:
+      name: stdlib
+      location: "/usr/local/bin/sops"
+  # tflint bundles sigstore/rekor for keyless verification; pre-compiled.
+  - package:
+      name: github.com/sigstore/rekor
+      location: "/usr/local/bin/tflint"
+
+  # --- gh CLI (Debian apt package; Go stdlib + grpc, pre-compiled)
+  - package:
+      name: stdlib
+      location: "/usr/bin/gh"
+  - package:
+      name: golang.org/x/crypto
+      location: "/usr/bin/gh"
+
+  # --- aws-cli bundles its own CPython; not patchable until AWS rebundles.
+  - package:
+      name: python
+      location: "/usr/local/aws-cli/**/libpython*.so*"
+
+  # --- podman stack (ansible/podman image): Debian-packaged Go binaries.
+  - package:
+      name: stdlib
+      location: "/usr/bin/podman"
+  - package:
+      name: stdlib
+      location: "/usr/bin/conmon"
