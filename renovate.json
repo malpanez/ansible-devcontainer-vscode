@@ -12,7 +12,8 @@
   "labels": ["dependencies"],
   "semanticCommitScope": "deps",
   "rebaseWhen": "conflicted",
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["* 4 * * 1"]
