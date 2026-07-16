@@ -1,0 +1,58 @@
+---
+name: Renovate
+
+# Self-hosted Renovate (not the Mend app, which never functioned here —
+# onboarding PR #52 autoclosed). Runs in Actions with BOT_TOKEN, so it is
+# consistent with the rest of the pipeline and has no external-dashboard
+# dependency. It replaces Dependabot + refresh-tool-pins.py once proven:
+# native regex managers bump the tool ARGs, docker/actions digests, and
+# uv.lock, and postUpgradeTasks (self-hosted only) recompute the pinned
+# hashes and regenerate requirements.
+#
+# STAGED ROLLOUT: dispatch-only + dry-run while validating. Going live
+# means adding a `schedule` trigger and removing RENOVATE_DRY_RUN.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry-run mode (full = detect + log, no PRs)'
+        type: choice
+        options: ["full", "null"]
+        default: "full"
+      logLevel:
+        description: 'Renovate log level'
+        type: choice
+        options: ["info", "debug"]
+        default: "debug"
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@22e0a16091fc706b04affe6ae53d5e3358ac4023  # v46.1.19
+        with:
+          # No configurationFile: renovate.json in the repo root is read as
+          # the REPO config (so onboarding is skipped and repo-level options
+          # like postUpgradeTasks apply). configurationFile would make it the
+          # global bot config instead.
+          token: ${{ secrets.BOT_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun || 'full' }}
+          LOG_LEVEL: ${{ inputs.logLevel || 'debug' }}
+          # postUpgradeTasks must be explicitly allow-listed (regex). These
+          # recompute the age/tectonic/aws-cli hashes and regenerate the
+          # requirements exports; the renovate image's containerbase provides
+          # python3 and uv (already installed for uv lockfile maintenance).
+          RENOVATE_ALLOWED_POST_UPGRADE_COMMANDS: >-
+            ["^python3 scripts/refresh-tool-pins\\.py --sync-hashes$",
+             "^uv export .*"]
