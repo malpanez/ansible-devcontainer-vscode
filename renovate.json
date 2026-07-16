@@ -1,0 +1,133 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "baseBranchPatterns": ["develop"],
+  "timezone": "Europe/Madrid",
+  "schedule": ["* 4 * * 1"],
+  "labels": ["dependencies"],
+  "semanticCommitScope": "deps",
+  "rebaseWhen": "conflicted",
+  "prConcurrentLimit": 5,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 4 * * 1"]
+  },
+  "postUpgradeTasks": {
+    "description": "Recompute the pinned hashes Renovate can't (age/tectonic/aws-cli) and regenerate the generated requirements from uv.lock",
+    "commands": [
+      "python3 scripts/refresh-tool-pins.py --sync-hashes",
+      "uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt",
+      "uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt"
+    ],
+    "fileFilters": ["devcontainers/**/Dockerfile*", "requirements.txt", "requirements-ansible.txt"],
+    "executionMode": "branch"
+  },
+  "packageRules": [
+    {
+      "description": "Do not try to pin GitHub Actions runner labels (ubuntu-latest etc.)",
+      "matchDatasources": ["github-runners"],
+      "enabled": false
+    },
+    {
+      "description": "Auto-merge digest, pin, lockfile and non-major updates on green (develop is protected by CI Success)",
+      "matchUpdateTypes": ["digest", "pin", "lockFileMaintenance", "patch", "minor"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group all GitHub Actions bumps",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Group the terraform-stack CLI tools",
+      "matchFileNames": ["devcontainers/terraform/Dockerfile"],
+      "groupName": "terraform-stack tools"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "uv version pinned as an ARG across the Dockerfiles",
+      "managerFilePatterns": ["/devcontainers/.+/Dockerfile.*/"],
+      "matchStrings": ["ARG UV_VERSION=\"?(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\"?"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "astral-sh/uv"
+    },
+    {
+      "customType": "regex",
+      "description": "uv version in the ansible_environment role default",
+      "managerFilePatterns": ["/roles/ansible_environment/defaults/main\\.yml/"],
+      "matchStrings": ["uv_version \\| default\\('(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)'"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "astral-sh/uv"
+    },
+    {
+      "customType": "regex",
+      "description": "terraform CLI pinned as an ARG",
+      "managerFilePatterns": ["/devcontainers/terraform/Dockerfile/"],
+      "matchStrings": ["ARG TERRAFORM_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "hashicorp/terraform",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "terragrunt CLI pinned as an ARG",
+      "managerFilePatterns": ["/devcontainers/terraform/Dockerfile/"],
+      "matchStrings": ["ARG TERRAGRUNT_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "gruntwork-io/terragrunt",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "tflint CLI pinned as an ARG",
+      "managerFilePatterns": ["/devcontainers/terraform/Dockerfile/"],
+      "matchStrings": ["ARG TFLINT_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "terraform-linters/tflint",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "sops CLI pinned as an ARG",
+      "managerFilePatterns": ["/devcontainers/terraform/Dockerfile/"],
+      "matchStrings": ["ARG SOPS_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "getsops/sops",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "age (hash recomputed by a postUpgradeTask)",
+      "managerFilePatterns": ["/devcontainers/terraform/Dockerfile/"],
+      "matchStrings": ["ARG AGE_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "FiloSottile/age",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "aws-cli (git tags, hash recomputed by a postUpgradeTask)",
+      "managerFilePatterns": ["/devcontainers/terraform/Dockerfile/"],
+      "matchStrings": ["ARG AWS_CLI_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "aws/aws-cli"
+    },
+    {
+      "customType": "regex",
+      "description": "tectonic (tag is tectonic@X.Y.Z; hash recomputed by a postUpgradeTask)",
+      "managerFilePatterns": ["/devcontainers/latex/Dockerfile/"],
+      "matchStrings": ["ARG TECTONIC_VERSION=(?<currentValue>[0-9.]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "tectonic-typesetting/tectonic",
+      "extractVersionTemplate": "^tectonic@(?<version>.+)$"
+    }
+  ]
+}

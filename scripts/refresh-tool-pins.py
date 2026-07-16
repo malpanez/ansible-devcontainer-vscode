@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,13 +27,28 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 API = "https://api.github.com"
 
 
-def http_get(url: str) -> bytes:
+def http_get(url: str, attempts: int = 4) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "refresh-tool-pins"})
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if token and url.startswith(API):
         request.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return response.read()
+    # CDNs (GitHub releases, AWS CloudFront) return sporadic 404/5xx at the
+    # edge; retry with backoff so a blip doesn't fail a refresh or a hash sync.
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return response.read()
+        except (urllib.error.HTTPError, urllib.error.URLError) as error:
+            status = getattr(error, "code", None)
+            retriable = (
+                status in (403, 404, 408, 425, 429, 500, 502, 503, 504)
+                or status is None
+            )
+            if attempt == attempts or not retriable:
+                raise
+            print(f"  retry {attempt}/{attempts} ({status or error}) {url}")
+            time.sleep(2 * attempt)
+    raise RuntimeError("unreachable")
 
 
 def latest_release_tag(repo: str) -> str:
@@ -281,7 +297,37 @@ def bump(tool: Tool, new: str) -> None:
         path.write_text(updated)
 
 
+def sync_hashes() -> int:
+    """Recompute the pinned SHA-256 for the version already in each file.
+
+    Renovate bumps the ARG version natively but cannot recompute a download
+    hash, so this runs as its postUpgradeTask for the tools whose upstream
+    ships no checksum manifest (age, tectonic, AWS CLI) — the hardcoded hash
+    is their only integrity check. Idempotent; a no-op when hashes match.
+    """
+    for tool in TOOLS:
+        if not tool.hash_patterns:
+            continue
+        try:
+            version = current_version(tool)
+        except Exception as error:  # noqa: BLE001 - report and continue
+            print(f"{tool.name}: SKIPPED ({error})")
+            continue
+        for path, pattern, url_template in tool.hash_patterns:
+            url = url_template.format(v=version)
+            print(f"{tool.name}: hashing {url}")
+            digest = sha256_of(url)
+            text = path.read_text()
+            updated, count = re.subn(pattern, rf"\g<1>{digest}", text)
+            if count == 0:
+                raise RuntimeError(f"{tool.name}: hash pattern missing in {path}")
+            path.write_text(updated)
+    return 0
+
+
 def main() -> int:
+    if "--sync-hashes" in sys.argv[1:]:
+        return sync_hashes()
     changed = False
     for tool in TOOLS:
         try:
