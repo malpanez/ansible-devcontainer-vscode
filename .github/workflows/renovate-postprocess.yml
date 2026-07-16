@@ -42,20 +42,25 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
 
-      - name: Sync hashes, requirements and devcontainer
+      - name: Sync only what this PR changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          # 1. Recompute the pinned SHA-256 for tools with no checksum
-          #    manifest (no-op unless age/tectonic/aws-cli changed).
-          python3 scripts/refresh-tool-pins.py --sync-hashes
-          # 2. Regenerate the requirements exports from uv.lock (no-op
-          #    unless uv.lock changed).
-          uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
-          uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt
-          # 3. Resync the active .devcontainer against its template (no-op
-          #    unless the active stack's Dockerfile changed).
-          stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
-          bash scripts/use-devcontainer.sh "$stack"
+          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          echo "Changed files:"; echo "${changed}"
+          # A devcontainer/tool bump: recompute the checksum-less hashes and
+          # resync the active .devcontainer against its (bumped) template.
+          if echo "${changed}" | grep -qE '^devcontainers/.*/Dockerfile'; then
+            python3 scripts/refresh-tool-pins.py --sync-hashes
+            stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
+            bash scripts/use-devcontainer.sh "${stack}"
+          fi
+          # A Python dependency change: regenerate the requirements exports.
+          if echo "${changed}" | grep -qE '^(uv\.lock|pyproject\.toml)$'; then
+            uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
+            uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt
+          fi
 
       - name: Commit and push if anything changed
         env:
@@ -68,6 +73,13 @@ jobs:
           fi
           git config user.name "malpanez"
           git config user.email "14823990+malpanez@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(deps): sync hashes, requirements and devcontainer"
-          git push origin "HEAD:${HEAD_REF}"
+          git commit -am "chore(deps): sync hashes, requirements and devcontainer"
+          # Renovate may update the branch under us; rebase and retry on the
+          # non-fast-forward race rather than failing red.
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${HEAD_REF}"; then exit 0; fi
+            echo "push rejected (attempt ${attempt}); rebasing on latest"
+            git fetch origin "${HEAD_REF}"
+            git rebase "origin/${HEAD_REF}" || { git rebase --abort; exit 1; }
+          done
+          exit 1
