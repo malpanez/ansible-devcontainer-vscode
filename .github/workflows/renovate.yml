@@ -13,13 +13,15 @@ name: Renovate
 # means adding a `schedule` trigger and removing RENOVATE_DRY_RUN.
 
 on:
+  schedule:
+    - cron: '0 4 * * 1'
   workflow_dispatch:
     inputs:
       dryRun:
         description: 'Dry-run mode (full = detect + log, no PRs)'
         type: choice
-        options: ["full", "null"]
-        default: "full"
+        options: ["null", "full"]
+        default: "null"
       logLevel:
         description: 'Renovate log level'
         type: choice
@@ -45,20 +47,16 @@ jobs:
         uses: renovatebot/github-action@22e0a16091fc706b04affe6ae53d5e3358ac4023  # v46.1.19
         with:
           # No configurationFile: renovate.json in the repo root is read as
-          # the REPO config (so onboarding is skipped and repo-level options
-          # like postUpgradeTasks apply). configurationFile would make it the
-          # global bot config instead.
+          # the REPO config, so onboarding is skipped. configurationFile
+          # would make it the global bot config instead.
           token: ${{ secrets.BOT_TOKEN }}
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # binarySource=install lets Renovate provision uv to update
+          # uv.lock; the requirements export + hash/devcontainer sync run in
+          # the renovate-postprocess companion (this container lacks them).
           RENOVATE_BINARY_SOURCE: install
           RENOVATE_FORCE: ${{ inputs.force && '{"schedule":null}' || '' }}
-          RENOVATE_DRY_RUN: ${{ inputs.dryRun || 'full' }}
-          LOG_LEVEL: ${{ inputs.logLevel || 'debug' }}
-          # postUpgradeTasks must be explicitly allow-listed (regex). These
-          # recompute the age/tectonic/aws-cli hashes and regenerate the
-          # requirements exports; the renovate image's containerbase provides
-          # python3 and uv (already installed for uv lockfile maintenance).
-          RENOVATE_ALLOWED_POST_UPGRADE_COMMANDS: >-
-            ["^python3 scripts/refresh-tool-pins\\.py --sync-hashes$",
-             "^uv export .*"]
+          # Live by default (schedule + manual); pass dryRun=full to only log.
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun || '' }}
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}

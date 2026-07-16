@@ -1,0 +1,73 @@
+---
+name: Renovate Post-Process
+
+# Renovate runs in a container without uv, docker or rsync, so its
+# postUpgradeTasks cannot regenerate everything this repo derives from a
+# dependency bump. This companion runs on Renovate PRs in a full runner
+# and, when a change needs it, recomputes the age/tectonic/aws-cli hashes
+# (no upstream checksum manifest), regenerates the requirements exports
+# from uv.lock, and resyncs the active .devcontainer against its template.
+# It pushes the result back with BOT_TOKEN so CI re-runs and Renovate's
+# auto-merge waits for the corrected branch. Every step is idempotent, so
+# the push it triggers re-runs this job to a clean no-op (no loop).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  postprocess:
+    name: Post-process
+    if: startsWith(github.head_ref, 'renovate/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          # BOT_TOKEN so the push-back emits events and CI re-runs.
+          token: ${{ secrets.BOT_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+
+      - name: Sync hashes, requirements and devcontainer
+        run: |
+          set -euo pipefail
+          # 1. Recompute the pinned SHA-256 for tools with no checksum
+          #    manifest (no-op unless age/tectonic/aws-cli changed).
+          python3 scripts/refresh-tool-pins.py --sync-hashes
+          # 2. Regenerate the requirements exports from uv.lock (no-op
+          #    unless uv.lock changed).
+          uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
+          uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt
+          # 3. Resync the active .devcontainer against its template (no-op
+          #    unless the active stack's Dockerfile changed).
+          stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
+          bash scripts/use-devcontainer.sh "$stack"
+
+      - name: Commit and push if anything changed
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Nothing to sync."
+            exit 0
+          fi
+          git config user.name "malpanez"
+          git config user.email "14823990+malpanez@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(deps): sync hashes, requirements and devcontainer"
+          git push origin "HEAD:${HEAD_REF}"
