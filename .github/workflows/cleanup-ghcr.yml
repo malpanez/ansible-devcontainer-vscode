@@ -37,12 +37,22 @@ jobs:
       # published tag (2026-07-05 incident: all :latest/:main/py313 tags
       # broke). ghcr-cleanup-action resolves manifest references and
       # only deletes truly orphaned versions.
+      #
+      # older-than keeps a 2-week grace window: when a base rebuild moves
+      # :main to a new digest, the previous digest becomes untagged but is
+      # still pinned by FROM in Dockerfiles on main/develop until the digest
+      # bump promotes through. Deleting it immediately broke main's build
+      # (2026-07-24). Two weeks spans several promotion cycles, so a pinned
+      # digest is never deleted while still referenced. dry-run wires the
+      # existing workflow_dispatch input so the policy can be previewed.
       - name: Delete orphaned container versions
         uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f  # v1.2.2
         with:
           package: ${{ matrix.image }}
           delete-untagged: true
+          older-than: 2 weeks
           validate: true
+          dry-run: ${{ inputs.dry_run || false }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   verify-protected-tags:
