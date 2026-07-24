@@ -182,7 +182,7 @@ pexpect==4.9.0
     # via
     #   ansible-runner
     #   ipython
-platformdirs==4.10.0
+platformdirs==4.11.0
     # via
     #   black
     #   python-discovery
