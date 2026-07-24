@@ -41,7 +41,7 @@ botocore==1.43.49
     # via
     #   boto3
     #   s3transfer
-bracex==3.0
+bracex==3.0.1
     # via wcmatch
 certifi==2026.6.17
     # via requests
