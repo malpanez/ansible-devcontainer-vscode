@@ -37,11 +37,11 @@ bindep==2.14.0
 black==26.5.1
     # via ansible-lint
 boto3==1.43.49
-botocore==1.43.49
+botocore==1.43.55
     # via
     #   boto3
     #   s3transfer
-bracex==3.0
+bracex==3.0.1
     # via wcmatch
 certifi==2026.6.17
     # via requests
@@ -192,7 +192,7 @@ pluggy==1.6.0
     #   molecule
     #   pytest
     #   pytest-cov
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via ansible-devcontainer
 prompt-toolkit==3.0.52
     # via ipython
@@ -268,7 +268,7 @@ ruamel-yaml==0.19.1
 ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14'
     # via ansible-lint
 ruff==0.15.21
-s3transfer==0.19.1
+s3transfer==0.19.2
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2'
     # via molecule-plugins
