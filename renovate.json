@@ -10,7 +10,7 @@
   "timezone": "Europe/Madrid",
   "labels": ["dependencies"],
   "semanticCommitScope": "deps",
-  "rebaseWhen": "conflicted",
+  "rebaseWhen": "behind-base-branch",
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "lockFileMaintenance": {
