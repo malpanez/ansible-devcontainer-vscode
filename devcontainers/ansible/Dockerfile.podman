@@ -12,7 +12,7 @@
 FROM python:3.14-slim-trixie@sha256:d3400aa122fa42cf0af0dbe8ec3091b047eac5c8f7e3539f7135e86d855dc015 AS uv-base
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION="0.11.29"
+ARG UV_VERSION="0.11.32"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     UV_INSTALL_DIR=/usr/local/bin \
