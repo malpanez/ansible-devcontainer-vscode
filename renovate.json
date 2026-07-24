@@ -8,15 +8,13 @@
   ],
   "baseBranchPatterns": ["develop"],
   "timezone": "Europe/Madrid",
-  "schedule": ["* 4 * * 1"],
   "labels": ["dependencies"],
   "semanticCommitScope": "deps",
   "rebaseWhen": "conflicted",
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["* 4 * * 1"]
+    "enabled": true
   },
   "packageRules": [
     {
