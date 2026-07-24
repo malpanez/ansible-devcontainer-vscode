@@ -34,6 +34,16 @@ on:
 permissions:
   contents: read
 
+# Collapse bursts of develop pushes (e.g. a batch of Renovate auto-merges)
+# into a single promotion run. Without this, near-simultaneous pushes race
+# the idempotent "does a promotion PR already exist?" check — both runs read
+# "none" at once and each opens one, yielding duplicate develop->main PRs.
+# cancel-in-progress lets the last push win: its run reflects the settled
+# develop and creates/reuses exactly one promotion PR.
+concurrency:
+  group: promote-to-main
+  cancel-in-progress: true
+
 jobs:
   create-promotion-pr:
     name: Create promotion PR
