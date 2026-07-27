@@ -30,7 +30,8 @@ EOF
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
-    case "$1" in
+    local arg="$1"
+    case "${arg}" in
       --target)
         TARGET_DIR="$2"
         shift 2
@@ -48,7 +49,7 @@ parse_args() {
         exit 0
         ;;
       *)
-        echo "Unknown option: $1" >&2
+        echo "Unknown option: ${arg}" >&2
         usage
         exit 1
         ;;
@@ -57,15 +58,18 @@ parse_args() {
 }
 
 status_ok() {
-  echo "[ok] $1"
+  local message="$1"
+  echo "[ok] ${message}"
 }
 
 status_warn() {
-  echo "[warn] $1"
+  local message="$1"
+  echo "[warn] ${message}"
 }
 
 status_fail() {
-  echo "[fail] $1" >&2
+  local message="$1"
+  echo "[fail] ${message}" >&2
 }
 
 check_binary() {

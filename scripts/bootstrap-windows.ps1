@@ -142,7 +142,7 @@ function Install-Git {
 
 function Configure-VSCodeExtensions {
     if (-not (Get-Command code -ErrorAction SilentlyContinue)) {
-        Write-Host "VS Code CLI not found; skipping extension configuration."
+        Write-Output "VS Code CLI not found; skipping extension configuration."
         return
     }
 

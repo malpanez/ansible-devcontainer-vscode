@@ -218,12 +218,11 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     fi
 
     # Safety guard: high/critical findings always require manual review
-    if [[ "${SHOULD_DISMISS}" = true ]]; then
-        if [[ "${SEVERITY}" == "error" || "${SEVERITY}" == "critical" ]] \
-          || [[ "${SECURITY_SEVERITY}" == "high" || "${SECURITY_SEVERITY}" == "critical" ]]; then
-            SHOULD_DISMISS=false
-            log_warning "  → Dismissal blocked: severity ${SEVERITY}/${SECURITY_SEVERITY} requires manual review"
-        fi
+    if [[ "${SHOULD_DISMISS}" = true ]] \
+      && { [[ "${SEVERITY}" == "error" || "${SEVERITY}" == "critical" ]] \
+           || [[ "${SECURITY_SEVERITY}" == "high" || "${SECURITY_SEVERITY}" == "critical" ]]; }; then
+        SHOULD_DISMISS=false
+        log_warning "  → Dismissal blocked: severity ${SEVERITY}/${SECURITY_SEVERITY} requires manual review"
     fi
 
     # Execute dismissal
