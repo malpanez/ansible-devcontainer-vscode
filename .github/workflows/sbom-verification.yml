@@ -178,7 +178,7 @@ jobs:
         continue-on-error: true
         env:
           # renovate: datasource=docker depName=anchore/grype
-          GRYPE_VERSION: v0.110.0
+          GRYPE_VERSION: v0.116.0
         run: |
           # Pinned container instead of `curl ... | sh`: that installer was
           # fetched from the main branch (unpinned, can change without
