@@ -18,6 +18,9 @@ ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.11.32
+# Kept in step with the pre-commit pinned in pyproject/uv.lock so the
+# image and the repo run the same hooks. Renovate bumps it.
+ARG PRE_COMMIT_VERSION=4.6.1
 
 # Common system packages used across Python-based stacks.
 # hadolint ignore=DL3008,DL3015
@@ -88,7 +91,7 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     # pre-commit and its deps publish wheels for amd64 and arm64; the
     # other install sites cannot use it (they build the local project,
     # or pull onigurumacffi, which has no aarch64 wheel).
-    && uv pip install --system --only-binary :all: pre-commit \
+    && uv pip install --system --only-binary :all: "pre-commit==${PRE_COMMIT_VERSION}" \
     && mkdir -p /workspace \
     && chown "${USERNAME}:${USERNAME}" /workspace
 ENV PATH="/usr/local/bin:${PATH}"
