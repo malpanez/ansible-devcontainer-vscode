@@ -83,7 +83,12 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv \
     && install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx \
     && rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}" \
-    && uv pip install --system pre-commit \
+    # --only-binary :all: refuses sdists, so no setup.py from a
+    # dependency runs at build time (docker:S8541). Safe here because
+    # pre-commit and its deps publish wheels for amd64 and arm64; the
+    # other install sites cannot use it (they build the local project,
+    # or pull onigurumacffi, which has no aarch64 wheel).
+    && uv pip install --system --only-binary :all: pre-commit \
     && mkdir -p /workspace \
     && chown ${USERNAME}:${USERNAME} /workspace
 ENV PATH="/usr/local/bin:${PATH}"
