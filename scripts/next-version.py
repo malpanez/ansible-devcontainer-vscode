@@ -74,7 +74,6 @@ def main() -> None:
     else:
         patch_n += 1
     print(f"v{major_n}.{minor_n}.{patch_n}")
-    return
 
 
 if __name__ == "__main__":
