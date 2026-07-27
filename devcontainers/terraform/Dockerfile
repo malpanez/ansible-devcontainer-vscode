@@ -134,13 +134,13 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.36.7
+ARG AWS_CLI_VERSION=2.36.8
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64"; AWS_SHA256="d641283d37f1a2168457a9f26a20d4e29167652e9ab1719b37114ef1ebe859f4" ;; \
-      arm64) AWS_ARCH="aarch64"; AWS_SHA256="85826b67912b44bb45d1e46c6e66f383c14405ee0b2f4686f73bdf949c93bd61" ;; \
+      amd64) AWS_ARCH="x86_64"; AWS_SHA256="829a2bbad5b4821a8d006a133c34fa5ce2f362ae003ac39aa0865a6d1e1711f2" ;; \
+      arm64) AWS_ARCH="aarch64"; AWS_SHA256="fedb42aaa0f4e9623c626008139a0e4741cfa3f7ea3067c5a479390126e09f58" ;; \
       *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.25
 # renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
-ARG TECTONIC_VERSION=0.16.9
+ARG TECTONIC_VERSION=0.17.0
 FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
 
 ARG TECTONIC_VERSION
@@ -48,9 +48,9 @@ RUN set -eux; \
     ARCH="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     case "${ARCH}" in \
       amd64|x86_64) TECTONIC_ARCH="x86_64-unknown-linux-musl"; \
-        TECTONIC_SHA256="60b13a0826ae7ad9ce34b4a2df06bff2cfcfa6dda8a915477c0cbb84e1a4a902" ;; \
+        TECTONIC_SHA256="8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7" ;; \
       arm64|aarch64) TECTONIC_ARCH="aarch64-unknown-linux-musl"; \
-        TECTONIC_SHA256="f9aa39017dbd51f111fdb93dda222178cbe51c8193508fc567b523cc74fff9c1" ;; \
+        TECTONIC_SHA256="b10954a95404f3ab2328d2fa59a5ebab8e657f893fab096f98be8db7c0c979b8" ;; \
       *) echo "Unsupported architecture ${ARCH}" >&2; exit 1 ;; \
     esac; \
     curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}.tar.gz" \

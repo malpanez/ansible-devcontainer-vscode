@@ -36,7 +36,7 @@ bindep==2.14.0
     # via ansible-builder
 black==26.5.1
     # via ansible-lint
-boto3==1.43.55
+boto3==1.43.56
 botocore==1.43.55
     # via
     #   boto3
@@ -194,7 +194,7 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.6.1
     # via ansible-devcontainer
-prompt-toolkit==3.0.52
+prompt-toolkit==3.0.53
     # via ipython
 psutil==7.2.2 ; sys_platform != 'cygwin' and sys_platform != 'emscripten'
     # via ipython
