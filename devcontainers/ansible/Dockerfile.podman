@@ -95,23 +95,25 @@ ENV WORKSPACE=/workspace \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-      # Base tools
-      gh \
-      git \
-      libonig5 \
-      openssh-client \
-      rsync \
-      sudo \
-      unzip \
-      # Podman (Debian build, ABI-coherent) + rootless dependencies
+      # Base tools plus podman (Debian build, ABI-coherent) and its
+      # rootless dependencies: conmon, crun, dbus-user-session,
+      # fuse-overlayfs, iptables, slirp4netns, uidmap.
+      # One alphabetical list, not grouped sublists (docker:S7018).
       conmon \
       crun \
       dbus-user-session \
       fuse-overlayfs \
+      gh \
+      git \
       iptables \
+      libonig5 \
+      openssh-client \
       podman \
+      rsync \
       slirp4netns \
+      sudo \
       uidmap \
+      unzip \
     # podman 5 uses netavark; the CNI plugins only add ~15 Go binaries
     # of scanner noise and are not a podman dependency
     && apt-get remove -y --purge containernetworking-plugins \
