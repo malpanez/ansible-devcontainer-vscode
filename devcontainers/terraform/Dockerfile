@@ -134,7 +134,7 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.36.7
+ARG AWS_CLI_VERSION=2.36.8
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
