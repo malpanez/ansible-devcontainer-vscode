@@ -191,6 +191,18 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*[\"']?(?<currentValue>[^\"'\\s]+)"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "pre-commit pinned as an ARG in the base image",
+      "managerFilePatterns": [
+        "/devcontainers/base/Dockerfile/"
+      ],
+      "matchStrings": [
+        "ARG PRE_COMMIT_VERSION=(?<currentValue>[0-9.]+)"
+      ],
+      "datasourceTemplate": "pypi",
+      "depNameTemplate": "pre-commit"
     }
   ]
 }
