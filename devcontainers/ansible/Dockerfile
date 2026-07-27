@@ -83,12 +83,12 @@ COPY --link --from=python-builder /usr/local/bin /usr/local/bin
 ARG USERNAME=vscode
 
 # devcontainer-base already creates the user; add the stack directories
-RUN install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible \
-    && chown ${USERNAME}:${USERNAME} \
-         /home/${USERNAME}/.local \
-         /home/${USERNAME}/.local/share
+RUN install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/ansible \
+    && chown "${USERNAME}:${USERNAME}" \
+         "/home/${USERNAME}/.local" \
+         "/home/${USERNAME}/.local/share"
 
 COPY --link --chmod=0444 templates/pre-commit/ansible/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/ansible/.pre-commit-config.yaml
 COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit

@@ -160,14 +160,14 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
-RUN groupadd --gid ${USER_GID} ${USERNAME} \
-    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \
-    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/terraform
+RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/pre-commit" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/terraform
 
 COPY --chmod=0444 templates/pre-commit/terraform/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml
 COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit

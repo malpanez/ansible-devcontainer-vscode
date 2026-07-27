@@ -62,13 +62,13 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-RUN groupadd --gid ${USER_GID} ${USERNAME} \
-    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && install -d -m 755 /home/${USERNAME}/.cache/pre-commit \
-    && install -d -m 700 /home/${USERNAME}/.ansible/tmp \
-    && install -d -m 755 /home/${USERNAME}/.ansible/galaxy_cache \
-    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.cache \
-    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ansible \
+RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    && install -d -m 755 "/home/${USERNAME}/.cache/pre-commit" \
+    && install -d -m 700 "/home/${USERNAME}/.ansible/tmp" \
+    && install -d -m 755 "/home/${USERNAME}/.ansible/galaxy_cache" \
+    && chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.cache" \
+    && chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.ansible" \
     && case "$(dpkg --print-architecture)" in \
          amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
          arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
@@ -90,6 +90,6 @@ RUN groupadd --gid ${USER_GID} ${USERNAME} \
     # or pull onigurumacffi, which has no aarch64 wheel).
     && uv pip install --system --only-binary :all: pre-commit \
     && mkdir -p /workspace \
-    && chown ${USERNAME}:${USERNAME} /workspace
+    && chown "${USERNAME}:${USERNAME}" /workspace
 ENV PATH="/usr/local/bin:${PATH}"
 WORKDIR /workspace
