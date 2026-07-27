@@ -3,6 +3,19 @@
 # tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
 # several stacks reuses it. release.yml preflight overrides BASE_IMAGE
 # with a locally built base; bump the digest when base:main is rebuilt.
+#
+# BASE_IMAGE deliberately carries BOTH the :main tag and the @sha256
+# digest. The digest is what actually resolves (Docker ignores the tag
+# when a digest is present), so the pin stays immutable for Scorecard's
+# Pinned-Dependencies; the tag is what tells Renovate which stream to
+# track — drop it and Renovate falls back to :latest, stops refreshing
+# this digest, and the pin rots until GHCR prunes it and the build dies
+# (that is exactly what broke main on 2026-07-24). Linters that want
+# "tag or digest, not both" are false positives here: hadolint DL3006 is
+# suppressed below; SonarCloud docker:S8431 has no in-repo suppression
+# (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
+# ignores sonar.issue.ignore.*), so it must be deactivated in the
+# project's quality profile instead.
 ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:48cb99f4b91c618bd290fce419176ebacefc630b6797c551456191c42f040944
 
 # Stage 1: resolve the Python stack. Build tools live only in this stage:
