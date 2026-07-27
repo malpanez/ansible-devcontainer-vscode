@@ -53,7 +53,7 @@ RUN set -eux; \
         TECTONIC_SHA256="b10954a95404f3ab2328d2fa59a5ebab8e657f893fab096f98be8db7c0c979b8" ;; \
       *) echo "Unsupported architecture ${ARCH}" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}.tar.gz" \
+    curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-${TECTONIC_ARCH}.tar.gz" \
       -o /tmp/tectonic.tar.gz; \
     echo "${TECTONIC_SHA256}  /tmp/tectonic.tar.gz" | sha256sum -c -; \
     TMP_DIR="$(mktemp -d /tmp/tectonic.XXXXXX)"; \
@@ -73,9 +73,9 @@ RUN set -eux; \
       arm64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
       *) printf 'Unsupported arch: %s\n' "$(dpkg --print-architecture)" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+    curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
       -o "/tmp/uv-${UV_ARCH}.tar.gz"; \
-    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
+    curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
       -o "/tmp/uv-${UV_ARCH}.tar.gz.sha256"; \
     echo "$(cut -d' ' -f1 "/tmp/uv-${UV_ARCH}.tar.gz.sha256")  /tmp/uv-${UV_ARCH}.tar.gz" | sha256sum -c -; \
     tar -xzf "/tmp/uv-${UV_ARCH}.tar.gz" -C /tmp; \
