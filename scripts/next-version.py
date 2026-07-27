@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 import subprocess
-import sys
 
 PATCH_TYPES = ("fix", "perf", "security", "revert")
 SUBJECT_RE = re.compile(r"^(?P<type>[a-z]+)(?:\([^)]*\))?(?P<bang>!)?:")
@@ -27,19 +26,19 @@ def git(*args: str) -> str:
     ).stdout.strip()
 
 
-def main() -> int:
+def main() -> None:
     try:
         last_tag = git("describe", "--tags", "--abbrev=0", "--match", "v*")
     except subprocess.CalledProcessError:
         print("v1.0.0")
-        return 0
+        return
 
     log_range = f"{last_tag}..HEAD"
     subjects = git("log", log_range, "--pretty=%s").splitlines()
     bodies = git("log", log_range, "--pretty=%b")
 
     if not subjects:
-        return 0
+        return
 
     # Promotion squash merges land as "chore: promote develop to main"
     # with the real feat/fix subjects as body bullets — scan those too.
@@ -64,7 +63,7 @@ def main() -> int:
             patch = True
 
     if not (major or minor or patch):
-        return 0
+        return
 
     version = last_tag.lstrip("v").split("-")[0]
     major_n, minor_n, patch_n = (int(part) for part in version.split("."))
@@ -75,8 +74,8 @@ def main() -> int:
     else:
         patch_n += 1
     print(f"v{major_n}.{minor_n}.{patch_n}")
-    return 0
+    return
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

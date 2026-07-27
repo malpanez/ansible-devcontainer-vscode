@@ -96,22 +96,22 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
       # Base tools
-      git \
       gh \
+      git \
+      libonig5 \
       openssh-client \
       rsync \
-      unzip \
       sudo \
-      libonig5 \
+      unzip \
       # Podman (Debian build, ABI-coherent) + rootless dependencies
-      podman \
       conmon \
       crun \
-      uidmap \
-      slirp4netns \
+      dbus-user-session \
       fuse-overlayfs \
       iptables \
-      dbus-user-session \
+      podman \
+      slirp4netns \
+      uidmap \
     # podman 5 uses netavark; the CNI plugins only add ~15 Go binaries
     # of scanner noise and are not a podman dependency
     && apt-get remove -y --purge containernetworking-plugins \
@@ -155,19 +155,18 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
          "/home/${USERNAME}/.config/systemd" \
          "/home/${USERNAME}/.local" \
          "/home/${USERNAME}/.local/share" \
-         "/home/${USERNAME}/.cache"
-
-# Configure Podman storage for rootless
-RUN printf '[storage]\n\
+         "/home/${USERNAME}/.cache" \
+    # Rootless podman storage config; written in the same layer that just
+    # created ~/.config/containers (docker:S7031 — one layer, not three)
+    && printf '[storage]\n\
 driver = "overlay"\n\
 \n\
 [storage.options.overlay]\n\
 mount_program = "/usr/bin/fuse-overlayfs"\n\
 mountopt = "nodev,metacopy=on"\n' > "/home/${USERNAME}/.config/containers/storage.conf" \
-    && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config/containers/storage.conf"
-
-# Configure Podman to use crun runtime
-RUN printf '[engine]\n\
+    && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config/containers/storage.conf" \
+    # crun as the OCI runtime
+    && printf '[engine]\n\
 runtime = "crun"\n\
 \n\
 [engine.runtimes]\n\
