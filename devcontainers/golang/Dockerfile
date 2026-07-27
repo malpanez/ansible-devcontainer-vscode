@@ -48,13 +48,13 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
-RUN addgroup -g ${USER_GID} ${USERNAME} \
-    && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
-    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/go \
-    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/golang
+RUN addgroup -g "${USER_GID}" "${USERNAME}" \
+    && adduser -D -u "${USER_UID}" -G "${USERNAME}" -s /bin/bash "${USERNAME}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/go" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/golang
 
 COPY --link --chmod=0444 templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
 COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit

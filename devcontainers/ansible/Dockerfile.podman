@@ -137,25 +137,25 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
-RUN groupadd --gid ${USER_GID} ${USERNAME} \
-    && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
-    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/pre-commit \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.ansible \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/share/containers \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/containers \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.config/systemd/user \
-    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/ansible \
+RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/pre-commit" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.ansible" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/containers" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.config/containers" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.config/systemd/user" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/ansible \
     # install -d creates intermediate directories as root; podman refuses
     # to run when ~/.config or ~/.local are not owned by the user
-    && chown ${USERNAME}:${USERNAME} \
-         /home/${USERNAME}/.config \
-         /home/${USERNAME}/.config/systemd \
-         /home/${USERNAME}/.local \
-         /home/${USERNAME}/.local/share \
-         /home/${USERNAME}/.cache
+    && chown "${USERNAME}:${USERNAME}" \
+         "/home/${USERNAME}/.config" \
+         "/home/${USERNAME}/.config/systemd" \
+         "/home/${USERNAME}/.local" \
+         "/home/${USERNAME}/.local/share" \
+         "/home/${USERNAME}/.cache"
 
 # Configure Podman storage for rootless
 RUN printf '[storage]\n\
@@ -163,8 +163,8 @@ driver = "overlay"\n\
 \n\
 [storage.options.overlay]\n\
 mount_program = "/usr/bin/fuse-overlayfs"\n\
-mountopt = "nodev,metacopy=on"\n' > /home/${USERNAME}/.config/containers/storage.conf \
-    && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.config/containers/storage.conf
+mountopt = "nodev,metacopy=on"\n' > "/home/${USERNAME}/.config/containers/storage.conf" \
+    && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config/containers/storage.conf"
 
 # Configure Podman to use crun runtime
 RUN printf '[engine]\n\
@@ -173,8 +173,8 @@ runtime = "crun"\n\
 [engine.runtimes]\n\
 crun = [\n\
   "/usr/bin/crun"\n\
-]\n' > /home/${USERNAME}/.config/containers/containers.conf \
-    && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.config/containers/containers.conf
+]\n' > "/home/${USERNAME}/.config/containers/containers.conf" \
+    && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config/containers/containers.conf"
 
 COPY --chmod=0444 templates/pre-commit/ansible/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/ansible/.pre-commit-config.yaml
 COPY --chmod=0444 templates/ansible/execution-environment.yml /usr/local/share/devcontainer-skel/ansible/execution-environment.yml
