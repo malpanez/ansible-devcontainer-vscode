@@ -176,15 +176,20 @@ jobs:
       - name: Scan SBOMs with Grype
         id: grype-scan
         continue-on-error: true
+        env:
+          # renovate: datasource=docker depName=anchore/grype
+          GRYPE_VERSION: v0.110.0
         run: |
-          # Install grype
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-
-          # Scan each SBOM and suppress errors
+          # Pinned container instead of `curl ... | sh`: that installer was
+          # fetched from the main branch (unpinned, can change without
+          # notice) and piped straight into a shell. Same image release.yml
+          # already uses, so both stay on one grype version.
           for sbom_file in sboms/sbom-*/*.spdx.json; do
             sbom_name=$(basename "$sbom_file" .spdx.json)
             echo "Scanning $sbom_name..."
-            grype sbom:"$sbom_file" --fail-on critical --quiet || true
+            docker run --rm -v "${PWD}:/work" -w /work \
+              "anchore/grype:${GRYPE_VERSION}" \
+              sbom:"$sbom_file" --fail-on critical --quiet || true
           done 2>&1 | grep -v "failed to parse SARIF" || true
 
       - name: Upload vulnerability results to GitHub Security

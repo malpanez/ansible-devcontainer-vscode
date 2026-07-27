@@ -409,9 +409,15 @@ jobs:
           restore-keys: npm-devcontainers-
 
       - name: Install Dev Containers CLI
+        env:
+          # renovate: datasource=npm depName=@devcontainers/cli
+          DEVCONTAINERS_CLI_VERSION: 0.88.0
         run: |
           export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-          npm install --global @devcontainers/cli
+          # --ignore-scripts: no lifecycle script from the package or its
+          # deps runs at install time. Version pinned so the toolchain is
+          # reproducible (Renovate keeps it current).
+          npm install --global --ignore-scripts "@devcontainers/cli@${DEVCONTAINERS_CLI_VERSION}"
           echo "$HOME/.npm-global/bin" >> $GITHUB_PATH
 
       - name: Verify devcontainer config

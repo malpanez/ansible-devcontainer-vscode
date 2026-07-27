@@ -21,7 +21,7 @@ esac
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-curl -fsSL \
+curl --proto '=https' --tlsv1.2 -fsSL \
   "https://github.com/FiloSottile/age/releases/download/v${VERSION}/age-v${VERSION}-linux-${ARCH}.tar.gz" \
   -o "$TMP/age.tar.gz"
 

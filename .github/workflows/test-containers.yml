@@ -83,10 +83,23 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
 
       - name: Install container-structure-test
+        env:
+          # renovate: datasource=github-releases depName=GoogleContainerTools/container-structure-test
+          CST_VERSION: v1.22.1
         run: |
-          curl -fsSL https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64 \
-            -o /usr/local/bin/container-structure-test
-          chmod +x /usr/local/bin/container-structure-test
+          # Was: an unpinned `latest` binary from storage.googleapis.com,
+          # installed and executed with no integrity check at all. Pin the
+          # release, force HTTPS, and verify against the published
+          # checksums.txt before the binary is ever made executable.
+          set -euo pipefail
+          base="https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}"
+          tmp="$(mktemp -d)"
+          curl --proto '=https' --tlsv1.2 -fsSL "${base}/container-structure-test-linux-amd64" \
+            -o "${tmp}/container-structure-test-linux-amd64"
+          curl --proto '=https' --tlsv1.2 -fsSL "${base}/checksums.txt" -o "${tmp}/checksums.txt"
+          (cd "${tmp}" && grep " container-structure-test-linux-amd64$" checksums.txt | sha256sum -c -)
+          install -m 0755 "${tmp}/container-structure-test-linux-amd64" /usr/local/bin/container-structure-test
+          rm -rf "${tmp}"
 
       - name: Run structure tests for ${{ matrix.stack }}
         run: |
