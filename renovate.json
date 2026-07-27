@@ -37,6 +37,11 @@
       "description": "Group the terraform-stack CLI tools",
       "matchFileNames": ["devcontainers/terraform/Dockerfile"],
       "groupName": "terraform-stack tools"
+    },
+    {
+      "description": "Group the AWS Python SDK: boto3/botocore/s3transfer ship as one lockstep release train, so separate PRs each rewrite uv.lock and the second one always lands in conflict (2026-07-24 and 2026-07-27, both times)",
+      "matchPackageNames": ["boto3", "botocore", "s3transfer"],
+      "groupName": "aws-sdk-python"
     }
   ],
   "customManagers": [
