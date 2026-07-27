@@ -34,9 +34,9 @@ RUN set -eux; \
       aarch64) UV_ARCH="aarch64-unknown-linux-musl" ;; \
       *) printf 'Unsupported arch: %s\n' "$(uname -m)" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
+    curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz" \
       -o "/tmp/uv-${UV_ARCH}.tar.gz"; \
-    curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
+    curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz.sha256" \
       -o "/tmp/uv-${UV_ARCH}.tar.gz.sha256"; \
     echo "$(cut -d' ' -f1 "/tmp/uv-${UV_ARCH}.tar.gz.sha256")  /tmp/uv-${UV_ARCH}.tar.gz" | sha256sum -c -; \
     tar -xzf "/tmp/uv-${UV_ARCH}.tar.gz" -C /tmp; \
@@ -48,13 +48,13 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
-RUN addgroup -g ${USER_GID} ${USERNAME} \
-    && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/bash ${USERNAME} \
-    && install -d -o ${USERNAME} -g ${USERNAME} ${WORKSPACE} \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.local/bin \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/.cache/uv \
-    && install -d -o ${USERNAME} -g ${USERNAME} /home/${USERNAME}/go \
-    && install -d -o ${USERNAME} -g ${USERNAME} /usr/local/share/devcontainer-skel/golang
+RUN addgroup -g "${USER_GID}" "${USERNAME}" \
+    && adduser -D -u "${USER_UID}" -G "${USERNAME}" -s /bin/bash "${USERNAME}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/go" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/golang
 
 COPY --link --chmod=0444 templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
 COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
