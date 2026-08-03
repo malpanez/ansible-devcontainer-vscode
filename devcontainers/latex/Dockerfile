@@ -66,7 +66,7 @@ RUN set -eux; \
     rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.11.32
+ARG UV_VERSION=0.12.1
 RUN set -eux; \
     case "$(dpkg --print-architecture)" in \
       amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
