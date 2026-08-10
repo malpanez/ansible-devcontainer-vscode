@@ -64,7 +64,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   click
     #   ipython
     #   pytest
-coverage==7.15.3
+coverage==7.15.4
     # via pytest-cov
 cryptography==49.0.0
     # via
