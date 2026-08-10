@@ -13,7 +13,7 @@ ARG AGE_VERSION=1.3.1
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.11.32
 
-FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS fetch
+FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS fetch
 ARG TARGETARCH
 ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
@@ -68,7 +68,7 @@ RUN set -eux; \
     cd /; \
     rm -rf /tmp/dl
 
-FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
