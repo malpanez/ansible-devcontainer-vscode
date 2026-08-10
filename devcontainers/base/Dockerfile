@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.25
-FROM python:3.14.6-slim-bookworm@sha256:86f975aca15cf04a40b399eebede9aea7c82eae084d1f1a0a6ef6bcaae871a30
+FROM python:3.14.6-slim-bookworm@sha256:4c92ffcde4dd6f1ff72a24518f49fd4990b27134987dfa31a733badde66df9f8
 
 # BuildKit platform arguments
 ARG TARGETPLATFORM
