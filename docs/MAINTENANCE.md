@@ -44,10 +44,41 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   `workflow_dispatch`, `force` input to ignore the schedule) and
   [`renovate-postprocess.yml`](workflows/renovate-postprocess.yml)
 
+#### Rules That Are Easy To Break
+
+- **`uv.lock` is the source of truth.** `requirements.txt` and
+  `requirements-ansible.txt` are *generated* from it by `uv export`, so
+  Renovate is disabled for those two files. It used to bump them
+  directly, which left them ahead of the lock and, on 2026-08-16, let a
+  HIGH `cryptography` advisory look patched while the lock still resolved
+  the vulnerable version — the next regeneration would have reverted it.
+  When something looks updated, check the lock too:
+  `grep -A1 'name = "<pkg>"' uv.lock`.
+- **Never regenerate the exports locally.** The build pins uv via
+  `ARG UV_VERSION`; a different local uv rewrites every `--hash=sha256:`
+  line and drops hashes from the ansible export. Change the lock and let
+  lock file maintenance or the companion regenerate the exports in CI.
+- **Security fixes auto-merge regardless of update type.**
+  `vulnerabilityAlerts.automerge` is set, because the ordinary automerge
+  rule only matches patch/minor — a HIGH advisory once waited six days
+  purely because its fix was a major. CI still gates the merge.
+- **Dependabot must stay off.** Deleting `.github/dependabot.yml` only
+  stops *version* updates; *security* updates are a separate
+  repository-level toggle that will re-open PRs duplicating Renovate's.
+  The **alerts** stay enabled — Renovate consumes them:
+  ```bash
+  gh api -X DELETE repos/OWNER/REPO/automated-security-fixes   # updates off
+  gh api repos/OWNER/REPO/vulnerability-alerts -i | head -1    # 204 = alerts on
+  ```
+
 #### How to Monitor
 ```bash
 # View recent dependency PRs
 gh pr list --label "dependencies"
+
+# Open security advisories (Renovate raises fixes from these)
+gh api repos/OWNER/REPO/dependabot/alerts \
+  --jq '[.[]|select(.state=="open")]|length'
 ```
 
 ---
