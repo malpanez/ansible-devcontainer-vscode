@@ -113,7 +113,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --group dev .
+          # Install from the generated export, not by re-resolving
+          # pyproject: `uv pip install .` ignores uv.lock and picks the
+          # newest compatible release, which is how CI ended up running
+          # ansible 14.3.1 against a lock pinning 14.2.0 and failing the
+          # version assertion in playbooks/test-environment.yml.
+          # requirements.txt is exported with --all-groups, so it already
+          # carries the dev group; the project itself goes in --no-deps.
+          uv pip install --system -r requirements.txt
+          uv pip install --system --no-deps .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
@@ -466,7 +474,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --group dev .
+          # Install from the generated export, not by re-resolving
+          # pyproject: `uv pip install .` ignores uv.lock and picks the
+          # newest compatible release, which is how CI ended up running
+          # ansible 14.3.1 against a lock pinning 14.2.0 and failing the
+          # version assertion in playbooks/test-environment.yml.
+          # requirements.txt is exported with --all-groups, so it already
+          # carries the dev group; the project itself goes in --no-deps.
+          uv pip install --system -r requirements.txt
+          uv pip install --system --no-deps .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -507,7 +523,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --group dev .
+          # Install from the generated export, not by re-resolving
+          # pyproject: `uv pip install .` ignores uv.lock and picks the
+          # newest compatible release, which is how CI ended up running
+          # ansible 14.3.1 against a lock pinning 14.2.0 and failing the
+          # version assertion in playbooks/test-environment.yml.
+          # requirements.txt is exported with --all-groups, so it already
+          # carries the dev group; the project itself goes in --no-deps.
+          uv pip install --system -r requirements.txt
+          uv pip install --system --no-deps .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -559,7 +583,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --group dev .
+          # Install from the generated export, not by re-resolving
+          # pyproject: `uv pip install .` ignores uv.lock and picks the
+          # newest compatible release, which is how CI ended up running
+          # ansible 14.3.1 against a lock pinning 14.2.0 and failing the
+          # version assertion in playbooks/test-environment.yml.
+          # requirements.txt is exported with --all-groups, so it already
+          # carries the dev group; the project itself goes in --no-deps.
+          uv pip install --system -r requirements.txt
+          uv pip install --system --no-deps .
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           ansible-galaxy collection install -r requirements.yml
