@@ -68,10 +68,11 @@
       "groupName": "aws-sdk-python"
     },
     {
-      "description": "requirements.txt and requirements-ansible.txt are generated from uv.lock by `uv export`. Renovate was editing them as if they were manifests, which silently desynchronised them from the lock (cffi, filelock, python-discovery and virtualenv were all newer in the exports than in the lock, and the next regeneration would have reverted them - including the security fix). Let Renovate manage pyproject/uv.lock only; the companion regenerates the exports.",
+      "description": "Generated files: Renovate must not edit them. requirements.txt and requirements-ansible.txt come from uv.lock via `uv export`; .devcontainer/ is a copy of devcontainers/<stack>/ produced by scripts/use-devcontainer.sh. Editing generated files desynchronised the exports from the lock (2026-08-16, where it made a HIGH cryptography fix look applied while the lock stayed vulnerable) and duplicates every devcontainer PR: #411 patched .devcontainer while #412 patched the terraform template it is generated from. Renovate manages the sources; the companion regenerates the copies.",
       "matchFileNames": [
         "requirements.txt",
-        "requirements-ansible.txt"
+        "requirements-ansible.txt",
+        ".devcontainer/**"
       ],
       "enabled": false
     }
