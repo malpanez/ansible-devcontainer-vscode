@@ -9,7 +9,7 @@ ansible-compat==26.6.0
     #   ansible-lint
     #   molecule
     #   pytest-ansible
-ansible-core==2.21.3
+ansible-core==2.21.2
     # via
     #   ansible
     #   ansible-compat
@@ -36,8 +36,8 @@ bindep==2.14.0
     # via ansible-builder
 black==26.5.1
     # via ansible-lint
-boto3==1.43.72
-botocore==1.43.72
+boto3==1.43.56
+botocore==1.43.56
     # via
     #   boto3
     #   s3transfer
@@ -45,7 +45,7 @@ bracex==3.0.1
     # via wcmatch
 certifi==2026.7.22
     # via requests
-cffi==2.1.1
+cffi==2.1.0
     # via
     #   ansible-lint
     #   cryptography
@@ -64,7 +64,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   click
     #   ipython
     #   pytest
-coverage==7.15.4
+coverage==7.15.2
     # via pytest-cov
 cryptography==50.0.0
     # via
@@ -91,7 +91,7 @@ execnet==2.1.2
     # via pytest-xdist
 executing==2.2.1
     # via stack-data
-filelock==3.32.3
+filelock==3.32.0
     # via
     #   ansible-lint
     #   python-discovery
@@ -102,7 +102,7 @@ idna==3.18
     # via requests
 iniconfig==2.3.0
     # via pytest
-ipython==9.16.1
+ipython==9.15.0
 ipython-pygments-lexers==1.1.1
     # via ipython
 jedi==0.20.0
@@ -141,7 +141,7 @@ mdurl==0.1.2
 molecule==26.6.0
     # via molecule-plugins
 molecule-plugins==26.7.15
-mypy==2.3.1
+mypy==2.3.0
 mypy-extensions==1.1.0
     # via
     #   black
@@ -182,7 +182,7 @@ pexpect==4.9.0
     # via
     #   ansible-runner
     #   ipython
-platformdirs==4.11.3
+platformdirs==4.11.0
     # via
     #   black
     #   python-discovery
@@ -192,7 +192,7 @@ pluggy==1.6.0
     #   molecule
     #   pytest
     #   pytest-cov
-pre-commit==4.6.2
+pre-commit==4.6.1
     # via ansible-devcontainer
 prompt-toolkit==3.0.53
     # via ipython
@@ -216,7 +216,7 @@ pytest==9.1.1
     #   pytest-cov
     #   pytest-testinfra
     #   pytest-xdist
-pytest-ansible==26.6.0
+pytest-ansible==26.8.0
 pytest-cov==7.1.0
 pytest-testinfra==10.2.2
 pytest-xdist==3.8.0
@@ -225,7 +225,7 @@ python-daemon==3.1.2
     # via ansible-runner
 python-dateutil==2.9.0.post0
     # via botocore
-python-discovery==1.5.1
+python-discovery==1.5.0
     # via virtualenv
 pytokens==0.4.1
     # via black
@@ -267,7 +267,7 @@ ruamel-yaml==0.19.1
     # via ansible-lint
 ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14'
     # via ansible-lint
-ruff==0.16.1
+ruff==0.16.0
 s3transfer==0.19.2
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2'
@@ -301,7 +301,7 @@ urllib3==2.7.0
     #   botocore
     #   docker
     #   requests
-virtualenv==21.7.1
+virtualenv==21.7.0
     # via pre-commit
 wcmatch==11.0
     # via

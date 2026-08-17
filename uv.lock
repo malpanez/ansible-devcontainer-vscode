@@ -3,10 +3,10 @@ revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'linux2'",
-    "python_full_version == '3.14.*' and sys_platform == 'linux2'",
     "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "python_full_version == '3.14.*' and sys_platform == 'linux'",
     "python_full_version >= '3.15' and sys_platform != 'linux' and sys_platform != 'linux2'",
+    "python_full_version == '3.14.*' and sys_platform == 'linux2'",
+    "python_full_version == '3.14.*' and sys_platform == 'linux'",
     "python_full_version == '3.14.*' and sys_platform != 'linux' and sys_platform != 'linux2'",
     "python_full_version < '3.14' and sys_platform == 'linux2'",
     "python_full_version < '3.14' and sys_platform == 'linux'",
@@ -135,7 +135,7 @@ dev = [
     { name = "molecule-plugins", extras = ["docker"], specifier = ">=26.7.8,<27.0.0" },
     { name = "mypy", specifier = ">=2.3.0" },
     { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-ansible", specifier = ">=26.6.0,<26.7.0" },
+    { name = "pytest-ansible", specifier = ">=26.8.0,<26.9.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-testinfra", specifier = ">=10.1.0" },
     { name = "ruff", specifier = ">=0.15.21" },
@@ -1367,7 +1367,7 @@ wheels = [
 
 [[package]]
 name = "pytest-ansible"
-version = "26.6.0"
+version = "26.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ansible-compat" },
@@ -1378,9 +1378,9 @@ dependencies = [
     { name = "pytest-xdist" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/7f/ed3e0fb4aa2a9c4c634539271ff9ad835e07ce9b83ac389f7dd9aa629b0e/pytest_ansible-26.6.0.tar.gz", hash = "sha256:7bcf55838975175eab4d7422486185393d26877f2cc2e95cbab2103848660044", size = 196400, upload-time = "2026-06-30T12:05:25.66Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/f9/063a37f5fa04202d21ecd9a25bf2e61c78691f1108314981f43064010d57/pytest_ansible-26.8.0.tar.gz", hash = "sha256:8621fb9edfbd72a74e3c5079d665ed9ef38e30e19a373458f19ff0624dc9a4c0", size = 222251, upload-time = "2026-08-12T07:14:13.017Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/21/11a5970eef86a3c255aa0980e81d22443da7430438e1acb70afabaa37635/pytest_ansible-26.6.0-py3-none-any.whl", hash = "sha256:b80b7d24ce9e3e1048606d1fa214a4ecadf48b3ba080b99dd1544ea36238ae73", size = 32667, upload-time = "2026-06-30T12:05:24.374Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/8f/fe15ccdca5a78d1ba6fe2d7e27d19cc9b00cb0700df8f7ce167e09c2a43c/pytest_ansible-26.8.0-py3-none-any.whl", hash = "sha256:2b4901b5310255775e52b6a6c7b219129d3f258f7075d9899223c6f8d12294df", size = 33135, upload-time = "2026-08-12T07:14:11.857Z" },
 ]
 
 [[package]]
@@ -1789,7 +1789,7 @@ name = "selinux"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "distro", marker = "sys_platform == 'linux' or sys_platform == 'linux2'" },
+    { name = "distro" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/25/07/51acd62e1e15e1172d46f7e32faf138725b147f8c08dbf2d512159d7a310/selinux-0.3.0.tar.gz", hash = "sha256:2a88b337ac46ad0f06f557b2806c3df62421972f766673dd8bf26732fb75a9ea", size = 13479, upload-time = "2022-12-24T16:42:13.163Z" }
 wheels = [
