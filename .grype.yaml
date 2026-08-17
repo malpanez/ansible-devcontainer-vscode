@@ -72,3 +72,28 @@ ignore:
   - package:
       name: stdlib
       location: "/usr/bin/conmon"
+  # podman's helper binaries live in /usr/libexec/podman, which the two
+  # rules above never matched — rootlessport and quadlet alone accounted
+  # for 106 open alerts (and 9 of the 12 criticals). Same Debian package,
+  # same un-recompilable Go toolchain as /usr/bin/podman.
+  - package:
+      name: stdlib
+      location: "/usr/libexec/podman/**"
+  - package:
+      name: golang.org/x/crypto
+      location: "/usr/libexec/podman/**"
+
+  # --- vendored grpc in pre-compiled release binaries (same policy as
+  # stdlib above: we cannot rebuild these, and no gRPC server is served).
+  - package:
+      name: google.golang.org/grpc
+      location: "/usr/local/bin/terraform"
+  - package:
+      name: google.golang.org/grpc
+      location: "/usr/local/bin/terragrunt"
+  - package:
+      name: google.golang.org/grpc
+      location: "/usr/local/bin/tflint"
+  - package:
+      name: google.golang.org/grpc
+      location: "/usr/bin/gh"

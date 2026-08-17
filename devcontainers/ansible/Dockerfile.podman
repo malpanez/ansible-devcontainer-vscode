@@ -117,6 +117,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # podman 5 uses netavark; the CNI plugins only add ~15 Go binaries
     # of scanner noise and are not a podman dependency
     && apt-get remove -y --purge containernetworking-plugins \
+    # Same reasoning: podman-testing is podman's own test helper, useless
+    # in a working image, and its embedded Go stdlib accounted for 53
+    # code-scanning alerts on its own.
+    && rm -f /usr/libexec/podman/podman-testing \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
