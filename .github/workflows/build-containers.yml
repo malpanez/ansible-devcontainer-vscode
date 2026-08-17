@@ -59,7 +59,7 @@ jobs:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7  # v4.5.1
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -130,7 +130,7 @@ jobs:
           sbom: true
 
       - name: Attest
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -170,7 +170,7 @@ jobs:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7  # v4.5.1
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -202,7 +202,7 @@ jobs:
           sbom: true
 
       - name: Attest
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -249,7 +249,7 @@ jobs:
           fi
 
       - name: Upload Grype SARIF for base
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81  # v4
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: ${{ steps.grype_base.outputs.sarif }}
@@ -309,7 +309,7 @@ jobs:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7  # v4.5.1
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -344,7 +344,7 @@ jobs:
           sbom: true
 
       - name: Attest
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -391,7 +391,7 @@ jobs:
           fi
 
       - name: Upload Grype SARIF for ${{ matrix.stack }}${{ matrix.variant }}
-        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81  # v4
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
