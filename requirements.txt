@@ -9,7 +9,7 @@ ansible-compat==26.6.0
     #   ansible-lint
     #   molecule
     #   pytest-ansible
-ansible-core==2.21.2
+ansible-core==2.21.3
     # via
     #   ansible
     #   ansible-compat
