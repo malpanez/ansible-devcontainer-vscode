@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.25
+# syntax=docker/dockerfile:1.26
 # renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
 ARG TECTONIC_VERSION=0.17.0
 FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241

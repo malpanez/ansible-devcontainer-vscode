@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.25
+# syntax=docker/dockerfile:1.26
 # Ansible DevContainer with Podman + Execution Environments
 #
 # Podman comes from Debian's own packages (trixie ships 5.4.x with
