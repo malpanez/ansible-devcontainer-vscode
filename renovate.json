@@ -65,6 +65,14 @@
         "s3transfer"
       ],
       "groupName": "aws-sdk-python"
+    },
+    {
+      "description": "requirements.txt and requirements-ansible.txt are generated from uv.lock by `uv export`. Renovate was editing them as if they were manifests, which silently desynchronised them from the lock (cffi, filelock, python-discovery and virtualenv were all newer in the exports than in the lock, and the next regeneration would have reverted them - including the security fix). Let Renovate manage pyproject/uv.lock only; the companion regenerates the exports.",
+      "matchFileNames": [
+        "requirements.txt",
+        "requirements-ansible.txt"
+      ],
+      "enabled": false
     }
   ],
   "customManagers": [
@@ -204,5 +212,13 @@
       "datasourceTemplate": "pypi",
       "depNameTemplate": "pre-commit"
     }
-  ]
+  ],
+  "vulnerabilityAlerts": {
+    "description": "Security fixes must not wait for a human. The automerge rule below covers only patch/minor, so the cryptography 49->50 fix for a HIGH Bleichenbacher advisory sat open for six days purely because it was a major. CI still gates it: a red pipeline means no merge.",
+    "automerge": true,
+    "labels": [
+      "dependencies",
+      "security"
+    ]
+  }
 }
