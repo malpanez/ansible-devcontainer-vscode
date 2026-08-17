@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.25
+# syntax=docker/dockerfile:1.26
 # Runtime and builder share the hardened devcontainer-base layer (apt
 # tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
 # several stacks reuses it. release.yml preflight overrides BASE_IMAGE
@@ -16,7 +16,7 @@
 # (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
 # ignores sonar.issue.ignore.*), so it must be deactivated in the
 # project's quality profile instead.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:cce0f96485adfd3a9c1a5c4d12d3bb54be6d8961f549c4bfaa4be98c6e7bcf00
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:24cbfa0f962ba6ccb42e2a2cb3a704278a1b2e3dec71537dfab3cde494c60cfa
 
 # Stage 1: resolve the Python stack. Build tools live only in this stage:
 # arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
