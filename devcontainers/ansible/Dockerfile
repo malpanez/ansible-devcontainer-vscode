@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.25
+# syntax=docker/dockerfile:1.26
 # Runtime and builder share the hardened devcontainer-base layer (apt
 # tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
 # several stacks reuses it. release.yml preflight overrides BASE_IMAGE
