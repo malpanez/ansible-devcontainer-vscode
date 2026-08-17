@@ -83,6 +83,29 @@ ignore:
       name: golang.org/x/crypto
       location: "/usr/libexec/podman/**"
 
+  # --- other vendored golang.org/x modules in the same pre-compiled
+  # binaries. Same policy and same binaries as the stdlib rules above: we
+  # do not build these releases, so the only fix is upstream rebuilding.
+  # x/mod advisories alone accounted for 12 of the last 19 open alerts.
+  - package:
+      name: golang.org/x/mod
+      location: "/usr/local/bin/terraform"
+  - package:
+      name: golang.org/x/mod
+      location: "/usr/local/bin/terragrunt"
+  - package:
+      name: golang.org/x/mod
+      location: "/usr/local/bin/tflint"
+  - package:
+      name: golang.org/x/mod
+      location: "/usr/bin/gh"
+  - package:
+      name: golang.org/x/text
+      location: "/usr/local/bin/terraform"
+  - package:
+      name: golang.org/x/net
+      location: "/usr/bin/gh"
+
   # --- vendored grpc in pre-compiled release binaries (same policy as
   # stdlib above: we cannot rebuild these, and no gRPC server is served).
   - package:
