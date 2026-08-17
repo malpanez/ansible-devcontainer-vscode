@@ -16,6 +16,9 @@
   ],
   "semanticCommitScope": "deps",
   "rebaseWhen": "behind-base-branch",
+  "gitIgnoredAuthors": [
+    "14823990+malpanez@users.noreply.github.com"
+  ],
   "prConcurrentLimit": 30,
   "prHourlyLimit": 0,
   "lockFileMaintenance": {
