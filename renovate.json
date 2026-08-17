@@ -1,5 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Raised from 10 on 2026-08-17. With ~26 dependencies moving per week and auto-merge on green, a limit of 10 protected nothing \u2014 it just hid work: 26 updates sat in the dashboard's Rate-Limited section, including the golang 1.26.6 and python 3.14.7 bumps that left ~87 code-scanning alerts open for weeks, and the ansible 14.3.1 bump whose absence broke develop's CI. 30 covers the weekly volume with headroom while still capping a runaway.",
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
@@ -15,7 +16,7 @@
   ],
   "semanticCommitScope": "deps",
   "rebaseWhen": "behind-base-branch",
-  "prConcurrentLimit": 10,
+  "prConcurrentLimit": 30,
   "prHourlyLimit": 0,
   "lockFileMaintenance": {
     "enabled": true,
