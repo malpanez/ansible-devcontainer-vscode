@@ -20,7 +20,7 @@ ENV UV_COMPILE_BYTECODE=1
 ARG UV_VERSION=0.12.3
 # Kept in step with the pre-commit pinned in pyproject/uv.lock so the
 # image and the repo run the same hooks. Renovate bumps it.
-ARG PRE_COMMIT_VERSION=4.6.1
+ARG PRE_COMMIT_VERSION=4.6.2
 
 # Common system packages used across Python-based stacks.
 # hadolint ignore=DL3008,DL3015
