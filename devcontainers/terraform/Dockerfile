@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.26
 ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.15.8
+ARG TERRAFORM_VERSION=1.15.9
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=1.1.3
 # renovate: datasource=github-releases depName=terraform-linters/tflint
@@ -134,7 +134,7 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.36.24
+ARG AWS_CLI_VERSION=2.36.29
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
