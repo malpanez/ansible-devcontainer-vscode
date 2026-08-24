@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.26
 ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.15.8
+ARG TERRAFORM_VERSION=1.15.9
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=1.1.3
 # renovate: datasource=github-releases depName=terraform-linters/tflint
@@ -134,13 +134,13 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.36.24
+ARG AWS_CLI_VERSION=2.36.29
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64"; AWS_SHA256="18a0807c25cb5b1737c652c554ab40404f6928dac677e1e263bbc19e16acd2fa" ;; \
-      arm64) AWS_ARCH="aarch64"; AWS_SHA256="c024c45a9d22005f81c7c0fab9e23ee7118ffa210d812845b42e980cf93727a7" ;; \
+      amd64) AWS_ARCH="x86_64"; AWS_SHA256="cf000f7405c94742e2b3534e5436c8189e48752ccf548477ebaa1b6b8665cdb5" ;; \
+      arm64) AWS_ARCH="aarch64"; AWS_SHA256="d08073ff20ad0b4a5bdcee344b35052caf7aa51383caa66865708eca407125d0" ;; \
       *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     curl --proto '=https' --tlsv1.2 -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \
