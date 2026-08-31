@@ -1,17 +1,17 @@
 # syntax=docker/dockerfile:1.26
 ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.15.9
+ARG TERRAFORM_VERSION=1.16.0
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
-ARG TERRAGRUNT_VERSION=1.1.3
+ARG TERRAGRUNT_VERSION=1.1.4
 # renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.64.0
 # renovate: datasource=github-releases depName=getsops/sops
 ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
-ARG AGE_VERSION=1.3.1
+ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.12.5
+ARG UV_VERSION=0.12.7
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS fetch
 ARG TARGETARCH
@@ -68,7 +68,7 @@ RUN set -eux; \
     cd /; \
     rm -rf /tmp/dl
 
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
@@ -134,7 +134,7 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.36.29
+ARG AWS_CLI_VERSION=2.36.34
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
