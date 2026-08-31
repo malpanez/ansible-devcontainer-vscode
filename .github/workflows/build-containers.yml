@@ -218,7 +218,7 @@ jobs:
 
       - name: Scan base image with Grype
         id: grype_base
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         continue-on-error: true
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
@@ -249,7 +249,7 @@ jobs:
           fi
 
       - name: Upload Grype SARIF for base
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: ${{ steps.grype_base.outputs.sarif }}
@@ -360,7 +360,7 @@ jobs:
 
       - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Grype
         id: grype_scan
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         continue-on-error: true
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
@@ -391,7 +391,7 @@ jobs:
           fi
 
       - name: Upload Grype SARIF for ${{ matrix.stack }}${{ matrix.variant }}
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4
         if: always() && steps.sarif_check.outputs.exists == 'true'
         with:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
