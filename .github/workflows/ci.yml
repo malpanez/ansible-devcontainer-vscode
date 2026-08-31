@@ -384,7 +384,7 @@ jobs:
             bash -lc "echo '${{ matrix.stack }} container is healthy' && whoami && which bash"
 
       - name: Scan image with Grype
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
@@ -419,7 +419,7 @@ jobs:
       - name: Install Dev Containers CLI
         env:
           # renovate: datasource=npm depName=@devcontainers/cli
-          DEVCONTAINERS_CLI_VERSION: 0.88.0
+          DEVCONTAINERS_CLI_VERSION: 0.89.0
         run: |
           export NPM_CONFIG_PREFIX="$HOME/.npm-global"
           # --ignore-scripts: no lifecycle script from the package or its
@@ -830,7 +830,7 @@ jobs:
 
       - name: Run filesystem scan with Grype
         id: grype-fs
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
@@ -840,7 +840,7 @@ jobs:
           output-format: sarif
 
       - name: Upload Grype SARIF
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4
         if: always() && github.event_name == 'push'
         with:
           sarif_file: ${{ steps.grype-fs.outputs.sarif }}

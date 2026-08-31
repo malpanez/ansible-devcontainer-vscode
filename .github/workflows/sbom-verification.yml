@@ -65,7 +65,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=sbom-${{ matrix.target.name }}
 
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26  # v0.24.2
         with:
           image: sbom-${{ matrix.target.name }}:latest
           artifact-name: sbom-${{ matrix.target.name }}.spdx.json
@@ -178,7 +178,7 @@ jobs:
         continue-on-error: true
         env:
           # renovate: datasource=docker depName=anchore/grype
-          GRYPE_VERSION: v0.117.0
+          GRYPE_VERSION: v0.118.0
         run: |
           # Pinned container instead of `curl ... | sh`: that installer was
           # fetched from the main branch (unpinned, can change without

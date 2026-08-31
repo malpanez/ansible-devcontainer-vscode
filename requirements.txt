@@ -36,8 +36,8 @@ bindep==2.14.0
     # via ansible-builder
 black==26.5.1
     # via ansible-lint
-boto3==1.43.78
-botocore==1.43.78
+boto3==1.43.83
+botocore==1.43.83
     # via
     #   boto3
     #   s3transfer
@@ -55,18 +55,17 @@ cfgv==3.5.0
     # via pre-commit
 charset-normalizer==3.5.1
     # via requests
-click==8.4.2
+click==8.5.0
     # via
     #   black
     #   molecule
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
-    #   click
     #   ipython
     #   pytest
-coverage==7.15.4
+coverage==7.16.0
     # via pytest-cov
-cryptography==50.0.0
+cryptography==50.0.1
     # via
     #   ansible-core
     #   ansible-lint
@@ -100,7 +99,7 @@ idna==3.19
     # via requests
 iniconfig==2.3.0
     # via pytest
-ipython==9.16.1
+ipython==9.17.0
 ipython-pygments-lexers==1.1.1
     # via ipython
 jedi==0.20.0
@@ -180,7 +179,7 @@ pexpect==4.9.0
     # via
     #   ansible-runner
     #   ipython
-platformdirs==4.11.3
+platformdirs==4.11.5
     # via
     #   black
     #   virtualenv
@@ -222,7 +221,7 @@ python-daemon==3.1.2
     # via ansible-runner
 python-dateutil==2.9.0.post0
     # via botocore
-python-discovery==1.5.2
+python-discovery==1.6.0
     # via virtualenv
 pytokens==0.4.1
     # via black
@@ -264,7 +263,7 @@ ruamel-yaml==0.19.1
     # via ansible-lint
 ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14'
     # via ansible-lint
-ruff==0.16.4
+ruff==0.16.5
 s3transfer==0.19.2
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2'
@@ -298,13 +297,13 @@ urllib3==2.7.0
     #   botocore
     #   docker
     #   requests
-virtualenv==21.7.4
+virtualenv==21.7.7
     # via pre-commit
 wcmatch==11.0.1
     # via
     #   ansible-lint
     #   molecule
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via prompt-toolkit
 yamllint==1.38.0
     # via
