@@ -419,7 +419,7 @@ jobs:
       - name: Install Dev Containers CLI
         env:
           # renovate: datasource=npm depName=@devcontainers/cli
-          DEVCONTAINERS_CLI_VERSION: 0.88.0
+          DEVCONTAINERS_CLI_VERSION: 0.89.0
         run: |
           export NPM_CONFIG_PREFIX="$HOME/.npm-global"
           # --ignore-scripts: no lifecycle script from the package or its
