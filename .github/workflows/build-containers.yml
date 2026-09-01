@@ -124,7 +124,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # No cache-to on pull_request:[closed]: the job runs after the PR
+          # merged, when refs/pull/N/merge no longer exists, so reserving a
+          # cache blob fails with 'token has no writable scope' and takes the
+          # whole build down. Reading still works.
+          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=max' }}
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
@@ -196,7 +200,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # No cache-to on pull_request:[closed]: the job runs after the PR
+          # merged, when refs/pull/N/merge no longer exists, so reserving a
+          # cache blob fails with 'token has no writable scope' and takes the
+          # whole build down. Reading still works.
+          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=max' }}
           platforms: linux/amd64,linux/arm64
           provenance: true
           sbom: true
@@ -338,7 +346,8 @@ jobs:
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VCS_REF=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.stack }}${{ matrix.variant }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}${{ matrix.variant }}
+          # See the note above: no cache writes on pull_request:[closed].
+          cache-to: ${{ github.event_name == 'pull_request' && '' || format('type=gha,mode=max,scope={0}{1}', matrix.stack, matrix.variant) }}
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
