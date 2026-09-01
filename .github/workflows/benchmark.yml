@@ -61,7 +61,7 @@ jobs:
           load: true
           tags: benchmark-${{ matrix.container.name }}:test
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Benchmark container startup
         id: benchmark
@@ -153,7 +153,7 @@ jobs:
             --tag benchmark-build-${{ matrix.container.name }}:warm \
             --load \
             --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            --cache-to type=gha,mode=min \
             --file ${{ matrix.container.path }}/Dockerfile \
             .
           end_time=$(date +%s%N)
@@ -203,7 +203,7 @@ jobs:
           load: true
           tags: benchmark-devcontainer:test
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Measure container resource usage
         id: resources
