@@ -128,7 +128,7 @@ jobs:
           # merged, when refs/pull/N/merge no longer exists, so reserving a
           # cache blob fails with 'token has no writable scope' and takes the
           # whole build down. Reading still works.
-          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=max' }}
+          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=min' }}
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
@@ -204,7 +204,7 @@ jobs:
           # merged, when refs/pull/N/merge no longer exists, so reserving a
           # cache blob fails with 'token has no writable scope' and takes the
           # whole build down. Reading still works.
-          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=max' }}
+          cache-to: ${{ github.event_name == 'pull_request' && '' || 'type=gha,mode=min' }}
           platforms: linux/amd64,linux/arm64
           provenance: true
           sbom: true
@@ -347,7 +347,7 @@ jobs:
             VCS_REF=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.stack }}${{ matrix.variant }}
           # See the note above: no cache writes on pull_request:[closed].
-          cache-to: ${{ github.event_name == 'pull_request' && '' || format('type=gha,mode=max,scope={0}{1}', matrix.stack, matrix.variant) }}
+          cache-to: ${{ github.event_name == 'pull_request' && '' || format('type=gha,mode=min,scope={0}{1}', matrix.stack, matrix.variant) }}
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true

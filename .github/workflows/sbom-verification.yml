@@ -62,7 +62,7 @@ jobs:
           load: true
           tags: sbom-${{ matrix.target.name }}:latest
           cache-from: type=gha,scope=sbom-${{ matrix.target.name }}
-          cache-to: type=gha,mode=max,scope=sbom-${{ matrix.target.name }}
+          cache-to: type=gha,mode=min,scope=sbom-${{ matrix.target.name }}
 
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26  # v0.24.2
