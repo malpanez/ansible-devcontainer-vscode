@@ -707,7 +707,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=base
-          cache-to: type=gha,mode=max,scope=base
+          cache-to: type=gha,mode=min,scope=base
           platforms: linux/amd64
           provenance: true
           sbom: true
@@ -772,7 +772,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.stack }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.stack }}
           platforms: linux/amd64
           provenance: true
           sbom: true

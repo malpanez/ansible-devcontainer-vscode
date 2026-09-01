@@ -80,7 +80,7 @@ jobs:
           load: true
           tags: test-${{ matrix.stack }}:latest
           cache-from: type=gha,scope=${{ matrix.stack }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.stack }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.stack }}
 
       - name: Install container-structure-test
         env:
