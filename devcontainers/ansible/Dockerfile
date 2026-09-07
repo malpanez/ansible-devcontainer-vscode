@@ -70,6 +70,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libonig5 \
       rsync \
       unzip \
+    # Upgrade after installing, so it also covers packages inherited from
+    # the pinned base image. base itself is fixed in this same PR, but a
+    # PR builds ansible FROM the *published* base digest, so the fix there
+    # cannot take effect until base is rebuilt and published. This clears
+    # CRITICAL CVE-2026-7598 (libssh2-1 1.10.0-3+b1 -> 1.10.0-3+deb12u1)
+    # without waiting for that round trip.
+    && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
