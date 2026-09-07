@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.26
-FROM python:3.14.7-slim-bookworm@sha256:416f0db2a2b561945630cef9877a7ea0581b27449eb9fd9df42f03e1b74b5b63
+FROM python:3.14.7-slim-bookworm@sha256:9ab8d9c8514b44f90cf0029dd42fdd7e9e211e639c8b995304cc04568dee900f
 
 # BuildKit platform arguments
 ARG TARGETPLATFORM
@@ -17,7 +17,7 @@ ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.12.7
+ARG UV_VERSION=0.12.10
 # Kept in step with the pre-commit pinned in pyproject/uv.lock so the
 # image and the repo run the same hooks. Renovate bumps it.
 ARG PRE_COMMIT_VERSION=4.6.2

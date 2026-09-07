@@ -9,10 +9,10 @@
 # trixie base (not bookworm like the other stacks): podman >= 5 needs
 # the newer userland.
 # Stage 1: trixie + checksum-verified uv, shared by builder and runtime
-FROM python:3.14-slim-trixie@sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5 AS uv-base
+FROM python:3.14-slim-trixie@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6 AS uv-base
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION="0.12.7"
+ARG UV_VERSION="0.12.10"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     UV_INSTALL_DIR=/usr/local/bin \
