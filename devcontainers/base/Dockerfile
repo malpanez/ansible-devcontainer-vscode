@@ -27,7 +27,6 @@ ARG PRE_COMMIT_VERSION=4.6.2
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     apt-get update \
-    && apt-get full-upgrade -y \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -41,6 +40,12 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
         unzip \
         vim-tiny \
         yamllint \
+    # full-upgrade AFTER the install, not before: libssh2-1 is not present
+    # in python:*-slim, it arrives as a dependency of curl/git, so an
+    # upgrade running first never touched it and the image kept shipping
+    # 1.10.0-3+b1 while bookworm-security had 1.10.0-3+deb12u1
+    # (CRITICAL CVE-2026-7598). Upgrading last covers pulled-in deps too.
+    && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
