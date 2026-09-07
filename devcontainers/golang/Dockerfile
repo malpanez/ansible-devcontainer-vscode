@@ -1,6 +1,13 @@
 # syntax=docker/dockerfile:1.26
 FROM golang:1.27.0-alpine3.23@sha256:3747dcba41c8b0db3211fda4db61638b980e17ac5bb3c94460a975a9cfe19395
 
+# CRITICAL OpenSSL advisories CVE-2026-63073 and CVE-2026-75803 affect the
+# openssl 3.5.7-r0 that golang:1.27.x-alpine3.23 still ships. Alpine fixed
+# them in 3.5.8-r0, so patch here rather than wait for the base image to
+# pick it up: the CI security gate runs grype --fail-on critical, and this
+# was blocking every pull request.
+RUN apk upgrade --no-cache libcrypto3 libssl3
+
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
