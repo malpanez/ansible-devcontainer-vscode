@@ -99,8 +99,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # 3.5.7-1~deb13u2. Patch here instead of waiting for the base image:
     # the CI gate runs grype --fail-on critical and this blocked every PR.
     && apt-get install -y --only-upgrade --no-install-recommends \
-      openssl \
       libssl3t64 \
+      openssl \
       openssl-provider-legacy \
     && apt-get install -y --no-install-recommends \
       # Base tools plus podman (Debian build, ABI-coherent) and its
