@@ -24,7 +24,7 @@ ansible-navigator==26.8.0
     # via ansible-devcontainer
 ansible-runner==2.4.3
     # via ansible-navigator
-ast-serialize==0.9.0
+ast-serialize==0.10.0
     # via mypy
 asttokens==3.0.2
     # via stack-data
