@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile:1.26
+# syntax=docker/dockerfile:1.27
 ARG DEBIAN_VERSION=bookworm-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.16.0
+ARG TERRAFORM_VERSION=1.16.1
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=1.1.4
 # renovate: datasource=github-releases depName=terraform-linters/tflint
@@ -11,7 +11,7 @@ ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.12.7
+ARG UV_VERSION=0.12.10
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS fetch
 ARG TARGETARCH
@@ -134,7 +134,7 @@ RUN set -eux; \
 # https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 ARG TARGETARCH
 # renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.36.34
+ARG AWS_CLI_VERSION=2.36.40
 # AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
