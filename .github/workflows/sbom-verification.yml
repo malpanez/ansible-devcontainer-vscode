@@ -61,8 +61,15 @@ jobs:
           file: ${{ matrix.target.context }}/Dockerfile
           load: true
           tags: sbom-${{ matrix.target.name }}:latest
-          cache-from: type=gha,scope=sbom-${{ matrix.target.name }}
-          cache-to: type=gha,mode=min,scope=sbom-${{ matrix.target.name }}
+          # Read the registry cache build-containers.yml populates; write
+          # nothing. This job runs on every PR and only has contents:read,
+          # so it cannot push to GHCR -- but the packages are public, so an
+          # anonymous pull works and no permission needs widening. Dropping
+          # cache-to removes this workflow from the 10 GB Actions cache
+          # budget entirely. A missing :buildcache-publish tag is a warning
+          # in buildx, not an error, so the first run after this lands (or
+          # any new target) simply builds uncached.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.target.name }}:buildcache-publish
 
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26  # v0.24.2
