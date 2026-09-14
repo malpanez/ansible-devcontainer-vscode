@@ -53,6 +53,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.container.name }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # Read-only use of the cache build-containers.yml publishes, so this
+          # job stays off the fixed 10 GB Actions quota and does not contend
+          # for the tag. The packages are public: no login, no extra
+          # permission. Probe first -- buildx aborts on a missing cache-from
+          # ref rather than warning.
+          #
+          # This still measures a genuine warm build: the cache it reads is
+          # the one the published images were actually built from.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+            echo "args=--cache-from type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
+          fi
+
+
       - name: Build container
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
@@ -60,8 +84,7 @@ jobs:
           file: ${{ matrix.container.path }}/Dockerfile
           load: true
           tags: benchmark-${{ matrix.container.name }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
+          cache-from: ${{ steps.rcache.outputs.from }}
 
       - name: Benchmark container startup
         id: benchmark
@@ -129,6 +152,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.container.name }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # Read-only use of the cache build-containers.yml publishes, so this
+          # job stays off the fixed 10 GB Actions quota and does not contend
+          # for the tag. The packages are public: no login, no extra
+          # permission. Probe first -- buildx aborts on a missing cache-from
+          # ref rather than warning.
+          #
+          # This still measures a genuine warm build: the cache it reads is
+          # the one the published images were actually built from.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+            echo "args=--cache-from type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
+          fi
+
+
       - name: Benchmark build time (cold cache)
         id: cold-build
         run: |
@@ -152,8 +199,7 @@ jobs:
           docker buildx build \
             --tag benchmark-build-${{ matrix.container.name }}:warm \
             --load \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=min \
+            ${{ steps.rcache.outputs.args }} \
             --file ${{ matrix.container.path }}/Dockerfile \
             .
           end_time=$(date +%s%N)
@@ -195,6 +241,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.container.name }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # Read-only use of the cache build-containers.yml publishes, so this
+          # job stays off the fixed 10 GB Actions quota and does not contend
+          # for the tag. The packages are public: no login, no extra
+          # permission. Probe first -- buildx aborts on a missing cache-from
+          # ref rather than warning.
+          #
+          # This still measures a genuine warm build: the cache it reads is
+          # the one the published images were actually built from.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+            echo "args=--cache-from type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
+          fi
+
+
       - name: Build main devcontainer
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
@@ -202,8 +272,7 @@ jobs:
           file: .devcontainer/Dockerfile
           load: true
           tags: benchmark-devcontainer:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
+          cache-from: ${{ steps.rcache.outputs.from }}
 
       - name: Measure container resource usage
         id: resources
