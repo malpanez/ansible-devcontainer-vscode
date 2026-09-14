@@ -162,6 +162,10 @@ COPY --from=fetch --link --chmod=0755 /tmp/bin/sops /usr/local/bin/sops
 COPY --from=fetch --link --chmod=0755 /tmp/bin/age /usr/local/bin/age
 COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-keygen
 
+# DL3064 fires on the *name* containing USERNAME, not on any secret: the
+# value is the fixed, public account the Dev Containers specification
+# expects every image to provide, and renaming it would break the spec.
+# hadolint ignore=DL3064
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}

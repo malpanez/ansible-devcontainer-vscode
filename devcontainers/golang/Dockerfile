@@ -51,6 +51,10 @@ RUN set -eux; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
     rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}"
 
+# DL3064 fires on the *name* containing USERNAME, not on any secret: the
+# value is the fixed, public account the Dev Containers specification
+# expects every image to provide, and renaming it would break the spec.
+# hadolint ignore=DL3064
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
