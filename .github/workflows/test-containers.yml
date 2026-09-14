@@ -71,6 +71,28 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # Read-only use of the cache build-containers.yml publishes, so this
+          # job stays off the fixed 10 GB Actions quota. Read-only also avoids
+          # contending for the tag: a registry cache export replaces the
+          # manifest, so two workflows writing one tag overwrite each other.
+          # The packages are public, so no login and no extra permission.
+          #
+          # The tag must be probed. buildx aborts outright on a missing
+          # cache-from ref ('failed to configure registry cache importer:
+          # <ref>: not found'); it does not warn and continue.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
+          fi
+
       - name: Build ${{ matrix.stack }} container
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
@@ -79,8 +101,7 @@ jobs:
           push: false
           load: true
           tags: test-${{ matrix.stack }}:latest
-          cache-from: type=gha,scope=${{ matrix.stack }}
-          cache-to: type=gha,mode=min,scope=${{ matrix.stack }}
+          cache-from: ${{ steps.rcache.outputs.from }}
 
       - name: Install container-structure-test
         env:
