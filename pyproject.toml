@@ -34,6 +34,18 @@ dev = [
   "mypy>=2.3.0",
   "ipython>=8.20.0",
 ]
+
+# Tools quality.yml and sbom-verification.yml install at CI time. They live
+# here rather than as bare `pip install <name>` in the workflows so they are
+# resolved through uv.lock like everything else: pinned, hash-verifiable and
+# refreshed by Renovate. Unpinned CI installs are how ansible drifted to a
+# version the lock did not have and broke develop on 2026-08-10.
+ci-quality = [
+  "radon>=6.0.1",
+  "vulture>=2.14",
+  "bandit>=1.8.6",
+  "ntia-conformance-checker>=3.2.0",
+]
 aws = [
   "boto3>=1.43.47",
   "botocore>=1.43.47",
