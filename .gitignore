@@ -230,3 +230,8 @@ collections/ansible_collections/
 # Claude Code local tooling (never commit)
 .claude/
 .planning/
+
+# npm: scripts/devcontainers-cli pins the Dev Containers CLI, but only its
+# package.json and package-lock.json are versioned. `npm ci` there is a CI
+# step; the installed tree must never be committed.
+node_modules/

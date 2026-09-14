@@ -66,6 +66,12 @@ jobs:
               - 'devcontainers/terraform/**'
             devcontainer:
               - 'devcontainers/**'
+              # The CLI pin belongs here too: the devcontainer-cli-test jobs
+              # are the only thing that exercises `npm ci` against it, and
+              # without this a change to how the CLI is installed skips the
+              # very jobs that would prove it still works. Same blind spot as
+              # a published image with no gating scan.
+              - 'scripts/devcontainers-cli/**'
             scripts:
               - 'scripts/**'
             python:
@@ -429,21 +435,26 @@ jobs:
       - name: Cache npm packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: ~/.npm-global
-          key: npm-devcontainers-${{ runner.os }}
-          restore-keys: npm-devcontainers-
+          path: ~/.npm
+          key: npm-devcontainers-${{ runner.os }}-${{ hashFiles('scripts/devcontainers-cli/package-lock.json') }}
+          restore-keys: npm-devcontainers-${{ runner.os }}-
 
       - name: Install Dev Containers CLI
-        env:
-          # renovate: datasource=npm depName=@devcontainers/cli
-          DEVCONTAINERS_CLI_VERSION: 0.89.0
         run: |
-          export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-          # --ignore-scripts: no lifecycle script from the package or its
-          # deps runs at install time. Version pinned so the toolchain is
-          # reproducible (Renovate keeps it current).
-          npm install --global --ignore-scripts "@devcontainers/cli@${DEVCONTAINERS_CLI_VERSION}"
-          echo "$HOME/.npm-global/bin" >> $GITHUB_PATH
+          # npm ci against a committed lockfile, not `npm install <pkg>@<ver>`.
+          # The version pin alone left the transitive tree free to resolve
+          # afresh on every run, with no integrity check on what arrived --
+          # Scorecard counted it under Pinned-Dependencies, and it is the same
+          # class of hole the bare `pip install` steps had. The lock carries an
+          # integrity hash per package; Renovate manages the version in
+          # scripts/devcontainers-cli/package.json through its npm manager, so
+          # the '# renovate:' annotation this step used to carry is no longer
+          # needed.
+          #
+          # --ignore-scripts: no lifecycle script from the package or its deps
+          # runs at install time.
+          npm ci --ignore-scripts --prefix scripts/devcontainers-cli
+          echo "${GITHUB_WORKSPACE}/scripts/devcontainers-cli/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Verify devcontainer config
         run: |
