@@ -1,0 +1,10 @@
+{
+  "name": "devcontainers-cli-pin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins the Dev Containers CLI used by ci.yml so npm ci installs an integrity-verified tree. Renovate manages the version here; do not edit package-lock.json by hand.",
+  "license": "MIT",
+  "dependencies": {
+    "@devcontainers/cli": "0.89.0"
+  }
+}
