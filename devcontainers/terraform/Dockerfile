@@ -139,8 +139,8 @@ ARG AWS_CLI_VERSION=2.36.44
 # per release; recompute them when bumping AWS_CLI_VERSION.
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64"; AWS_SHA256="a904e314340ad4c4b62beb50e9259d4becb2acf3dffc86c96c553c834d7fdf7a" ;; \
-      arm64) AWS_ARCH="aarch64"; AWS_SHA256="f26e08d0d64d9f35f304a9df94d63cbd11ffe8881c8b4bf60be934cf9e4d13a9" ;; \
+      amd64) AWS_ARCH="x86_64"; AWS_SHA256="617845f42577b8c1deba29eb5195ced529ee98241ccf4dad922745a287722af4" ;; \
+      arm64) AWS_ARCH="aarch64"; AWS_SHA256="42092fbf9459b4716807ffc9ffeab0a616b5eff0ceed2d59a16f977ad0d7608e" ;; \
       *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     curl --proto '=https' --tlsv1.2 -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \
