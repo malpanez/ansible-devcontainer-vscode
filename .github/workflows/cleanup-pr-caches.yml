@@ -1,0 +1,76 @@
+---
+name: Cleanup PR Caches
+
+# Actions cache is a fixed 10 GB per repository. It is not configurable and
+# there is no TTL-based pruning: GitHub only evicts least-recently-used
+# entries once the ceiling is reached, so a full cache silently evicts the
+# entries that are actually worth keeping (main's and develop's buildcache).
+#
+# A cache created on refs/pull/N/merge is unreachable from any other ref, so
+# the moment a PR closes its entries are pure dead weight. On 2026-09-14 the
+# repository sat at 10.21 GB with 3.98 GB (252 entries) held by six PRs that
+# had all merged that same morning. Reclaiming them at close keeps the
+# ceiling from being reached instead of purging by hand after it breaks
+# publishing, which is what happened on 2026-08-30.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    name: Purge caches for closed PR
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete caches scoped to this PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          set -euo pipefail
+
+          # gh api --paginate with --jq streams one key per line. Collect
+          # first, delete after: deleting while paginating shifts the pages
+          # and silently skips entries.
+          mapfile -t CACHE_IDS < <(
+            gh api --paginate \
+              "repos/${REPO}/actions/caches?per_page=100&ref=${PR_REF}" \
+              --jq '.actions_caches[].id'
+          )
+
+          if [ "${#CACHE_IDS[@]}" -eq 0 ]; then
+            echo "No caches for ${PR_REF}"
+            exit 0
+          fi
+
+          echo "Deleting ${#CACHE_IDS[@]} cache entries for ${PR_REF}"
+          FAILED=0
+          for id in "${CACHE_IDS[@]}"; do
+            if ! gh api --method DELETE "repos/${REPO}/actions/caches/${id}" --silent; then
+              echo "::warning::Could not delete cache ${id}"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          {
+            echo "## PR cache cleanup"
+            echo ""
+            echo "- Ref: \`${PR_REF}\`"
+            echo "- Deleted: $(( ${#CACHE_IDS[@]} - FAILED )) / ${#CACHE_IDS[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report remaining usage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${REPO}/actions/cache/usage" \
+            --jq '"- Repository cache now: \(.active_caches_size_in_bytes / 1073741824 * 100 | round / 100) GB across \(.active_caches_count) entries (limit 10 GB)"' \
+            >> "$GITHUB_STEP_SUMMARY"
