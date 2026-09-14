@@ -442,7 +442,27 @@ jobs:
           if [ -f "devcontainers/${{ matrix.stack }}/devcontainer.json" ]; then
             cd devcontainers/${{ matrix.stack }}
             DEVCONTAINER_ARGS=(--workspace-folder . --config devcontainer.json)
-            devcontainer up "${DEVCONTAINER_ARGS[@]}"
+            # The CLI builds through a generated Dockerfile-with-features whose
+            # own '# syntax=docker/dockerfile:1.27' directive forces an
+            # unauthenticated docker.io pull on every run. Anonymous Docker Hub
+            # pulls are rate-limited per source IP and runners share a NAT pool,
+            # so this resolves outside our control and fails in bursts: on
+            # 2026-09-14 it reset main's CI with 'connection reset by peer'
+            # against auth.docker.io while the identical tree had passed on
+            # develop two hours earlier, and a bare re-run went green. Retry
+            # rather than pin: the directive lives in a Dockerfile the CLI
+            # generates at build time, so pinning ours does not affect it.
+            for attempt in 1 2 3; do
+              if devcontainer up "${DEVCONTAINER_ARGS[@]}"; then
+                break
+              fi
+              if [ "${attempt}" -eq 3 ]; then
+                echo "::error::devcontainer up failed after 3 attempts"
+                exit 1
+              fi
+              echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
+              sleep "$((attempt * 20))"
+            done
             devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${{ matrix.stack }} container is running'"
             # no 'devcontainer stop' subcommand exists; the runner cleans up
           fi
