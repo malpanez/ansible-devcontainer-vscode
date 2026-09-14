@@ -47,6 +47,25 @@ ignore:
   - package:
       name: stdlib
       location: "/usr/local/bin/sops"
+  # sops v3.13.3 (latest release, 2026-07-23) vendors google.golang.org/grpc
+  # v1.82.1. Both open HIGH advisories against it are server-side:
+  #   GHSA-2v4p-qf9q-27wj  panic in the xDS routing interceptor. Reaching it
+  #     requires a server built with xds.NewGRPCServer(); sops has zero
+  #     references to google.golang.org/grpc/xds and uses plain
+  #     grpc.NewServer(), so this one cannot be reached at all.
+  #   GHSA-vp52-pcj8-j9qc  heap exhaustion from fragmented HTTP/2 DATA
+  #     frames against a gRPC server. sops does contain one
+  #     (cmd/sops/subcommand/keyservice), but it only listens when a user
+  #     explicitly runs `sops keyservice`, which nothing in these images
+  #     does. Anyone exposing that subcommand on an untrusted network
+  #     should treat this as live and pin sops themselves.
+  # There is no sops release carrying patched grpc, so this is not
+  # suppressible by upgrading. Renovate tracks getsops/sops, so the ignore
+  # goes inert the moment upstream rebuilds. Matches the existing grpc
+  # rules for terraform/terragrunt/tflint/gh; sops was simply the gap.
+  - package:
+      name: google.golang.org/grpc
+      location: "/usr/local/bin/sops"
   # tflint bundles sigstore/rekor for keyless verification; pre-compiled.
   - package:
       name: github.com/sigstore/rekor
