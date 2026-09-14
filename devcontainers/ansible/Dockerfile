@@ -87,6 +87,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY --link --from=python-builder /usr/local/lib /usr/local/lib
 COPY --link --from=python-builder /usr/local/bin /usr/local/bin
 
+# DL3064 fires on the *name* containing USERNAME, not on any secret: the
+# value is the fixed, public account the Dev Containers specification
+# expects every image to provide, and renaming it would break the spec.
+# hadolint ignore=DL3064
 ARG USERNAME=vscode
 
 # devcontainer-base already creates the user; add the stack directories

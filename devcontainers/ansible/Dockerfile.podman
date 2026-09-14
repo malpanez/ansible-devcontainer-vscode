@@ -153,6 +153,10 @@ RUN podman --version; \
 COPY --link --from=python-builder /usr/local/lib /usr/local/lib
 COPY --link --from=python-builder /usr/local/bin /usr/local/bin
 
+# DL3064 fires on the *name* containing USERNAME, not on any secret: the
+# value is the fixed, public account the Dev Containers specification
+# expects every image to provide, and renaming it would break the spec.
+# hadolint ignore=DL3064
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=${USER_UID}

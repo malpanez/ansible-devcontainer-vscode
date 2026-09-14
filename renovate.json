@@ -75,6 +75,7 @@
       "matchFileNames": [
         "requirements.txt",
         "requirements-ansible.txt",
+        "requirements-ci-quality.txt",
         ".devcontainer/**"
       ],
       "enabled": false

@@ -46,14 +46,22 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
 
 #### Rules That Are Easy To Break
 
-- **`uv.lock` is the source of truth.** `requirements.txt` and
-  `requirements-ansible.txt` are *generated* from it by `uv export`, so
-  Renovate is disabled for those two files. It used to bump them
+- **`uv.lock` is the source of truth.** `requirements.txt`,
+  `requirements-ansible.txt` and `requirements-ci-quality.txt` are
+  *generated* from it by `uv export`, so Renovate is disabled for all
+  three. It used to bump them
   directly, which left them ahead of the lock and, on 2026-08-16, let a
   HIGH `cryptography` advisory look patched while the lock still resolved
   the vulnerable version — the next regeneration would have reverted it.
   When something looks updated, check the lock too:
   `grep -A1 'name = "<pkg>"' uv.lock`.
+- **CI tools belong in a dependency group, not in a bare `pip install`.**
+  `quality.yml` and `sbom-verification.yml` install their tooling from
+  `requirements-ci-quality.txt` with `--require-hashes`; the group lives in
+  `pyproject.toml` so Renovate manages it like everything else. Before this,
+  `pip install ansible ansible-lint` resolved whatever PyPI served that day —
+  which is how CI ran ansible 14.3.1 against a lock pinning 14.2.0 and broke
+  develop on 2026-08-10.
 - **Never regenerate the exports locally.** The build pins uv via
   `ARG UV_VERSION`; a different local uv rewrites every `--hash=sha256:`
   line and drops hashes from the ansible export. Change the lock and let
