@@ -108,6 +108,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends gh \
+    # Upgrade AFTER the installs, never before: the stale packages here
+    # arrive as dependencies of the list above (libpcre2-8-0 comes in with
+    # git and grep), so an upgrade placed first never reaches them. The
+    # pinned bookworm digest ships libpcre2-8-0 10.42-1 while bookworm
+    # has 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
+    && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
