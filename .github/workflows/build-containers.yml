@@ -114,6 +114,28 @@ jobs:
             echo "PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
           fi
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # buildx treats a MISSING cache-from ref as a hard failure --
+          # 'failed to configure registry cache importer: <ref>: not found'
+          # aborts the whole build -- not as a warning. The registry cache
+          # therefore cannot be introduced cold: the tag has to be probed
+          # first and the flag omitted until it exists. This seeds itself,
+          # so only the very first run after a new image or a cache reset
+          # builds uncached.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached and seeding it."
+          fi
+          # ignore-error: a cache export problem must never fail a publish.
+          echo "to=type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
@@ -123,26 +145,8 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Registry-backed cache, not type=gha: the Actions cache is a fixed
-          # 10 GB per repository with no pruning, and this workflow's blobs
-          # were 97% of it (9.52 GB / 574 entries on 2026-09-14, over the
-          # ceiling, so GitHub was evicting entries worth keeping). A GHCR
-          # cache does not touch that quota at all.
-          #
-          # It also removes the pull_request:[closed] special case this used
-          # to need: reserving an Actions cache blob failed there with 'token
-          # has no writable scope' because refs/pull/N/merge is gone by then.
-          # Writing here uses the GHCR login this job already holds and
-          # already uses to push the image itself, so the event does not
-          # matter. mode=max because the quota argument no longer applies and
-          # it caches intermediate layers too.
-          #
-          # Distinct tag from ci.yml's :buildcache on purpose. That one is
-          # amd64-only; these are multi-arch, and a registry cache export
-          # replaces the manifest at its tag, so sharing one would make the
-          # two workflows overwrite each other on every run.
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}:buildcache-publish
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}:buildcache-publish,mode=max
+          cache-from: ${{ steps.rcache.outputs.from }}
+          cache-to: ${{ steps.rcache.outputs.to }}
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
@@ -204,6 +208,28 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
+        run: |
+          set -euo pipefail
+          # buildx treats a MISSING cache-from ref as a hard failure --
+          # 'failed to configure registry cache importer: <ref>: not found'
+          # aborts the whole build -- not as a warning. The registry cache
+          # therefore cannot be introduced cold: the tag has to be probed
+          # first and the flag omitted until it exists. This seeds itself,
+          # so only the very first run after a new image or a cache reset
+          # builds uncached.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached and seeding it."
+          fi
+          # ignore-error: a cache export problem must never fail a publish.
+          echo "to=type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
+
       - name: Build and push base
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
@@ -213,26 +239,8 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Registry-backed cache, not type=gha: the Actions cache is a fixed
-          # 10 GB per repository with no pruning, and this workflow's blobs
-          # were 97% of it (9.52 GB / 574 entries on 2026-09-14, over the
-          # ceiling, so GitHub was evicting entries worth keeping). A GHCR
-          # cache does not touch that quota at all.
-          #
-          # It also removes the pull_request:[closed] special case this used
-          # to need: reserving an Actions cache blob failed there with 'token
-          # has no writable scope' because refs/pull/N/merge is gone by then.
-          # Writing here uses the GHCR login this job already holds and
-          # already uses to push the image itself, so the event does not
-          # matter. mode=max because the quota argument no longer applies and
-          # it caches intermediate layers too.
-          #
-          # Distinct tag from ci.yml's :buildcache on purpose. That one is
-          # amd64-only; these are multi-arch, and a registry cache export
-          # replaces the manifest at its tag, so sharing one would make the
-          # two workflows overwrite each other on every run.
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish,mode=max
+          cache-from: ${{ steps.rcache.outputs.from }}
+          cache-to: ${{ steps.rcache.outputs.to }}
           platforms: linux/amd64,linux/arm64
           provenance: true
           sbom: true
@@ -361,6 +369,28 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # buildx treats a MISSING cache-from ref as a hard failure --
+          # 'failed to configure registry cache importer: <ref>: not found'
+          # aborts the whole build -- not as a warning. The registry cache
+          # therefore cannot be introduced cold: the tag has to be probed
+          # first and the flag omitted until it exists. This seeds itself,
+          # so only the very first run after a new image or a cache reset
+          # builds uncached.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached and seeding it."
+          fi
+          # ignore-error: a cache export problem must never fail a publish.
+          echo "to=type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
+
       - name: Build and push ${{ matrix.stack }}${{ matrix.variant }}
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
@@ -373,26 +403,8 @@ jobs:
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VCS_REF=${{ github.sha }}
-          # Registry-backed cache, not type=gha: the Actions cache is a fixed
-          # 10 GB per repository with no pruning, and this workflow's blobs
-          # were 97% of it (9.52 GB / 574 entries on 2026-09-14, over the
-          # ceiling, so GitHub was evicting entries worth keeping). A GHCR
-          # cache does not touch that quota at all.
-          #
-          # It also removes the pull_request:[closed] special case this used
-          # to need: reserving an Actions cache blob failed there with 'token
-          # has no writable scope' because refs/pull/N/merge is gone by then.
-          # Writing here uses the GHCR login this job already holds and
-          # already uses to push the image itself, so the event does not
-          # matter. mode=max because the quota argument no longer applies and
-          # it caches intermediate layers too.
-          #
-          # Distinct tag from ci.yml's :buildcache on purpose. That one is
-          # amd64-only; these are multi-arch, and a registry cache export
-          # replaces the manifest at its tag, so sharing one would make the
-          # two workflows overwrite each other on every run.
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}:buildcache-publish
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}:buildcache-publish,mode=max
+          cache-from: ${{ steps.rcache.outputs.from }}
+          cache-to: ${{ steps.rcache.outputs.to }}
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
