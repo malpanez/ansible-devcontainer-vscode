@@ -123,12 +123,26 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          # No cache-to on pull_request:[closed]: the job runs after the PR
-          # merged, when refs/pull/N/merge no longer exists, so reserving a
-          # cache blob fails with 'token has no writable scope' and takes the
-          # whole build down. Reading still works.
-          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=min' || '' }}
+          # Registry-backed cache, not type=gha: the Actions cache is a fixed
+          # 10 GB per repository with no pruning, and this workflow's blobs
+          # were 97% of it (9.52 GB / 574 entries on 2026-09-14, over the
+          # ceiling, so GitHub was evicting entries worth keeping). A GHCR
+          # cache does not touch that quota at all.
+          #
+          # It also removes the pull_request:[closed] special case this used
+          # to need: reserving an Actions cache blob failed there with 'token
+          # has no writable scope' because refs/pull/N/merge is gone by then.
+          # Writing here uses the GHCR login this job already holds and
+          # already uses to push the image itself, so the event does not
+          # matter. mode=max because the quota argument no longer applies and
+          # it caches intermediate layers too.
+          #
+          # Distinct tag from ci.yml's :buildcache on purpose. That one is
+          # amd64-only; these are multi-arch, and a registry cache export
+          # replaces the manifest at its tag, so sharing one would make the
+          # two workflows overwrite each other on every run.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}:buildcache-publish
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}:buildcache-publish,mode=max
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
@@ -199,12 +213,26 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          # No cache-to on pull_request:[closed]: the job runs after the PR
-          # merged, when refs/pull/N/merge no longer exists, so reserving a
-          # cache blob fails with 'token has no writable scope' and takes the
-          # whole build down. Reading still works.
-          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=min' || '' }}
+          # Registry-backed cache, not type=gha: the Actions cache is a fixed
+          # 10 GB per repository with no pruning, and this workflow's blobs
+          # were 97% of it (9.52 GB / 574 entries on 2026-09-14, over the
+          # ceiling, so GitHub was evicting entries worth keeping). A GHCR
+          # cache does not touch that quota at all.
+          #
+          # It also removes the pull_request:[closed] special case this used
+          # to need: reserving an Actions cache blob failed there with 'token
+          # has no writable scope' because refs/pull/N/merge is gone by then.
+          # Writing here uses the GHCR login this job already holds and
+          # already uses to push the image itself, so the event does not
+          # matter. mode=max because the quota argument no longer applies and
+          # it caches intermediate layers too.
+          #
+          # Distinct tag from ci.yml's :buildcache on purpose. That one is
+          # amd64-only; these are multi-arch, and a registry cache export
+          # replaces the manifest at its tag, so sharing one would make the
+          # two workflows overwrite each other on every run.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish,mode=max
           platforms: linux/amd64,linux/arm64
           provenance: true
           sbom: true
@@ -345,9 +373,26 @@ jobs:
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VCS_REF=${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.stack }}${{ matrix.variant }}
-          # See the note above: no cache writes on pull_request:[closed].
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=gha,mode=min,scope={0}{1}', matrix.stack, matrix.variant) || '' }}
+          # Registry-backed cache, not type=gha: the Actions cache is a fixed
+          # 10 GB per repository with no pruning, and this workflow's blobs
+          # were 97% of it (9.52 GB / 574 entries on 2026-09-14, over the
+          # ceiling, so GitHub was evicting entries worth keeping). A GHCR
+          # cache does not touch that quota at all.
+          #
+          # It also removes the pull_request:[closed] special case this used
+          # to need: reserving an Actions cache blob failed there with 'token
+          # has no writable scope' because refs/pull/N/merge is gone by then.
+          # Writing here uses the GHCR login this job already holds and
+          # already uses to push the image itself, so the event does not
+          # matter. mode=max because the quota argument no longer applies and
+          # it caches intermediate layers too.
+          #
+          # Distinct tag from ci.yml's :buildcache on purpose. That one is
+          # amd64-only; these are multi-arch, and a registry cache export
+          # replaces the manifest at its tag, so sharing one would make the
+          # two workflows overwrite each other on every run.
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}:buildcache-publish
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}:buildcache-publish,mode=max
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
