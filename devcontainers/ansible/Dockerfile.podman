@@ -94,14 +94,6 @@ ENV WORKSPACE=/workspace \
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
-    # CRITICAL OpenSSL advisories CVE-2026-63073 and CVE-2026-75803 affect
-    # the 3.5.6-1~deb13u2 this base still ships; trixie fixes both in
-    # 3.5.7-1~deb13u2. Patch here instead of waiting for the base image:
-    # the CI gate runs grype --fail-on critical and this blocked every PR.
-    && apt-get install -y --only-upgrade --no-install-recommends \
-      libssl3t64 \
-      openssl \
-      openssl-provider-legacy \
     && apt-get install -y --no-install-recommends \
       # Base tools plus podman (Debian build, ABI-coherent) and its
       # rootless dependencies: conmon, crun, dbus-user-session,
@@ -122,6 +114,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       sudo \
       uidmap \
       unzip \
+    # Upgrade AFTER the install, never before: the packages that go stale
+    # here are mostly ones apt pulls in as dependencies of the list above
+    # (perl via debconf, libc6, libglib2.0-0t64), so an upgrade placed
+    # first never reaches them. That ordering mistake is what left
+    # CVE-2026-7598 unpatched in the ansible image on 2026-09-06.
+    #
+    # full-upgrade rather than a named --only-upgrade list: this variant
+    # is rebuilt daily from a pinned python:3.14-slim-trixie digest, so
+    # every advisory trixie fixes after that digest was cut lands here.
+    # Enumerating packages by CVE meant the image only ever carried the
+    # fixes someone had already noticed -- on 2026-09-13 that left 23
+    # CRITICAL alerts (perl x5, libc6, libc-bin, libglib2.0-0t64), all
+    # with a +deb13uN fix already published in the archive.
+    && apt-get full-upgrade -y \
     # podman 5 uses netavark; the CNI plugins only add ~15 Go binaries
     # of scanner noise and are not a podman dependency
     && apt-get remove -y --purge containernetworking-plugins \
