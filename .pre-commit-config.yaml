@@ -77,8 +77,13 @@ repos:
       - id: shellcheck
         name: ShellCheck
 
+  # Keep this pinned to the same hadolint the CI action ships, currently
+  # v2.15.1 via hadolint/hadolint-action@v3.5.0 (quality.yml). When they
+  # drift, the local hook silently enforces a different ruleset than CI:
+  # at v2.12.0.3 it did not know DL3064 at all, so five findings existed
+  # only in code scanning and nothing local could reproduce them.
   - repo: https://github.com/AleksaC/hadolint-py
-    rev: v2.12.0.3
+    rev: v2.15.1
     hooks:
       - id: hadolint
         name: Hadolint (Dockerfile Linter)

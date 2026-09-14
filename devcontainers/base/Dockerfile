@@ -66,6 +66,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
     && apt-get clean
 
 # Configure non-root workspace user.
+# DL3064 fires on the *name* containing USERNAME, not on any secret: the
+# value is the fixed, public account the Dev Containers specification
+# expects every image to provide, and renaming it would break the spec.
+# hadolint ignore=DL3064
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
