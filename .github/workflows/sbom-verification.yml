@@ -54,6 +54,27 @@ jobs:
           echo "Context: ${{ matrix.target.context }}"
           ls -la ${{ matrix.target.context }}/
 
+      - name: Resolve registry cache
+        id: rcache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.target.name }}:buildcache-publish
+        run: |
+          set -euo pipefail
+          # Read-only use of the cache build-containers.yml publishes. This
+          # job has contents:read and no GHCR login, but the packages are
+          # public so an anonymous pull works and no permission is widened.
+          # Writing nothing keeps this workflow off the 10 GB Actions quota.
+          #
+          # The tag must be probed: buildx aborts the build outright on a
+          # missing cache-from ref ('failed to configure registry cache
+          # importer: <ref>: not found'), it does not warn and continue.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
+          fi
+
       - name: Build container for SBOM
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
@@ -61,15 +82,7 @@ jobs:
           file: ${{ matrix.target.context }}/Dockerfile
           load: true
           tags: sbom-${{ matrix.target.name }}:latest
-          # Read the registry cache build-containers.yml populates; write
-          # nothing. This job runs on every PR and only has contents:read,
-          # so it cannot push to GHCR -- but the packages are public, so an
-          # anonymous pull works and no permission needs widening. Dropping
-          # cache-to removes this workflow from the 10 GB Actions cache
-          # budget entirely. A missing :buildcache-publish tag is a warning
-          # in buildx, not an error, so the first run after this lands (or
-          # any new target) simply builds uncached.
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.target.name }}:buildcache-publish
+          cache-from: ${{ steps.rcache.outputs.from }}
 
       - name: Generate SBOM with Syft
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26  # v0.24.2
