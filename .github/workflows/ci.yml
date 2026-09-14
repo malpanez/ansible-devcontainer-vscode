@@ -66,6 +66,12 @@ jobs:
               - 'devcontainers/terraform/**'
             devcontainer:
               - 'devcontainers/**'
+              # The CLI pin belongs here too: the devcontainer-cli-test jobs
+              # are the only thing that exercises `npm ci` against it, and
+              # without this a change to how the CLI is installed skips the
+              # very jobs that would prove it still works. Same blind spot as
+              # a published image with no gating scan.
+              - 'scripts/devcontainers-cli/**'
             scripts:
               - 'scripts/**'
             python:
