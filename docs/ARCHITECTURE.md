@@ -6,16 +6,15 @@ This document provides visual architecture diagrams and explanations for the dev
 
 ```mermaid
 graph TD
-    A[python:3.12-slim-bookworm] --> B[devcontainer-base]
+    A[python:3.14-slim-bookworm] --> B[devcontainer-base]
     B --> C[devcontainer-ansible]
-    B --> D[devcontainer-ansible-podman]
+
+    K[python:3.14-slim-trixie] --> D[devcontainer-ansible-podman]
 
     E[debian:bookworm-slim] --> F[devcontainer-terraform]
     E --> G[devcontainer-latex]
 
-    H[golang:1.23-alpine] --> I[devcontainer-golang]
-
-    J[quay.io/containers/podman:v5.3.1] -.->|binaries copied| D
+    H[golang:1.27-alpine] --> I[devcontainer-golang]
 
     style B fill:#e1f5ff
     style C fill:#fff4e1
@@ -27,13 +26,24 @@ graph TD
 
 ### Build Strategy
 
-- **Base Layer** (`devcontainer-base`): Shared Python 3.13 foundation with uv and pre-commit
-  - Published as: `ghcr.io/malpanez/devcontainer-base:py313`
-  - Platforms: `linux/amd64`, `linux/arm64`
+> Minor versions above are indicative. The exact digests are pinned in each
+> `devcontainers/<stack>/Dockerfile`, which is the only source of truth --
+> do not restate a patch version here, it will drift.
 
-- **Ansible Stacks**: Extend base with Ansible tooling
-  - `devcontainer-ansible`: Standard Ansible environment
-  - `devcontainer-ansible-podman`: Ansible + Podman for rootless container workflows
+- **Base Layer** (`devcontainer-base`): Python foundation with uv and pre-commit
+  - Published as `:main`, `:latest` and a Python stream tag derived from the
+    image it is built FROM by `scripts/derive-python-tag.sh`. The tag is never
+    typed by hand: it read `py313` for a long time while the image shipped
+    Python 3.14.
+  - Platforms: `linux/amd64`, `linux/arm64`
+  - Runs as `vscode`, not root, like every stack built on it
+
+- **Ansible Stacks**
+  - `devcontainer-ansible`: extends `devcontainer-base`
+  - `devcontainer-ansible-podman`: **does not** extend the base. It builds from
+    `python:3.14-slim-trixie` and installs Podman from Debian, because the
+    Debian build is ABI-coherent with the rest of the image. Copying binaries
+    from `quay.io/containers/podman` was tried and never worked at runtime.
 
 - **Standalone Stacks**: Independent base images
   - `devcontainer-terraform`: Debian-based with HashiCorp tools
@@ -323,7 +333,7 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    A[build-base job] -->|Builds & pushes| B[devcontainer-base:py313]
+    A[build-base job] -->|Builds & pushes| B[devcontainer-base: derived py tag]
 
     B -->|needs: build-base| C[build-all matrix]
 
@@ -351,7 +361,7 @@ ghcr.io/malpanez/devcontainer-<stack>[variant]:<tag>
 ```
 
 Examples:
-- `ghcr.io/malpanez/devcontainer-base:py313`
+- `ghcr.io/malpanez/devcontainer-base:<derived py tag>` (see scripts/derive-python-tag.sh)
 - `ghcr.io/malpanez/devcontainer-ansible:latest`
 - `ghcr.io/malpanez/devcontainer-ansible-podman:latest`
 - `ghcr.io/malpanez/devcontainer-terraform:sha-5575e8d`

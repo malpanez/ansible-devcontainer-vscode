@@ -6,7 +6,6 @@ Welcome to the ansible-devcontainer-vscode documentation! This directory contain
 
 - **[Quickstart Guide](QUICKSTART.md)** - Get started in minutes
 - **[Integration Guide](INTEGRATION_GUIDE.md)** - Use devcontainers in your projects
-- **[Prompts](PROMPTS.md)** - Ready-to-use prompts for AI assistants
 
 ## 🏗️ Architecture & Design
 
@@ -35,15 +34,11 @@ Welcome to the ansible-devcontainer-vscode documentation! This directory contain
 ## 🧪 Testing & Quality
 
 - **[Branch Protection](BRANCH_PROTECTION.md)** - Branch policies
-- **[Branch Cleanup Report](BRANCH_CLEANUP_REPORT.md)** - Branch maintenance
 - **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## 📋 Project Management
 
 - **[Changelog](CHANGELOG.md)** - Release notes and changes
-- **[Work Summary](WORK_SUMMARY.md)** - Recent work completed
-- **[Merge Instructions](MERGE_INSTRUCTIONS.md)** - PR merge procedures
-- **[Improvements Summary](IMPROVEMENTS_SUMMARY.md)** - Enhancement tracking
 
 ## 🎯 Scenarios
 
