@@ -16,6 +16,27 @@ permissions:
   contents: read
 
 jobs:
+  # The base image's Python stream tag is derived, not typed: it was
+  # hardcoded `py313` here and in four workflows while base built FROM
+  # python:3.14, so this job "verified" a tag whose name asserted a version
+  # the image did not carry.
+  resolve-tags:
+    name: Resolve Derived Tags
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      pytag: ${{ steps.pytag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Derive base Python tag
+        id: pytag
+        run: |
+          set -euo pipefail
+          tag="$(bash scripts/derive-python-tag.sh)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "devcontainer-base Python stream tag: ${tag}"
+
   cleanup-untagged:
     name: Delete Untagged Images
     runs-on: ubuntu-latest
@@ -58,7 +79,7 @@ jobs:
   verify-protected-tags:
     name: Verify Protected Tags
     runs-on: ubuntu-latest
-    needs: cleanup-untagged
+    needs: [cleanup-untagged, resolve-tags]
     permissions:
       contents: read
       packages: read
@@ -66,7 +87,7 @@ jobs:
       matrix:
         include:
           - image: devcontainer-base
-            tag: py313
+            tag: ${{ needs.resolve-tags.outputs.pytag }}
           - image: devcontainer-base
             tag: main
           - image: devcontainer-ansible
@@ -136,4 +157,4 @@ jobs:
           echo "### Retention policy:" >> $GITHUB_STEP_SUMMARY
           echo "- Untagged: Keep last 3" >> $GITHUB_STEP_SUMMARY
           echo "- Tagged versions: no automatic deletion" >> $GITHUB_STEP_SUMMARY
-          echo "- Verified after cleanup: \`py313\`, \`latest\` tags" >> $GITHUB_STEP_SUMMARY
+          echo "- Verified after cleanup: the derived Python stream tag, \`main\` and \`latest\`" >> $GITHUB_STEP_SUMMARY
