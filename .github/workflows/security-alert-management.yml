@@ -153,3 +153,57 @@ jobs:
             echo "🎉 **No open alerts!** All security issues resolved or dismissed." \
               >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Review dismissed alerts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          # Matches review_cadence in .github/security-alert-exceptions.yml
+          STALE_AFTER_DAYS: '90'
+        run: |
+          set -euo pipefail
+
+          # A dismissed code-scanning alert never comes back on its own. If it
+          # is re-detected it stays dismissed, so an alert closed as "won't
+          # fix" because no patch existed will not re-alert once upstream
+          # ships one. The count alone (reported above) hides that: on
+          # 2026-09-15 it was 319 dismissed, 158 of them CVEs marked
+          # "won't fix". This step makes the backlog legible so the quarterly
+          # review has something to review.
+          DISMISSED="$(gh api --paginate \
+            "repos/${REPO}/code-scanning/alerts?state=dismissed&per_page=100" \
+            | jq -s 'add // []')"
+
+          TOTAL="$(jq 'length' <<<"${DISMISSED}")"
+          {
+            echo "## Dismissed Alert Backlog"
+            echo ""
+            echo "Dismissed alerts do not reopen when a fix becomes available."
+            echo "Total dismissed: **${TOTAL}**"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${TOTAL}" -eq 0 ]; then
+            echo "Nothing dismissed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          CUTOFF="$(date -u -d "-${STALE_AFTER_DAYS} days" +%Y-%m-%d)"
+          {
+            echo "| Reason | Total | Not reviewed since ${CUTOFF} |"
+            echo "|--------|-------|------------------------------|"
+            jq -r --arg cutoff "${CUTOFF}" '
+              group_by(.dismissed_reason)[]
+              | "| \(.[0].dismissed_reason // "unspecified") | \(length) | "
+                + ([.[] | select((.dismissed_at // "") < $cutoff)] | length | tostring)
+                + " |"
+            ' <<<"${DISMISSED}"
+            echo ""
+            echo "### Oldest 15 awaiting review"
+            echo ""
+            jq -r --arg cutoff "${CUTOFF}" '
+              [.[] | select((.dismissed_at // "") < $cutoff)]
+              | sort_by(.dismissed_at)[:15][]
+              | "- [\(.rule.id)](\(.html_url)) — \(.dismissed_reason // "unspecified"), dismissed \(.dismissed_at[:10])"
+            ' <<<"${DISMISSED}"
+          } >> "$GITHUB_STEP_SUMMARY"
