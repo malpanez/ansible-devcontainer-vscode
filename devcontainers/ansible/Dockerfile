@@ -24,6 +24,13 @@ ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:58fd46c189f56508e6
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE} AS python-builder
 
+# devcontainer-base ends as vscode; apt and a --system install need root.
+# Numeric uid so the id resolves without /etc/passwd (DL3066). DL3002 is
+# suppressed because this is a builder stage: it is never the final image,
+# only /usr/local is copied out of it.
+# hadolint ignore=DL3002
+USER 0
+
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
@@ -43,6 +50,11 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
 # Stage 2: runtime image without any build toolchain
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE}
+
+# devcontainer-base ends as vscode; everything below until the USER switch
+# at the end of this stage needs root (apt, install -d, COPY into /usr/local).
+# Numeric uid so the id resolves without /etc/passwd (DL3066).
+USER 0
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
