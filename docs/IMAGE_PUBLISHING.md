@@ -5,7 +5,7 @@ This repository publishes six container images to GHCR:
 
 | Image                         | Variants | Platforms    | Purpose                                              |
 | ----------------------------- | -------- | ------------ | ---------------------------------------------------- |
-| `devcontainer-base`           | `py313`  | amd64, arm64 | Shared Python 3.13 base layer with uv and pre-commit |
+| `devcontainer-base`           | derived `py<major><minor>`, `main`, `latest` | amd64, arm64 | Python base layer with uv and pre-commit; the stream tag comes from `scripts/derive-python-tag.sh`, never hardcoded |
 | `devcontainer-ansible`        | `latest` | amd64, arm64 | Standard Ansible environment                         |
 | `devcontainer-ansible-podman` | `latest` | amd64, arm64 | Ansible + Podman for rootless container workflows    |
 | `devcontainer-terraform`      | `latest` | amd64, arm64 | Terraform + Terragrunt + TFLint + SOPS + age         |

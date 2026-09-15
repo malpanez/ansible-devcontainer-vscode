@@ -2,15 +2,14 @@
 name: SBOM Verification
 
 on:
+  # No paths filter here on purpose. SBOM Verification Success is a required
+  # check on main, and a required check that never appears blocks a pull
+  # request forever -- so the workflow must always start. The expensive image
+  # builds are gated inside instead, by the changes job below, exactly as
+  # ci.yml does it. A pull request touching nothing relevant runs one cheap
+  # filter job and reports success.
   pull_request:
     branches: [main, develop]
-    paths:
-      - 'devcontainers/**'
-      - '.devcontainer/**'
-      - '**/requirements*.txt'
-      - '**/pyproject.toml'
-      - '**/Dockerfile'
-      - '.github/workflows/sbom-verification.yml'
   push:
     branches: [main, develop]
   schedule:
@@ -26,9 +25,34 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect SBOM-Relevant Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sbom: ${{ steps.filter.outputs.sbom }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        id: filter
+        with:
+          filters: |
+            sbom:
+              - 'devcontainers/**'
+              - '.devcontainer/**'
+              - '**/requirements*.txt'
+              - '**/pyproject.toml'
+              - '**/Dockerfile'
+              - '.github/workflows/sbom-verification.yml'
+
   generate-sbom:
     name: Generate SBOM
     runs-on: ubuntu-latest
+    needs: changes
+    # Always run outside pull requests (push, schedule, dispatch): those have
+    # no base to diff against and are the daily safety net.
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.sbom == 'true' }}
     permissions:
       contents: read
     strategy:

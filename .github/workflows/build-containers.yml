@@ -84,7 +84,7 @@ jobs:
           if [ "${{ steps.stack.outputs.stack }}" = "base" ]; then
             {
               echo "tags<<EOF"
-              echo "type=raw,value=py313"
+              echo "type=raw,value=$(bash scripts/derive-python-tag.sh)"
               echo "type=sha"
               echo "type=ref,event=branch"
               echo "EOF"
@@ -198,13 +198,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Derive base Python tag
+        id: pytag
+        run: |
+          set -euo pipefail
+          # Never hardcode this. See scripts/derive-python-tag.sh for why.
+          tag="$(bash scripts/derive-python-tag.sh)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "devcontainer-base Python stream tag: ${tag}"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           tags: |
-            type=raw,value=py313
+            type=raw,value=${{ steps.pytag.outputs.tag }}
             type=sha
             type=ref,event=branch
 

@@ -40,9 +40,9 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
 
 #### Configuration
 - Config: [`renovate.json`](renovate.json)
-- Workflows: [`renovate.yml`](workflows/renovate.yml) (scheduled Monday +
+- Workflows: [`renovate.yml`](../.github/workflows/renovate.yml) (scheduled Monday +
   `workflow_dispatch`, `force` input to ignore the schedule) and
-  [`renovate-postprocess.yml`](workflows/renovate-postprocess.yml)
+  [`renovate-postprocess.yml`](../.github/workflows/renovate-postprocess.yml)
 
 #### Rules That Are Easy To Break
 

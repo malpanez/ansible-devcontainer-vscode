@@ -105,3 +105,10 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && chown "${USERNAME}:${USERNAME}" /workspace
 ENV PATH="/usr/local/bin:${PATH}"
 WORKDIR /workspace
+
+# Drop root. This image is published under its own tags and is therefore
+# runnable on its own, not only as a FROM for the stacks -- and it defaulted
+# to uid 0 while every derived image correctly ran as vscode. Images that
+# build on it must re-enter root explicitly for their apt work, which makes
+# the privileged section of each Dockerfile visible instead of implicit.
+USER ${USERNAME}
