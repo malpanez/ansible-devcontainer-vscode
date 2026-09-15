@@ -444,7 +444,6 @@ git fetch origin --prune
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture with Mermaid diagrams
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
-- [BRANCH_CLEANUP_REPORT.md](../BRANCH_CLEANUP_REPORT.md) - Branch analysis
 - [README.md](../README.md) - Main project documentation
 
 ---

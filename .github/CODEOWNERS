@@ -6,15 +6,11 @@
 
 # Workflows and CI/CD
 /.github/workflows/ @malpanez
-/.github/renovate.json @malpanez
+/renovate.json @malpanez
 
 # Security configuration and scripts
 /.github/scripts/manage-code-scanning-alerts.sh @malpanez
 /.github/security-alert-exceptions.yml @malpanez
-/SECURITY_REVIEW.md @malpanez
-/SECURITY_ALERT_ANALYSIS_110.md @malpanez
-/SECURITY_ALERT_MANAGEMENT_SUMMARY.md @malpanez
-/OSSF_SCORECARD_PROGRESS.md @malpanez
 
 # DevContainers
 /devcontainers/ @malpanez
