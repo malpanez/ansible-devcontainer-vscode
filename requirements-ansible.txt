@@ -346,9 +346,9 @@ dnspython==2.8.0 \
     --hash=sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af \
     --hash=sha256:181d3c6996452cb1189c4046c61599b84a5a86e099562ffde77d26984ff26d0f
     # via ansible-devcontainer
-filelock==3.32.6 \
-    --hash=sha256:3f16ecd0117feae0dfc147e8c62eb5daeccd8bd800378c3ddf416de9b4feb6b1 \
-    --hash=sha256:a3f55a18af3652a94d8f47d6055df434f254ca1d02ef2524850c6d249ca2512c
+filelock==3.32.7 \
+    --hash=sha256:37b8a3d9811b0f9aef7e5ec5c71bb320de52df51e6ca9bcd6f5ad81187660da7 \
+    --hash=sha256:65ff0d0190ea42038b32bda4b77834fb05be2cad4c5b9b01aa4dfb3614536e52
     # via
     #   ansible-lint
     #   python-discovery
@@ -499,9 +499,9 @@ pexpect==4.9.0 \
     --hash=sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523 \
     --hash=sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f
     # via ansible-runner
-platformdirs==4.11.8 \
-    --hash=sha256:52f2f181bbfde907966932cc8312d967d02976422d66d537ea16092b8e291081 \
-    --hash=sha256:f23abafea7dd4276d1f29104b83598d7dcc567cafd07c9c951e66665645437fc
+platformdirs==4.11.9 \
+    --hash=sha256:0a3958f58a9e30321eaef0a424dd0b77cce242886b36b8aa992f9731ef2d59c1 \
+    --hash=sha256:e2c66a8d384596cd98e3c4aea2d761df7bac95d9d8a2cc3946daa8cdafdaebc1
     # via
     #   black
     #   virtualenv
@@ -764,15 +764,15 @@ tzdata==2026.4 \
     --hash=sha256:c2169a8b0a7a5e9674da5a135ccdfb2b3e671b333ed9fed17b41f73c34476e81 \
     --hash=sha256:f1b8bd365d8d210c55353f4d7f8d6d8561c0ba50d704b700d195a9424bba0d79
     # via ansible-navigator
-urllib3==2.7.0 \
-    --hash=sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c \
-    --hash=sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+urllib3==2.8.0 \
+    --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
+    --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
     # via
     #   ansible-devcontainer
     #   requests
-virtualenv==21.7.9 \
-    --hash=sha256:a7e42d81d779dec8afd7dc4be71640fb959ea861bccfa5980cb4ad9f92e30675 \
-    --hash=sha256:ba3b0bb41063c848d84d76a9fe3fb7711aaa0f2fe78708e8f3cd9714770e4eac
+virtualenv==21.7.10 \
+    --hash=sha256:a7bf10f37ecc36f1942d6e469d6b59f5fe308f60ac711f66f51ef3bd8cb2c9aa \
+    --hash=sha256:d7ac9669ba19e675ffadbb97fe8e887ef92fb1743fe9a0032be62b947657327a
     # via pre-commit
 wcmatch==11.0.1 \
     --hash=sha256:1ea2b4fa678b8ca268253798d5963935df39132d47c3e241c0a0732224005e7d \
