@@ -25,12 +25,19 @@ on:
     paths:
       - 'devcontainers/**'
       - '.github/workflows/build-containers.yml'
-  pull_request:
-    types: [closed]
-    branches: [main]
-    paths:
-      - 'devcontainers/**'
-      - '.github/workflows/build-containers.yml'
+  # No `pull_request: [closed]` trigger. It had the same paths filter as the
+  # push trigger above, so every promotion merged by a user or a PAT started
+  # TWO runs of the same commit that raced each other onto the same tags
+  # (2026-09-16: base:main got sha256:712cf704 from the push run and
+  # sha256:1f0f2740 from the pull_request run). Merges made with GITHUB_TOKEN
+  # emit no event at all and are covered by the daily schedule.
+
+# Never cancel a publish in flight -- a half-pushed multi-arch manifest is
+# worse than a duplicate build -- but do serialize, so the daily schedule
+# cannot overlap a push run and overwrite its tags.
+concurrency:
+  group: build-containers-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -167,10 +174,11 @@ jobs:
             "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}@${{ steps.build.outputs.digest }}"
 
   build-base:
+    # schedule and push always build everything; workflow_dispatch only when
+    # the caller asked for 'all' (a single stack goes to build-single).
     if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
-      (github.event_name != 'workflow_dispatch' && github.event_name != 'pull_request') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'all')
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.stack == 'all'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -179,6 +187,9 @@ jobs:
       id-token: write
       attestations: write
       security-events: write
+    outputs:
+      # Consumed by build-all so the stacks derive from the base built here.
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -212,7 +223,10 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          # `latest` used to be written by ci.yml's publish-base, which built
+          # amd64 only; this job builds amd64+arm64, so the tag gains arm64.
           tags: |
+            type=raw,value=latest
             type=raw,value=${{ steps.pytag.outputs.tag }}
             type=sha
             type=ref,event=branch
@@ -309,10 +323,11 @@ jobs:
           category: grype-base
 
   build-all:
+    # schedule and push always build everything; workflow_dispatch only when
+    # the caller asked for 'all' (a single stack goes to build-single).
     if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
-      (github.event_name != 'workflow_dispatch' && github.event_name != 'pull_request') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'all')
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.stack == 'all'
     needs: build-base
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -328,10 +343,16 @@ jobs:
       matrix:
         include:
           # Main Dockerfiles
+          # base_from_run marks the entries whose Dockerfile consumes
+          # BASE_IMAGE. Only devcontainers/ansible/Dockerfile does; the podman
+          # variant starts from python:3.14-slim-trixie and golang, terraform
+          # and latex do not reference it at all, so they must not be handed
+          # an unconsumed build-arg.
           - stack: ansible
             dockerfile: Dockerfile
             variant: ""
             platforms: linux/amd64,linux/arm64
+            base_from_run: true
           - stack: golang
             dockerfile: Dockerfile
             variant: ""
@@ -409,9 +430,15 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The published image must sit on the base built in THIS run,
+          # otherwise it ships the digest pinned in the Dockerfile, which is
+          # by construction at least one rebuild behind (base is rebuilt daily
+          # and on every push to main). The pin still serves local and PR
+          # builds and Renovate keeps it fresh.
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VCS_REF=${{ github.sha }}
+            ${{ matrix.base_from_run && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.build-base.outputs.digest) || '' }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           platforms: ${{ matrix.platforms }}

@@ -12,9 +12,13 @@ This repository publishes six container images to GHCR:
 | `devcontainer-golang`         | `latest` | amd64, arm64 | Go development environment                           |
 | `devcontainer-latex`          | `latest` | amd64 only   | LaTeX with Tectonic engine                           |
 
-Tag pushes (via `.github/workflows/release.yml`) and pushes to `main` trigger multi-arch builds, upload build caches, and push both `:latest` and `:<tag>` (for releases) or `:sha-<commit>` (for main branch) variants to GHCR.
+`.github/workflows/build-containers.yml` is the only workflow that publishes these images to GHCR. It runs on the daily schedule, on pushes to `main` that touch `devcontainers/**`, and on manual dispatch (one stack or all), and it is the only place that signs with cosign, attaches provenance attestations, and Grype-scans what it pushed. The single exception is `.github/workflows/release.yml`, which owns release tags (`:<tag>`), and `.github/workflows/repair-ghcr.yml`, which republishes one stack on demand. `ci.yml` builds the images for testing but never pushes them.
 
-> **Security hygiene** – `.github/workflows/build-containers.yml` runs on a weekly schedule so GHCR images automatically pick up Debian security fixes (`apt full-upgrade`) and refreshed tooling even when the repository is quiet.
+Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` produce `:latest` and `:<tag>`.
+
+`devcontainer-ansible` is built on the base image produced in the same run: `build-all` overrides the `BASE_IMAGE` build-arg with `devcontainer-base@<digest>` from the `build-base` job, so a published ansible image always contains the base published beside it. The digest pinned in `devcontainers/ansible/Dockerfile` is what local and PR builds resolve, and Renovate keeps it fresh.
+
+> **Security hygiene** – `build-containers.yml` runs on a daily schedule (`0 3 * * *`) so GHCR images automatically pick up Debian security fixes (`apt full-upgrade`) and refreshed tooling even when the repository is quiet.
 
 To build or test images locally:
 
