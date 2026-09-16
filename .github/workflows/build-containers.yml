@@ -187,6 +187,9 @@ jobs:
       id-token: write
       attestations: write
       security-events: write
+    outputs:
+      # Consumed by build-all so the stacks derive from the base built here.
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -337,10 +340,16 @@ jobs:
       matrix:
         include:
           # Main Dockerfiles
+          # base_from_run marks the entries whose Dockerfile consumes
+          # BASE_IMAGE. Only devcontainers/ansible/Dockerfile does; the podman
+          # variant starts from python:3.14-slim-trixie and golang, terraform
+          # and latex do not reference it at all, so they must not be handed
+          # an unconsumed build-arg.
           - stack: ansible
             dockerfile: Dockerfile
             variant: ""
             platforms: linux/amd64,linux/arm64
+            base_from_run: true
           - stack: golang
             dockerfile: Dockerfile
             variant: ""
@@ -418,9 +427,15 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The published image must sit on the base built in THIS run,
+          # otherwise it ships the digest pinned in the Dockerfile, which is
+          # by construction at least one rebuild behind (base is rebuilt daily
+          # and on every push to main). The pin still serves local and PR
+          # builds and Renovate keeps it fresh.
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VCS_REF=${{ github.sha }}
+            ${{ matrix.base_from_run && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.build-base.outputs.digest) || '' }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           platforms: ${{ matrix.platforms }}
