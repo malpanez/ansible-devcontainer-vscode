@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1.27
 # Runtime and builder share the hardened devcontainer-base layer (apt
 # tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
-# several stacks reuses it. release.yml preflight overrides BASE_IMAGE
-# with a locally built base; bump the digest when base:main is rebuilt.
+# several stacks reuses it. The digest below is NOT what published images
+# are built on: build-containers.yml overrides BASE_IMAGE with the base
+# built in the same run, and release.yml preflight overrides it with a
+# locally built base. The pin is what local and PR builds resolve, and
+# Renovate refreshes it, so it never needs bumping by hand.
 #
 # BASE_IMAGE deliberately carries BOTH the :main tag and the @sha256
 # digest. The digest is what actually resolves (Docker ignores the tag
