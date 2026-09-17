@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.27
-# Runtime and builder share the hardened devcontainer-base layer (apt
-# tools, gh, checksum-verified uv, pre-commit, vscode user), so pulling
-# several stacks reuses it. The digest below is NOT what published images
+# The builder and the runtime stage both start from the hardened
+# devcontainer-base layer (apt tools, gh, checksum-verified uv,
+# pre-commit, vscode user), so the two stages and the base pulled beside
+# them share it. The digest below is NOT what published images
 # are built on: build-containers.yml overrides BASE_IMAGE with the base
 # built in the same run, and release.yml preflight overrides it with a
 # locally built base. The pin is what local and PR builds resolve, and
@@ -75,22 +76,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=ansible \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
-# Extras on top of devcontainer-base: rsync/unzip for Ansible workflows
-# (also being added to base itself) and libonig5, the runtime library
-# behind the source-built onigurumacffi on arm64.
-# hadolint ignore=DL3008
+# Published builds get their base from the same run (build-containers.yml),
+# but PR and local builds resolve the BASE_IMAGE pin, which can trail the
+# published base by days; this upgrade closes that gap without waiting for
+# Renovate.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
-    && apt-get install -y --no-install-recommends \
-      libonig5 \
-      rsync \
-      unzip \
-    # Upgrade after installing, so it also covers packages inherited from
-    # the pinned base image. base itself is fixed in this same PR, but a
-    # PR builds ansible FROM the *published* base digest, so the fix there
-    # cannot take effect until base is rebuilt and published. This clears
-    # CRITICAL CVE-2026-7598 (libssh2-1 1.10.0-3+b1 -> 1.10.0-3+deb12u1)
-    # without waiting for that round trip.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
