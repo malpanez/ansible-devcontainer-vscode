@@ -2,12 +2,15 @@
 name: Code Quality Metrics
 
 on:
+  # No paths filter here on purpose. Quality Summary is a required check on
+  # main and develop, and a required check that never appears blocks a pull
+  # request forever -- a Dockerfile-only or Markdown-only promotion used to
+  # deadlock exactly that way. So the workflow must always start; the
+  # expensive analysis jobs are gated inside instead, by the changes job
+  # below, exactly as ci.yml and sbom-verification.yml do it. A push touching
+  # nothing relevant runs one cheap filter job and reports success.
   push:
     branches: [main, develop]
-    paths:
-      - '**/*.py'
-      - '**/*.yml'
-      - '**/*.yaml'
   pull_request:
     branches: [main, develop]
   schedule:
@@ -18,10 +21,53 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect Quality-Relevant Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      yaml: ${{ steps.filter.outputs.yaml }}
+      ansible: ${{ steps.filter.outputs.ansible }}
+      dockerfile: ${{ steps.filter.outputs.dockerfile }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        with:
+          filters: |
+            python:
+              - '**/*.py'
+              - 'pyproject.toml'
+              - 'requirements*.txt'
+            yaml:
+              - '**/*.yml'
+              - '**/*.yaml'
+            # ansible-lint runs over the whole tree with only .cache, .git,
+            # .venv, molecule, tests and collections excluded, so any YAML it
+            # can parse is in scope -- not just the ansible directories.
+            ansible:
+              - 'playbooks/**'
+              - 'roles/**'
+              - 'collections/**'
+              - 'requirements.yml'
+              - 'ansible.cfg'
+              - '**/*.yml'
+              - '**/*.yaml'
+            dockerfile:
+              - '**/Dockerfile*'
+              - 'devcontainers/**'
+
   python-quality:
     name: Python Code Quality
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+    needs: changes
+    if: >-
+      (github.event_name != 'schedule' || github.ref == 'refs/heads/main')
+      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.python == 'true')
     permissions:
       contents: read
     steps:
@@ -87,6 +133,10 @@ jobs:
   yaml-quality:
     name: YAML Quality
     runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.yaml == 'true'
     permissions:
       contents: read
     steps:
@@ -104,7 +154,11 @@ jobs:
   ansible-quality:
     name: Ansible Quality
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+    needs: changes
+    if: >-
+      (github.event_name != 'schedule' || github.ref == 'refs/heads/main')
+      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.ansible == 'true')
     permissions:
       contents: read
     steps:
@@ -133,6 +187,10 @@ jobs:
   dockerfile-quality:
     name: Dockerfile Quality
     runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      || needs.changes.outputs.dockerfile == 'true'
     permissions:
       contents: read
       security-events: write
@@ -158,7 +216,7 @@ jobs:
   summary:
     name: Quality Summary
     runs-on: ubuntu-latest
-    needs: [python-quality, yaml-quality, ansible-quality, dockerfile-quality]
+    needs: [changes, python-quality, yaml-quality, ansible-quality, dockerfile-quality]
     if: always()
     steps:
       - name: Generate summary
@@ -172,3 +230,24 @@ jobs:
           echo "- YAML Quality: ${{ needs.yaml-quality.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Ansible Quality: ${{ needs.ansible-quality.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Dockerfile Quality: ${{ needs.dockerfile-quality.result }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check results
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "$results" | jq .
+
+          # Only "failure" counts. A skipped job is a job the filter decided
+          # was irrelevant, and treating != success as a failure would turn
+          # every skip into a blocked pull request.
+          failed=$(echo "$results" | jq -r '
+            to_entries[]
+            | select(.value.result == "failure")
+            | .key
+          ')
+
+          if [ -n "$failed" ]; then
+            echo "::error::Failed jobs: $failed"
+            exit 1
+          fi
+
+          echo "Quality metrics ran."
