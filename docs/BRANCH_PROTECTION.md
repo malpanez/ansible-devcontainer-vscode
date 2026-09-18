@@ -1,6 +1,6 @@
 # Branch Protection Configuration
 
-This document describes the recommended branch protection rules for this repository's Git Flow workflow.
+This document describes the branch protection rules configured on this repository's Git Flow branches, and what they oblige the workflows to do.
 
 ## Overview
 
@@ -9,113 +9,138 @@ The repository uses a **Git Flow** branching strategy with two protected branche
 - **`main`** - Production-ready code
 - **`develop`** - Integration branch for ongoing development
 
-## Recommended Branch Protection Rules
+## Current Branch Protection Rules
+
+These tables describe what is actually configured today. Read them back with
+`gh api repos/:owner/:repo/branches/main/protection` and
+`gh api repos/:owner/:repo/branches/develop/protection`.
 
 ### For `main` branch
 
-Navigate to: **Settings → Branches → Add branch protection rule**
+Navigate to: **Settings → Branches → Edit rule**
 
 **Branch name pattern:** `main`
 
-#### Required Settings
+| Setting | Value |
+| --- | --- |
+| Require a pull request before merging | Yes |
+| Required approvals | 1 |
+| Dismiss stale pull request approvals | Yes |
+| Require review from Code Owners | Yes |
+| Require approval of the most recent push | No |
+| Require status checks to pass | Yes |
+| Require branches to be up to date (`strict`) | No |
+| Require conversation resolution | Yes |
+| Require signed commits | No |
+| Require linear history | No |
+| Do not allow bypassing (`enforce_admins`) | Yes |
+| Allow force pushes | No |
+| Allow deletions | No |
+| Lock branch | No |
 
-- [x] **Require a pull request before merging**
-  - [x] Require approvals: **1** (optional for solo maintainer, recommended for teams)
-  - [x] Dismiss stale pull request approvals when new commits are pushed
-  - [x] Require review from Code Owners (if CODEOWNERS file exists)
+**Required status checks on `main`:**
 
-- [x] **Require status checks to pass before merging**
-  - [x] Require branches to be up to date before merging
-  - **Required checks** (select all that apply):
-    - `CI Success` (from ci.yml)
-    - `Pre-commit` (from ci.yml)
-    - `Quality Summary` (from quality.yml)
-    - `Security Scan` (from ci.yml)
-    - `Guard Main Promotion Path` (from enforce-promotion-path.yml)
-    - `GitGuardian Security Checks`
+- `CI Success` (from `ci.yml`)
+- `CodeQL Summary` (from `codeql.yml`)
+- `SBOM Verification Success` (from `sbom-verification.yml`)
+- `Quality Summary` (from `quality.yml`)
 
-- [x] **Require conversation resolution before merging**
-  - Ensures all PR comments are addressed
-
-- [x] **Require signed commits** (optional but recommended)
-  - Enforces commit signature verification
-
-- [x] **Require linear history**
-  - Prevents merge commits, enforces squash or rebase
-
-- [x] **Do not allow bypassing the above settings**
-  - Applies rules to administrators too (recommended)
-
-- [x] **Restrict who can push to matching branches**
-  - Leave empty to allow only via PRs (recommended)
-  - Or add: GitHub Actions bot (for automation)
-
-#### Optional but Recommended
-
-- [x] **Require deployments to succeed before merging** (if using GitHub Environments)
-- [x] **Lock branch** (if you want to prevent all direct pushes, even from admins)
+`Guard Main Promotion Path` (from `enforce-promotion-path.yml`, on PRs whose
+base is `main`) and `GitGuardian Security Checks` report on these PRs but are
+**not** required contexts.
 
 ---
 
 ### For `develop` branch
 
-Navigate to: **Settings → Branches → Add branch protection rule**
-
 **Branch name pattern:** `develop`
 
-#### Required Settings
+| Setting | Value |
+| --- | --- |
+| Require a pull request before merging | No review requirement configured |
+| Require status checks to pass | Yes |
+| Require branches to be up to date (`strict`) | No |
+| Require conversation resolution | No |
+| Require signed commits | No |
+| Require linear history | No |
+| Do not allow bypassing (`enforce_admins`) | No |
+| Allow force pushes | No |
+| Allow deletions | No |
+| Lock branch | No |
 
-- [x] **Require a pull request before merging**
-  - [x] Require approvals: **0** (can be increased for teams)
-  - [x] Dismiss stale pull request approvals when new commits are pushed
+**Required status checks on `develop`:**
 
-- [x] **Require status checks to pass before merging**
-  - [x] Require branches to be up to date before merging
-  - **Required checks** (select all that apply):
-    - `CI Success` (from ci.yml)
-    - `Pre-commit` (from ci.yml)
-    - `Quality Summary` (from quality.yml)
+- `CI Success` (from `ci.yml`)
+- `SBOM Verification Success` (from `sbom-verification.yml`)
+- `Quality Summary` (from `quality.yml`)
 
-- [x] **Require conversation resolution before merging**
-
-- [x] **Allow force pushes** → **Specify who can force push**
-  - Add: Repository maintainers (for rebasing/cleaning history if needed)
-
-- [x] **Do not allow bypassing the above settings** (optional for develop)
+`develop` deliberately does **not** require `CodeQL Summary`; CodeQL still
+runs on every pull request into it. `Guard Develop Intake` (from
+`enforce-promotion-path.yml`) also reports here without being required.
 
 ---
 
-## Quick Setup via GitHub CLI
+### What a required check obliges the workflow to do
 
-You can also configure branch protection using the GitHub CLI:
+Two consequences follow from the lists above, and both have already cost a
+blocked promotion:
 
-### Protect `main` branch
+1. **Every required workflow must start on every push and pull request, and
+   gate its work from inside.** A required context that never appears leaves
+   the pull request waiting forever -- GitHub does not treat "the workflow
+   was skipped" as "the check passed". Trigger-level `paths` / `paths-ignore`
+   filters are therefore banned in `ci.yml`, `codeql.yml`, `quality.yml` and
+   `sbom-verification.yml`; each one runs a cheap `changes` job
+   (`dorny/paths-filter`) and gates the expensive jobs on its outputs, and
+   each aggregate job is `if: always()` and fails only on a job whose result
+   is `failure`, so a skipped job stays green.
+
+2. **`Quality Summary` gates that the metrics ran, not what they found.** The
+   jobs in `quality.yml` are deliberately non-blocking (`continue-on-error`,
+   `no-fail: true`): they publish complexity, dead-code, lint and Hadolint
+   reports. The check fails only if one of those jobs itself fails -- for
+   example when the hash-pinned install breaks. The lint gates that can
+   actually reject a change live in `ci.yml` and in the pre-commit hooks.
+
+---
+
+## Reading and Setting Protection via GitHub CLI
+
+### Read the current rules
+
+```bash
+gh api repos/:owner/:repo/branches/main/protection
+gh api repos/:owner/:repo/branches/develop/protection
+```
+
+### Reapply the `main` rules
 
 ```bash
 gh api repos/:owner/:repo/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["CI Success","Pre-commit","Quality Summary","Security Scan"]}' \
+  --field required_status_checks='{"strict":false,"contexts":["CI Success","CodeQL Summary","SBOM Verification Success","Quality Summary"]}' \
   --field enforce_admins=true \
-  --field required_pull_request_reviews='{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":1}' \
+  --field required_pull_request_reviews='{"dismiss_stale_reviews":true,"require_code_owner_reviews":true,"required_approving_review_count":1}' \
   --field restrictions=null \
-  --field required_linear_history=true \
+  --field required_linear_history=false \
   --field allow_force_pushes=false \
   --field allow_deletions=false \
   --field required_conversation_resolution=true
 ```
 
-### Protect `develop` branch
+### Reapply the `develop` rules
 
 ```bash
 gh api repos/:owner/:repo/branches/develop/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["CI Success","Pre-commit","Quality Summary"]}' \
+  --field required_status_checks='{"strict":false,"contexts":["CI Success","SBOM Verification Success","Quality Summary"]}' \
   --field enforce_admins=false \
-  --field required_pull_request_reviews='{"dismiss_stale_reviews":true,"require_code_owner_reviews":false,"required_approving_review_count":0}' \
+  --field required_pull_request_reviews=null \
   --field restrictions=null \
-  --field allow_force_pushes=true \
+  --field required_linear_history=false \
+  --field allow_force_pushes=false \
   --field allow_deletions=false \
-  --field required_conversation_resolution=true
+  --field required_conversation_resolution=false
 ```
 
 ---
@@ -166,6 +191,8 @@ gh pr create --base develop --title "feat: test branch protection"
 ## Maintenance Notes
 
 - Review and update required status checks when adding/removing CI jobs
+- Before adding a required check, merge the workflow that produces it first: a
+  context required but never reported blocks every pull request
 - Adjust approval requirements as team grows
 - Consider enabling "Require deployments to succeed" for production releases
 - Periodically audit who has bypass permissions

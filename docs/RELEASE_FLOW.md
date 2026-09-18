@@ -12,8 +12,8 @@ This repository uses `develop` as the integration branch and `main` as the produ
    ```
 2. Open the pull request into `develop`.
 3. Merge the PR after checks pass.
-4. A push to `develop` triggers the promotion workflow, which creates or reuses a PR from `develop` to `main` and enables auto-merge. The same workflow can also be run manually with `workflow_dispatch` when a promotion PR needs to be recreated.
-5. When the promotion PR passes, it merges into `main`.
+4. A push to `develop` triggers the promotion workflow, which creates or reuses a PR from `develop` to `main` and enables auto-merge. The same workflow can also be run manually with `workflow_dispatch` when a promotion PR needs to be recreated. The promotion PR is authored by `github-actions[bot]`, and GitHub parks every workflow run on a bot-authored PR as `action_required` until someone with write access approves it, so the promotion workflow approves its own parked runs with `BOT_TOKEN` before enabling auto-merge.
+5. When the promotion PR passes, it merges into `main`. Every required check must report, which is why `ci.yml`, `codeql.yml`, `quality.yml` and `sbom-verification.yml` carry no trigger-level path filters (see `docs/BRANCH_PROTECTION.md`).
 6. A push to `main` triggers the sync workflow back into `develop`.
 
 ## Hotfix Flow
