@@ -2,11 +2,11 @@
 name: CI Pipeline
 
 on:
+  # No paths filter here on purpose: CI Success is a required check, and one
+  # that never appears blocks a pull request forever. The changes job gates
+  # the work instead.
   push:
     branches: [main, develop]
-    paths-ignore:
-      - '.gitignore'
-      - 'LICENSE'
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
