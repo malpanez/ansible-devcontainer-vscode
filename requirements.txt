@@ -41,8 +41,8 @@ black==26.5.1
     # via ansible-lint
 boolean-py==5.0
     # via license-expression
-boto3==1.43.95
-botocore==1.43.95
+boto3==1.43.98
+botocore==1.43.98
     # via
     #   boto3
     #   s3transfer
@@ -103,7 +103,7 @@ filelock==3.32.7
     #   virtualenv
 identify==2.6.19
     # via pre-commit
-idna==3.19
+idna==3.20
     # via requests
 iniconfig==2.3.0
     # via pytest
@@ -192,7 +192,7 @@ pexpect==4.9.0
     # via
     #   ansible-runner
     #   ipython
-platformdirs==4.11.9
+platformdirs==4.11.11
     # via
     #   black
     #   virtualenv
@@ -221,7 +221,7 @@ pygments==2.21.0
     #   ipython-pygments-lexers
     #   pytest
     #   rich
-pyparsing==3.3.2
+pyparsing==3.3.3
     # via rdflib
 pytest==9.1.1
     # via
@@ -238,7 +238,7 @@ python-daemon==3.1.2
     # via ansible-runner
 python-dateutil==2.9.0.post0
     # via botocore
-python-discovery==1.6.0
+python-discovery==1.6.1
     # via virtualenv
 pytokens==0.4.1
     # via black
@@ -332,14 +332,14 @@ urllib3==2.8.0
     #   botocore
     #   docker
     #   requests
-virtualenv==21.7.10
+virtualenv==21.9.0
     # via pre-commit
 vulture==2.16
 wcmatch==11.0.1
     # via
     #   ansible-lint
     #   molecule
-wcwidth==0.8.3
+wcwidth==0.8.4
     # via prompt-toolkit
 xmltodict==1.0.4
     # via spdx-tools
