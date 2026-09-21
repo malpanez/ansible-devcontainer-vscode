@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.27
-FROM golang:1.27.1-alpine3.23@sha256:d9e2f2f07b10cc922da3e80e035c3058810b328d5aef82d2c63680967c5e2ec9
+FROM golang:1.27.1-alpine3.23@sha256:96a6b037cd95ee2d72dc63fec59ad8250110fe795111d783d97aa980ec59ec32
 
 # CRITICAL OpenSSL advisories CVE-2026-63073 and CVE-2026-75803 affect the
 # openssl 3.5.7-r0 that golang:1.27.x-alpine3.23 still ships. Alpine fixed
