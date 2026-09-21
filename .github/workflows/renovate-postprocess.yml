@@ -18,6 +18,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # The exports below must be produced by the same uv the images pin, or the
+  # generated requirements stop being reproducible (0.11.18 vs 0.12.13, once).
+  # renovate: datasource=github-releases depName=astral-sh/uv
+  UV_VERSION: "0.12.17"
+
 jobs:
   postprocess:
     name: Post-process
@@ -41,6 +47,23 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Assert uv matches the image pin
+        run: |
+          set -euo pipefail
+          dockerfile=devcontainers/base/Dockerfile
+          pinned=$(sed -n 's/^ARG UV_VERSION="\{0,1\}\([0-9.]*\)"\{0,1\}.*/\1/p' "${dockerfile}" | head -1)
+          installed=$(uv --version | awk '{print $2}')
+          if [ "${pinned}" != "${installed}" ]; then
+            msg="uv ${installed} in this workflow does not match the image pin"
+            msg="${msg} ${pinned} in ${dockerfile}; the regenerated requirements"
+            msg="${msg} would not be reproducible"
+            echo "::error::${msg}"
+            exit 1
+          fi
+          echo "uv ${installed} matches the image pin."
 
       - name: Sync only what this PR changed
         env:
