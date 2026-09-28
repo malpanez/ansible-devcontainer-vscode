@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.27
-FROM golang:1.27.1-alpine3.23@sha256:96a6b037cd95ee2d72dc63fec59ad8250110fe795111d783d97aa980ec59ec32
+FROM golang:1.27.1-alpine3.23@sha256:0908ac9b9319e09d7c238aabe914e0395c51d63c4e3d0ae8c554fda9158a5769
 
 # CRITICAL OpenSSL advisories CVE-2026-63073 and CVE-2026-75803 affect the
 # openssl 3.5.7-r0 that golang:1.27.x-alpine3.23 still ships. Alpine fixed
@@ -12,7 +12,7 @@ ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.12.17
+ARG UV_VERSION=0.12.19
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
