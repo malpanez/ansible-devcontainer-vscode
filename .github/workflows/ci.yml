@@ -21,7 +21,7 @@ env:
   GO_VERSION: "1.25"
   TERRAFORM_VERSION: "1.15.7"
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.12.17"
+  UV_VERSION: "0.12.19"
 
 permissions:
   contents: read
