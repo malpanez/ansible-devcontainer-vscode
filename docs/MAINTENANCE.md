@@ -1,6 +1,6 @@
 # Repository Maintenance Guide
 
-**Last Updated**: 2025-12-04
+**Last Updated**: 2026-10-05
 **Next Review**: 2026-03-04 (Quarterly)
 
 ---
@@ -36,7 +36,8 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   aws-cli hashes (`scripts/refresh-tool-pins.py --sync-hashes`),
   regenerates the `requirements*.txt` exports from uv.lock, and resyncs
   the active `.devcontainer` — then pushes the fix back so CI re-runs.
-- Runs with `BOT_TOKEN`; the Dependency Dashboard issue lists everything.
+- Runs with `BOT_TOKEN` (see [Automation Token](#5-automation-token-bot_token));
+  the Dependency Dashboard issue lists everything.
 
 #### Configuration
 - Config: [`renovate.json`](renovate.json)
@@ -192,6 +193,99 @@ pre-commit run --all-files
 
 ---
 
+### 5. Automation Token (`BOT_TOKEN`)
+
+**One personal access token** carries every automated step that the
+built-in `GITHUB_TOKEN` cannot do: pushing to protected `develop`, opening
+dependency PRs, and producing pushes that trigger other workflows. It is
+stored as the Actions secret `BOT_TOKEN` and acts as `malpanez`.
+
+It has an expiry, and when it lapses nothing announces it. On 2026-10-03 it
+expired 90 days after it was stored and half the automation stopped
+without a single alert.
+
+#### What Depends On It
+
+| Workflow | Uses the token to | What breaks on expiry |
+| --- | --- | --- |
+| [`sync-main-to-develop.yml`](../.github/workflows/sync-main-to-develop.yml) | Check out and push the `main` merge to protected `develop` (admin bypass of the required check) | Run fails at checkout; `develop` stops receiving `main`'s merge commits |
+| [`renovate.yml`](../.github/workflows/renovate.yml) | Run Renovate (branches, PRs, auto-merge) | No dependency PRs at all |
+| [`renovate-postprocess.yml`](../.github/workflows/renovate-postprocess.yml) | Check out the Renovate branch and push the regenerated hashes, `requirements*.txt` and `.devcontainer` | Run fails at checkout on every open Renovate PR |
+| [`promote-to-main.yml`](../.github/workflows/promote-to-main.yml) | Approve the promotion PR's parked workflow runs and enable auto-merge | Runs stay parked (`action_required`) until approved by hand; auto-merge falls back to `GITHUB_TOKEN`, whose merge push emits no events (no build on `main`, no sync) until the scheduled sweeps catch up |
+| [`auto-release.yml`](../.github/workflows/auto-release.yml) | Check out and push the release tag so the tag push triggers `release.yml` | Run fails at checkout: no tag, no release |
+
+The `secrets.BOT_TOKEN || github.token` fallbacks in `sync-main-to-develop.yml`
+and `auto-release.yml` only apply when the secret is **absent**. An expired
+token is still a non-empty secret, so it is used and rejected.
+
+#### Required Token
+
+- **Type**: personal access token (classic). Fine-grained tokens do not
+  report their scopes, so the canary could not verify them.
+- **Owner**: a repository admin — the sync push bypasses `develop`'s required
+  status check as admin (`enforce_admins` is off).
+- **Scopes**: `repo` and `workflow` (Renovate edits workflow files; approving
+  a parked run needs `repo`).
+- **Expiry**: always set one. The canary below is what makes that safe.
+
+#### Canary
+
+- Workflow: [`token-health.yml`](../.github/workflows/token-health.yml)
+- Script: [`scripts/check-token-health.sh`](../scripts/check-token-health.sh)
+- Schedule: Daily (06:17 UTC), plus manual trigger
+- Method: one authenticated `GET /rate_limit` (costs no quota), then reads the
+  `github-authentication-token-expiration` and `x-oauth-scopes` response headers
+
+It goes **red** when:
+- the secret is empty or missing
+- GitHub rejects the token (HTTP 401: expired or revoked)
+- the token lacks `repo` or `workflow`
+- the token expires within 14 days (`WARN_DAYS`)
+- the API answers anything else than 200, or cannot be reached
+
+When green it prints the expiry date and the days left as a notice.
+
+It does **not** verify that the token's owner is still a repository admin;
+that only shows as a rejected push in `Sync Main to Develop`.
+
+The alert is the failed scheduled run. GitHub sends that notification to the
+user who created the workflow or last changed its `cron` line (or who last
+re-enabled it), and only if their Actions notifications are on:
+https://github.com/settings/notifications → Actions.
+
+Scheduled workflows only run from the default branch, so the canary is live
+once `token-health.yml` is on `main`.
+
+#### Renewal Runbook
+
+```bash
+# 1. Create the token at https://github.com/settings/tokens (classic, scopes: repo, workflow)
+# 2. Store it — paste at the prompt, never on the command line:
+gh secret set BOT_TOKEN --repo malpanez/ansible-devcontainer-vscode
+# 3. Prove it works and restart what stopped:
+gh workflow run token-health.yml
+gh workflow run sync-main-to-develop.yml
+gh workflow run renovate.yml
+# 4. Only if a promotion PR is open with parked runs:
+gh workflow run promote-to-main.yml
+```
+
+Then confirm the canary is green and delete the old token:
+```bash
+gh run list --workflow token-health.yml --limit 1
+```
+
+#### Symptoms of an Expired Token
+
+| Symptom | Where | Cause |
+| --- | --- | --- |
+| `Sync Main to Develop` is red; checkout ends with `fatal: could not read Username for 'https://github.com'` | Actions → Sync Main to Develop | Checkout authenticates with the rejected token |
+| `HTTP 401: Bad credentials` in the log, promotion PR checks stuck waiting for approval | Actions → Promote develop to main | The token can neither approve the parked runs nor enable auto-merge |
+| No Renovate PRs on Monday | Pull requests, Dependency Dashboard | Renovate cannot authenticate |
+| `Token Health` is red | Actions → Token Health | The canary itself: read its annotation |
+
+---
+
 ## Manual Maintenance Tasks
 
 ### Quarterly Review (Every 3 Months)
@@ -333,6 +427,7 @@ To improve score:
 - **Renovate**: Active (weekly scans)
 - **Security Alert Management**: Active (weekly runs)
 - **Sync Main→Develop**: Active (on main push)
+- **Token Health**: Active (daily canary for `BOT_TOKEN`)
 - **Pre-commit Hooks**: Active (local only)
 
 #### Dependencies
@@ -380,15 +475,25 @@ pre-commit run --all-files --show-diff-on-failure
 
 ## Troubleshooting
 
+### Automation Stopped (`BOT_TOKEN` Expired or Rejected)
+
+**Symptoms**: `Sync Main to Develop` red at checkout, `HTTP 401: Bad credentials`
+in `Promote develop to main`, no Renovate PRs on Monday
+
+**Solutions**:
+1. Read the latest canary result: `gh run list --workflow token-health.yml --limit 1`
+2. Renew the token: [Renewal Runbook](#renewal-runbook)
+
 ### Renovate Not Creating PRs
 
 **Symptoms**: No dependency update PRs for 2+ weeks
 
 **Solutions**:
-1. Check Renovate dashboard for errors
-2. Validate `.github/renovate.json` syntax
-3. Check if rate limit exceeded
-4. Manually trigger: Settings → Integrations → Renovate → Configure
+1. Check that `Token Health` is green (Renovate runs with `BOT_TOKEN`)
+2. Check Renovate dashboard for errors
+3. Validate `renovate.json` syntax
+4. Check if rate limit exceeded
+5. Manually trigger: `gh workflow run renovate.yml`
 
 ### Security Workflow Failing
 
@@ -430,6 +535,10 @@ pre-commit run --all-files --show-diff-on-failure
 ---
 
 ## Change Log
+
+### 2026-10-05
+- ✅ Documented `BOT_TOKEN`: consumers, required scopes, renewal runbook
+- ✅ Added the daily `Token Health` canary after the silent expiry of 2026-10-03
 
 ### 2025-12-04
 - ✅ Initial maintenance guide created
