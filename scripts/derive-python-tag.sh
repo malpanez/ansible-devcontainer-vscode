@@ -13,14 +13,14 @@ set -euo pipefail
 
 DOCKERFILE="${1:-devcontainers/base/Dockerfile}"
 
-if [ ! -f "${DOCKERFILE}" ]; then
+if [[ ! -f "${DOCKERFILE}" ]]; then
   printf 'derive-python-tag: no such file: %s\n' "${DOCKERFILE}" >&2
   exit 1
 fi
 
 VERSION="$(sed -n 's/^FROM python:\([0-9]\{1,\}\.[0-9]\{1,\}\).*/\1/p' "${DOCKERFILE}" | head -1)"
 
-if [ -z "${VERSION}" ]; then
+if [[ -z "${VERSION}" ]]; then
   printf 'derive-python-tag: no "FROM python:<major>.<minor>" line in %s\n' "${DOCKERFILE}" >&2
   exit 1
 fi
