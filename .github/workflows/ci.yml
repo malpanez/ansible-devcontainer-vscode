@@ -21,7 +21,7 @@ env:
   # derives them from the Dockerfiles that ship them, so CI cannot drift from
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.12.19"
+  UV_VERSION: "0.12.23"
 
 permissions:
   contents: read

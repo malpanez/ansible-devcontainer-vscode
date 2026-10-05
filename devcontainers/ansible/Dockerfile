@@ -20,7 +20,7 @@
 # (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
 # ignores sonar.issue.ignore.*), so it must be deactivated in the
 # project's quality profile instead.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:2587548d0b365065fa75df33b3b76421439a2e8a3c64f3731b86b1e8f5d4e69c
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:fa4a34ce8ac2a1ae2f209609c29cbefa33b0bcb0821e6e88c1d22341c39cf13e
 
 # Stage 1: resolve the Python stack. Build tools live only in this stage:
 # arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
