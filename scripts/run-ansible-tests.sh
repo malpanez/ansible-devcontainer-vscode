@@ -26,7 +26,8 @@ if [[ "${#ROLES[@]}" -eq 0 ]]; then
   exit 0
 fi
 
-PY_VERSION="${ANSIBLE_TEST_PYTHON_VERSION:-3.13}"
+DEFAULT_PY_VERSION="$(bash "$(dirname "${BASH_SOURCE[0]}")/derive-toolchain-versions.sh" | sed -n 's/^python_version=//p')"
+PY_VERSION="${ANSIBLE_TEST_PYTHON_VERSION:-${DEFAULT_PY_VERSION}}"
 NAMESPACE="${ANSIBLE_TEST_NAMESPACE:-local}"
 COLLECTION_NAME="${ANSIBLE_TEST_COLLECTION_NAME:-devcontainer_workspace}"
 
