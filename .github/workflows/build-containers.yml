@@ -17,8 +17,10 @@ on:
           - terraform
           - latex
   schedule:
-    # Daily: keeps published images at most ~24h behind security updates
-    # and covers promotions merged by tokens whose pushes emit no events
+    # Daily, uncached (see `no-cache` in build-base): every image is rebuilt
+    # from its pinned base, so the OS upgrade layer really runs and published
+    # images stay at most ~24h behind security updates. Also covers
+    # promotions merged by tokens whose pushes emit no events
     - cron: '0 3 * * *'
   push:
     branches: [main]
@@ -131,9 +133,8 @@ jobs:
           # 'failed to configure registry cache importer: <ref>: not found'
           # aborts the whole build -- not as a warning. The registry cache
           # therefore cannot be introduced cold: the tag has to be probed
-          # first and the flag omitted until it exists. This seeds itself,
-          # so only the very first run after a new image or a cache reset
-          # builds uncached.
+          # first and the flag omitted until it exists. This seeds itself:
+          # a run that finds no tag builds uncached and exports one.
           if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
             echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
           else
@@ -154,6 +155,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
+          # Uncached unless triggered by push: see build-base.
+          no-cache: ${{ github.event_name != 'push' }}
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
@@ -190,6 +193,8 @@ jobs:
     outputs:
       # Consumed by build-all so the stacks derive from the base built here.
       digest: ${{ steps.build.outputs.digest }}
+      # Consumed by base-freshness.
+      fixable_findings: ${{ steps.findings.outputs.count }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -241,9 +246,8 @@ jobs:
           # 'failed to configure registry cache importer: <ref>: not found'
           # aborts the whole build -- not as a warning. The registry cache
           # therefore cannot be introduced cold: the tag has to be probed
-          # first and the flag omitted until it exists. This seeds itself,
-          # so only the very first run after a new image or a cache reset
-          # builds uncached.
+          # first and the flag omitted until it exists. This seeds itself:
+          # a run that finds no tag builds uncached and exports one.
           if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
             echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
           else
@@ -264,6 +268,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
+          # Scheduled and manually dispatched builds run uncached. The
+          # registry cache replays the OS upgrade layer (`full-upgrade`,
+          # `apk upgrade`) for as long as the Dockerfile and the pinned base
+          # digest are unchanged, so a cached "rebuild" ships the same
+          # packages forever while the run stays green. `no-cache` only stops
+          # the import: cache-to still exports, so every uncached run
+          # refreshes :buildcache-publish and push builds reuse that night's
+          # layers.
+          no-cache: ${{ github.event_name != 'push' }}
           platforms: linux/amd64,linux/arm64
           provenance: true
           sbom: true
@@ -290,7 +303,9 @@ jobs:
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
-          image: ghcr.io/${{ github.repository_owner }}/devcontainer-base:main
+          # By digest, not :main -- the gate below must judge the image this
+          # run built, also when dispatched from another branch.
+          image: ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build.outputs.digest }}
           severity-cutoff: high
           only-fixed: true
           fail-build: "false"
@@ -321,6 +336,74 @@ jobs:
         with:
           sarif_file: ${{ steps.grype_base.outputs.sarif }}
           category: grype-base
+
+      - name: Count fixable findings
+        id: findings
+        if: always()
+        env:
+          SARIF_FILE: ${{ steps.grype_base.outputs.sarif }}
+        run: |
+          set -euo pipefail
+          COUNT=0
+          if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
+            if ! COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"; then
+              COUNT=0
+              echo "::warning::Unreadable SARIF for devcontainer-base; reporting 0 fixable findings"
+            fi
+          else
+            echo "::warning::No SARIF for devcontainer-base; reporting 0 fixable findings"
+          fi
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          echo "Fixable high/critical findings in devcontainer-base: ${COUNT}"
+          if [ "${COUNT}" -gt 0 ]; then
+            mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
+            printf '%s\n' "${RULE_IDS[@]}"
+            {
+              echo "### devcontainer-base: ${COUNT} fixable high/critical finding(s)"
+              echo
+              printf -- '- %s\n' "${RULE_IDS[@]}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # Fresh-image gate, here for the base and as the last step of build-all for
+  # every stack. It is skipped on push because those builds reuse cache up to
+  # ~24h old, and a fix published since then is cleared by the next scheduled
+  # build on its own. After an uncached build a fixable finding is one the
+  # Dockerfile's upgrade step did not clear, so it needs a human. A separate
+  # job because build-all needs build-base: failing build-base itself would
+  # stop the stacks from being published.
+  base-freshness:
+    name: Base image has no fixable findings
+    needs: build-base
+    if: always() && github.event_name != 'push' && needs.build-base.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: Fail when the fresh base image still has fixable findings
+        env:
+          FIXABLE_FINDINGS: ${{ needs.build-base.outputs.fixable_findings }}
+        run: |
+          set -euo pipefail
+          case "${FIXABLE_FINDINGS}" in
+            0)
+              echo "devcontainer-base was built uncached and has no fixable high/critical findings."
+              ;;
+            ''|*[!0-9]*)
+              echo "::error::build-base reported no usable finding count ('${FIXABLE_FINDINGS}');" \
+                "check its 'Count fixable findings' step."
+              exit 1
+              ;;
+            *)
+              echo "::error::devcontainer-base was freshly built (uncached) and still has" \
+                "${FIXABLE_FINDINGS} fixable high/critical finding(s); rule ids are in the" \
+                "build-base job summary. Rebuilding will not clear them: bump the pinned" \
+                "component (or widen the Dockerfile's upgrade step) that ships the vulnerable" \
+                "package, or record a justified exception in .grype.yaml."
+              exit 1
+              ;;
+          esac
 
   build-all:
     # schedule and push always build everything; workflow_dispatch only when
@@ -409,9 +492,8 @@ jobs:
           # 'failed to configure registry cache importer: <ref>: not found'
           # aborts the whole build -- not as a warning. The registry cache
           # therefore cannot be introduced cold: the tag has to be probed
-          # first and the flag omitted until it exists. This seeds itself,
-          # so only the very first run after a new image or a cache reset
-          # builds uncached.
+          # first and the flag omitted until it exists. This seeds itself:
+          # a run that finds no tag builds uncached and exports one.
           if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
             echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
           else
@@ -441,6 +523,8 @@ jobs:
             ${{ matrix.base_from_run && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.build-base.outputs.digest) || '' }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
+          # Uncached unless triggered by push: see build-base.
+          no-cache: ${{ github.event_name != 'push' }}
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
@@ -498,3 +582,29 @@ jobs:
         with:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
           category: grype-${{ matrix.stack }}${{ matrix.variant }}
+
+      # Fresh-image gate: see base-freshness. Must stay the last step.
+      - name: Fail when a fresh image still has fixable findings
+        if: always() && github.event_name != 'push' && steps.sarif_check.outputs.exists == 'true'
+        env:
+          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+          IMAGE: devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+        run: |
+          set -euo pipefail
+          COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"
+          echo "Fixable high/critical findings in ${IMAGE}: ${COUNT}"
+          if [ "${COUNT}" -eq 0 ]; then
+            exit 0
+          fi
+          mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
+          printf '%s\n' "${RULE_IDS[@]}"
+          {
+            echo "### ${IMAGE}: ${COUNT} fixable high/critical finding(s)"
+            echo
+            printf -- '- %s\n' "${RULE_IDS[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::${IMAGE} was freshly built (uncached) and still has ${COUNT} fixable" \
+            "high/critical finding(s), listed above. Rebuilding will not clear them: bump the" \
+            "pinned component (or widen the Dockerfile's upgrade step) that ships the vulnerable" \
+            "package, or record a justified exception in .grype.yaml."
+          exit 1
