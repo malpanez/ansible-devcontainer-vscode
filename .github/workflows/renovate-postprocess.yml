@@ -22,7 +22,7 @@ env:
   # The exports below must be produced by the same uv the images pin, or the
   # generated requirements stop being reproducible (0.11.18 vs 0.12.13, once).
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.12.19"
+  UV_VERSION: "0.12.23"
 
 jobs:
   postprocess:
