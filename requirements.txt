@@ -229,7 +229,7 @@ pytest==9.1.1
     #   pytest-cov
     #   pytest-testinfra
     #   pytest-xdist
-pytest-ansible==26.8.0
+pytest-ansible==26.9.0
 pytest-cov==7.1.0
 pytest-testinfra==10.2.2
 pytest-xdist==3.8.0
