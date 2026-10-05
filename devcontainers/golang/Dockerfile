@@ -1,12 +1,18 @@
 # syntax=docker/dockerfile:1.27
 FROM golang:1.27.1-alpine3.23@sha256:0908ac9b9319e09d7c238aabe914e0395c51d63c4e3d0ae8c554fda9158a5769
 
-# CRITICAL OpenSSL advisories CVE-2026-63073 and CVE-2026-75803 affect the
-# openssl 3.5.7-r0 that golang:1.27.x-alpine3.23 still ships. Alpine fixed
-# them in 3.5.8-r0, so patch here rather than wait for the base image to
-# pick it up: the CI security gate runs grype --fail-on critical, and this
-# was blocking every pull request.
-RUN apk upgrade --no-cache libcrypto3 libssl3
+# Upgrade every package the pinned base ships, not a named list. The FROM
+# digest freezes the Alpine package set at the moment it was cut, so every
+# fix Alpine publishes afterwards is missing here until the base is rebuilt
+# and bumped. A named list only carries the fixes someone already knew
+# about -- this line used to name libcrypto3 and libssl3 alone -- while the
+# plain form covers whatever the base ships next. Same rule as the
+# full-upgrade in devcontainers/ansible/Dockerfile.podman.
+#
+# It reaches the base's own packages only. Whatever `apk add` pulls in
+# below (pcre2 arrives with git) is not installed yet at this point and is
+# fetched at its current version when that layer is built.
+RUN apk upgrade --no-cache
 
 ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
