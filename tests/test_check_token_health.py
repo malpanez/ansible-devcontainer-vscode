@@ -67,7 +67,12 @@ def _run(
 
 
 def _annotations(proc: subprocess.CompletedProcess) -> list[str]:
-    return proc.stdout.splitlines()
+    return proc.stdout.splitlines() + proc.stderr.splitlines()
+
+
+def _assert_error(proc: subprocess.CompletedProcess, prefix: str) -> None:
+    assert proc.stderr.startswith(prefix), proc.stderr
+    assert "::error::" not in proc.stdout
 
 
 @pytest.mark.parametrize("token", [None, ""])
@@ -75,13 +80,13 @@ def test_missing_secret_is_an_error(tmp_path: Path, token: str | None):
     proc = _run(tmp_path, token=token, headers=_headers())
     assert proc.returncode == 1
     assert len(_annotations(proc)) == 1
-    assert proc.stdout.startswith("::error::BOT_TOKEN is empty")
+    _assert_error(proc, "::error::BOT_TOKEN is empty")
 
 
 def test_token_with_embedded_newline_is_an_error(tmp_path: Path):
     proc = _run(tmp_path, token=f"{FAKE_TOKEN}\nX-Injected: 1", headers=_headers())
     assert proc.returncode == 1
-    assert proc.stdout.startswith("::error::BOT_TOKEN contains whitespace")
+    _assert_error(proc, "::error::BOT_TOKEN contains whitespace")
     assert FAKE_TOKEN not in proc.stdout
     assert FAKE_TOKEN not in proc.stderr
 
@@ -90,17 +95,15 @@ def test_rejected_token_points_at_the_runbook(tmp_path: Path):
     proc = _run(tmp_path, status=401, headers="HTTP/2 401\n\n")
     assert proc.returncode == 1
     assert len(_annotations(proc)) == 1
-    assert proc.stdout.startswith(
-        "::error::BOT_TOKEN was rejected by GitHub (HTTP 401)"
-    )
-    assert "docs/MAINTENANCE.md" in proc.stdout
+    _assert_error(proc, "::error::BOT_TOKEN was rejected by GitHub (HTTP 401)")
+    assert "docs/MAINTENANCE.md" in proc.stderr
 
 
 def test_unexpected_status_is_an_error(tmp_path: Path):
     proc = _run(tmp_path, status=500, headers="HTTP/2 500\n\n")
     assert proc.returncode == 1
     assert len(_annotations(proc)) == 1
-    assert proc.stdout.startswith("::error::Unexpected HTTP 500")
+    _assert_error(proc, "::error::Unexpected HTTP 500")
 
 
 @pytest.mark.parametrize(
@@ -121,9 +124,7 @@ def test_missing_scope_is_named(tmp_path: Path, granted: str, missing: str):
         ),
     )
     assert proc.returncode == 1
-    assert proc.stdout.startswith(
-        f"::error::BOT_TOKEN is missing required scope(s): {missing}."
-    )
+    _assert_error(proc, f"::error::BOT_TOKEN is missing required scope(s): {missing}.")
 
 
 def test_expiring_in_three_days_is_an_error(tmp_path: Path):
@@ -136,8 +137,8 @@ def test_expiring_in_three_days_is_an_error(tmp_path: Path):
     )
     assert proc.returncode == 1
     assert len(_annotations(proc)) == 1
-    assert proc.stdout.startswith("::error::BOT_TOKEN expires in 3 days (on ")
-    assert _expiry(3, "%Y-%m-%d %H:%M UTC") in proc.stdout
+    _assert_error(proc, "::error::BOT_TOKEN expires in 3 days (on ")
+    assert _expiry(3, "%Y-%m-%d %H:%M UTC") in proc.stderr
 
 
 def test_expiring_in_sixty_days_is_a_notice(tmp_path: Path):
@@ -169,8 +170,12 @@ def test_warn_days_boundary_is_inclusive(
         tmp_path,
         headers=_headers(f"github-authentication-token-expiration: {_expiry(days)}"),
     )
-    assert proc.returncode == returncode, proc.stdout
-    assert proc.stdout.startswith(prefix)
+    assert proc.returncode == returncode, proc.stderr
+    if returncode:
+        _assert_error(proc, prefix)
+    else:
+        assert proc.stdout.startswith(prefix)
+        assert "::error::" not in proc.stderr
 
 
 def test_warn_days_can_be_overridden(tmp_path: Path):
@@ -180,7 +185,7 @@ def test_warn_days_can_be_overridden(tmp_path: Path):
         headers=_headers(f"github-authentication-token-expiration: {_expiry(60)}"),
     )
     assert proc.returncode == 1
-    assert proc.stdout.startswith("::error::BOT_TOKEN expires in 60 days")
+    _assert_error(proc, "::error::BOT_TOKEN expires in 60 days")
 
 
 def test_no_expiry_header_is_a_notice(tmp_path: Path):
@@ -206,8 +211,8 @@ def test_expiry_with_utc_offset_is_parsed(tmp_path: Path):
         headers=_headers(f"github-authentication-token-expiration: {offset_expiry}"),
     )
     assert proc.returncode == 1
-    assert proc.stdout.startswith("::error::BOT_TOKEN expires in 3 days (on ")
-    assert _expiry(3, "%Y-%m-%d %H:%M UTC") in proc.stdout
+    _assert_error(proc, "::error::BOT_TOKEN expires in 3 days (on ")
+    assert _expiry(3, "%Y-%m-%d %H:%M UTC") in proc.stderr
 
 
 def test_unparseable_expiry_is_an_error(tmp_path: Path):
@@ -216,9 +221,7 @@ def test_unparseable_expiry_is_an_error(tmp_path: Path):
         headers=_headers("github-authentication-token-expiration: not a date"),
     )
     assert proc.returncode == 1
-    assert proc.stdout.startswith(
-        "::error::BOT_TOKEN expiry header could not be parsed"
-    )
+    _assert_error(proc, "::error::BOT_TOKEN expiry header could not be parsed")
 
 
 @pytest.mark.parametrize(
@@ -239,10 +242,14 @@ def test_crlf_and_mixed_case_headers(
             eol="\r\n",
         ),
     )
-    assert proc.returncode == returncode, proc.stdout
+    assert proc.returncode == returncode, proc.stderr
     assert len(_annotations(proc)) == 1
-    assert proc.stdout.startswith(prefix)
+    if returncode:
+        _assert_error(proc, prefix)
+    else:
+        assert proc.stdout.startswith(prefix)
     assert "\r" not in proc.stdout
+    assert "\r" not in proc.stderr
 
 
 def test_crlf_and_mixed_case_scopes_are_checked(tmp_path: Path):
@@ -251,9 +258,7 @@ def test_crlf_and_mixed_case_scopes_are_checked(tmp_path: Path):
         headers=_headers("X-OAuth-Scopes: repo", eol="\r\n"),
     )
     assert proc.returncode == 1
-    assert proc.stdout.startswith(
-        "::error::BOT_TOKEN is missing required scope(s): workflow."
-    )
+    _assert_error(proc, "::error::BOT_TOKEN is missing required scope(s): workflow.")
 
 
 def test_last_header_occurrence_wins(tmp_path: Path):
