@@ -49,6 +49,7 @@ parse_args() {
           --headers) HEADERS_FILE="$2" ;;
           --status) STATUS="$2" ;;
           --now) NOW="$2" ;;
+          *) fail_usage "Unknown option: ${arg}" ;;
         esac
         shift 2
         ;;
@@ -90,11 +91,11 @@ cleanup() {
 
 require_token() {
   if [[ -z "${BOT_TOKEN:-}" ]]; then
-    echo "::error::BOT_TOKEN is empty: the Actions secret is missing or not passed to this job. See ${RUNBOOK}."
+    echo "::error::BOT_TOKEN is empty: the Actions secret is missing or not passed to this job. See ${RUNBOOK}." >&2
     exit 1
   fi
   if [[ "${BOT_TOKEN}" =~ [[:space:][:cntrl:]] ]]; then
-    echo "::error::BOT_TOKEN contains whitespace or control characters; store it again. See ${RUNBOOK}."
+    echo "::error::BOT_TOKEN contains whitespace or control characters; store it again. See ${RUNBOOK}." >&2
     exit 1
   fi
 }
@@ -111,7 +112,7 @@ fetch_headers() {
         -H @- -D "${HEADERS_FILE}" -o /dev/null -w '%{http_code}' "${API_URL}"
   )" || curl_exit=$?
   if [[ "${curl_exit}" -ne 0 ]]; then
-    echo "::error::Could not reach ${API_URL} (curl exit ${curl_exit}); BOT_TOKEN was not checked."
+    echo "::error::Could not reach ${API_URL} (curl exit ${curl_exit}); BOT_TOKEN was not checked." >&2
     exit 1
   fi
 }
@@ -143,11 +144,11 @@ check_status() {
       return 0
       ;;
     401)
-      echo "::error::BOT_TOKEN was rejected by GitHub (HTTP 401): it is expired or revoked. Renew it: ${RUNBOOK}."
+      echo "::error::BOT_TOKEN was rejected by GitHub (HTTP 401): it is expired or revoked. Renew it: ${RUNBOOK}." >&2
       exit 1
       ;;
     *)
-      echo "::error::Unexpected HTTP ${STATUS} from ${API_URL}; BOT_TOKEN could not be checked."
+      echo "::error::Unexpected HTTP ${STATUS} from ${API_URL}; BOT_TOKEN could not be checked." >&2
       exit 1
       ;;
   esac
@@ -166,7 +167,7 @@ check_scopes() {
     fi
   done
   if [[ "${#missing[@]}" -gt 0 ]]; then
-    echo "::error::BOT_TOKEN is missing required scope(s): ${missing[*]}. Recreate it with: ${REQUIRED_SCOPES[*]}. See ${RUNBOOK}."
+    echo "::error::BOT_TOKEN is missing required scope(s): ${missing[*]}. Recreate it with: ${REQUIRED_SCOPES[*]}. See ${RUNBOOK}." >&2
     FAILED=1
   fi
 }
@@ -178,14 +179,14 @@ check_expiry() {
     return 0
   fi
   if ! expiry_epoch="$(date -u -d "${expiry}" +%s 2>/dev/null)"; then
-    echo "::error::BOT_TOKEN expiry header could not be parsed; the expiry date is unknown."
+    echo "::error::BOT_TOKEN expiry header could not be parsed; the expiry date is unknown." >&2
     FAILED=1
     return 0
   fi
   expiry_date="$(date -u -d "@${expiry_epoch}" '+%Y-%m-%d %H:%M UTC')"
   days_left=$(((expiry_epoch - NOW) / 86400))
   if [[ "${days_left}" -le "${WARN_DAYS}" ]]; then
-    echo "::error::BOT_TOKEN expires in ${days_left} days (on ${expiry_date}). Renew it: ${RUNBOOK}."
+    echo "::error::BOT_TOKEN expires in ${days_left} days (on ${expiry_date}). Renew it: ${RUNBOOK}." >&2
     FAILED=1
     return 0
   fi

@@ -32,42 +32,42 @@ fail() {
 }
 
 extract_version() {
-  local FILE="$1"
-  local PATTERN="$2"
-  local EXPECTED="$3"
-  local VALUE
+  local file="$1"
+  local pattern="$2"
+  local expected="$3"
+  local value
 
-  if [ ! -f "${FILE}" ]; then
-    fail "no such file: ${FILE}"
+  if [[ ! -f "${file}" ]]; then
+    fail "no such file: ${file}"
   fi
 
-  VALUE="$(sed -n "/${PATTERN}/{s//\\1/p;q;}" "${FILE}")"
+  value="$(sed -n "/${pattern}/{s//\\1/p;q;}" "${file}")"
 
-  if [ -z "${VALUE}" ]; then
-    fail "no \"${EXPECTED}\" line in ${FILE}"
+  if [[ -z "${value}" ]]; then
+    fail "no \"${expected}\" line in ${file}"
   fi
 
-  printf '%s\n' "${VALUE}"
+  printf '%s\n' "${value}"
 }
 
 main() {
-  local PYTHON_VERSION
-  local GO_VERSION
-  local TERRAFORM_VERSION
+  local python_version
+  local go_version
+  local terraform_version
 
-  PYTHON_VERSION="$(extract_version "${BASE_DOCKERFILE}" \
+  python_version="$(extract_version "${BASE_DOCKERFILE}" \
     '^FROM python:\([0-9]\{1,\}\.[0-9]\{1,\}\).*' \
     'FROM python:<major>.<minor>')"
-  GO_VERSION="$(extract_version "${GOLANG_DOCKERFILE}" \
+  go_version="$(extract_version "${GOLANG_DOCKERFILE}" \
     '^FROM golang:\([0-9]\{1,\}\.[0-9]\{1,\}\).*' \
     'FROM golang:<major>.<minor>')"
-  TERRAFORM_VERSION="$(extract_version "${TERRAFORM_DOCKERFILE}" \
+  terraform_version="$(extract_version "${TERRAFORM_DOCKERFILE}" \
     '^ARG TERRAFORM_VERSION=\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)[[:space:]]*$' \
     'ARG TERRAFORM_VERSION=<major>.<minor>.<patch>')"
 
-  printf 'python_version=%s\n' "${PYTHON_VERSION}"
-  printf 'go_version=%s\n' "${GO_VERSION}"
-  printf 'terraform_version=%s\n' "${TERRAFORM_VERSION}"
+  printf 'python_version=%s\n' "${python_version}"
+  printf 'go_version=%s\n' "${go_version}"
+  printf 'terraform_version=%s\n' "${terraform_version}"
 }
 
 main "$@"
