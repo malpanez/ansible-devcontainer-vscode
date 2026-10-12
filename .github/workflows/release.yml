@@ -126,6 +126,12 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "devcontainer-base Python stream tag: ${tag}"
 
+      # A release publishes immutable, version-qualified tags only; the rolling
+      # tags (`latest`, `main`, the derived Python stream tag) belong to
+      # build-containers.yml alone. When this job wrote `latest` and the bare
+      # stream tag too, the last writer won per tag: after v1.3.27 (2026-10-12)
+      # ansible:latest was this job's digest, ansible:main build-containers',
+      # and base:py314 != base:main, until the next scheduled build re-tagged.
       - name: Build and push base image
         id: build_base
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
@@ -135,7 +141,6 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:${{ steps.pytag.outputs.tag }}
             ghcr.io/${{ github.repository_owner }}/devcontainer-base:${{ steps.pytag.outputs.tag }}-${{ github.ref_name }}
 
       - name: Build and push Ansible image
@@ -147,7 +152,6 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:latest
             ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:${{ github.ref_name }}
 
       - name: Build and push Terraform image
@@ -159,7 +163,6 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:latest
             ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:${{ github.ref_name }}
 
       - name: Build and push Golang image
@@ -171,7 +174,6 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-golang:latest
             ghcr.io/${{ github.repository_owner }}/devcontainer-golang:${{ github.ref_name }}
 
       - name: Build and push LaTeX image
@@ -183,7 +185,6 @@ jobs:
           outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-latex:latest
             ghcr.io/${{ github.repository_owner }}/devcontainer-latex:${{ github.ref_name }}
 
       - name: Sign published images
@@ -268,12 +269,6 @@ jobs:
       # Smoke the PUBLISHED image, not a local rebuild: the devcontainer.json
       # builds from Dockerfile (ignoring the tag), so 'devcontainer up' never
       # exercised what was pushed. docker run auto-pulls the GHCR ref.
-      - name: Smoke published ${{ matrix.stack }} @ latest
-        run: |
-          bash scripts/smoke-devcontainer-image.sh \
-            --stack "${{ matrix.stack }}" \
-            --image "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:latest"
-
       - name: Smoke published ${{ matrix.stack }} @ ${{ github.ref_name }}
         run: |
           bash scripts/smoke-devcontainer-image.sh \
