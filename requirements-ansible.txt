@@ -25,9 +25,9 @@ ansible-lint==26.10.0 \
     # via
     #   ansible-devcontainer
     #   ansible-navigator
-ansible-navigator==26.9.0 \
-    --hash=sha256:30bce88a923e2cf8cd985002e7a213c2bd6252ec496260da6253146b0da18b96 \
-    --hash=sha256:791cc856eaec7fff94b02387a599edeaa262bd89b0421275829d2d1020aac622
+ansible-navigator==26.10.0 \
+    --hash=sha256:ee26fab3923a56241c5a54c2350fa7a0f323c04a7480dca240cb4f705f1475cd \
+    --hash=sha256:f1623b8c7f3cbb3843a5f22d12198f542d770e2f1208206739056dd15164e7bf
     # via ansible-devcontainer
 ansible-runner==2.4.3 \
     --hash=sha256:5f3025529bb968fdc3b627457dd8d418dbf9d53bc73735d50e69c28544d53031 \
