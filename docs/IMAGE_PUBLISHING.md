@@ -14,7 +14,7 @@ This repository publishes six container images to GHCR:
 
 `.github/workflows/build-containers.yml` is the only workflow that publishes these images to GHCR. It runs on the daily schedule, on pushes to `main` that touch `devcontainers/**`, and on manual dispatch (one stack or all), and it is the only place that signs with cosign, attaches provenance attestations, and Grype-scans what it pushed. Scheduled and manual runs build without cache; push runs reuse the registry cache (`:buildcache-publish`) that every run re-exports, so they start from the layers of the last uncached build. The single exception is `.github/workflows/release.yml`, which owns release tags (`:<tag>`), and `.github/workflows/repair-ghcr.yml`, which republishes one stack on demand. `ci.yml` builds the images for testing but never pushes them.
 
-Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` produce `:latest` and `:<tag>`.
+Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` produce only the immutable `:<tag>` (`:py<major><minor>-<tag>` for the base) and never move the rolling tags.
 
 `devcontainer-ansible` is built on the base image produced in the same run: `build-all` overrides the `BASE_IMAGE` build-arg with `devcontainer-base@<digest>` from the `build-base` job, so a published ansible image always contains the base published beside it. The digest pinned in `devcontainers/ansible/Dockerfile` is what local and PR builds resolve, and Renovate keeps it fresh.
 
@@ -42,7 +42,7 @@ You can now reference the local tag from `.devcontainer/devcontainer.json` or pu
 Release builds sign every image with [cosign](https://github.com/sigstore/cosign) and attach SPDX SBOMs generated with [Syft](https://github.com/anchore/syft). Verify a published image with:
 
 ```bash
-cosign verify ghcr.io/malpanez/devcontainer-ansible:latest \
+cosign verify ghcr.io/malpanez/devcontainer-ansible:<tag> \
   --certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
