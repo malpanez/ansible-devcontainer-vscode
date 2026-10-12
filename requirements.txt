@@ -20,7 +20,7 @@ ansible-lint==26.10.0
     # via
     #   ansible-devcontainer
     #   ansible-navigator
-ansible-navigator==26.9.0
+ansible-navigator==26.10.0
     # via ansible-devcontainer
 ansible-runner==2.4.3
     # via ansible-navigator
