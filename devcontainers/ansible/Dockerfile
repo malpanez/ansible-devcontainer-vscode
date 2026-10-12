@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.27
+# syntax=docker/dockerfile:1.28
 # The builder and the runtime stage both start from the hardened
 # devcontainer-base layer (apt tools, gh, checksum-verified uv,
 # pre-commit, vscode user), so the two stages and the base pulled beside
@@ -20,7 +20,7 @@
 # (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
 # ignores sonar.issue.ignore.*), so it must be deactivated in the
 # project's quality profile instead.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:102c840b33cebad9272a37ed39c121f065d5ad16ef901f328db616cc9fff7f35
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:50cfea52160f87d88e53ccaa55be9da4ff02e8ed6f1a8a6de369c50eb8a5ac75
 
 # Stage 1: resolve the Python stack. Build tools live only in this stage:
 # arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by

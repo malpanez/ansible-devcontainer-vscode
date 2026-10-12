@@ -20,11 +20,11 @@ ansible-lint==26.10.0
     # via
     #   ansible-devcontainer
     #   ansible-navigator
-ansible-navigator==26.9.0
+ansible-navigator==26.10.0
     # via ansible-devcontainer
 ansible-runner==2.4.3
     # via ansible-navigator
-ast-serialize==0.12.1
+ast-serialize==0.13.0
     # via mypy
 asttokens==3.0.2
     # via stack-data
@@ -230,7 +230,7 @@ pytest==9.1.1
     #   pytest-cov
     #   pytest-testinfra
     #   pytest-xdist
-pytest-ansible==26.9.0
+pytest-ansible==26.10.0
 pytest-cov==7.1.0
 pytest-testinfra==10.2.2
 pytest-xdist==3.8.0
