@@ -249,21 +249,29 @@ jobs:
           echo "- Dockerfile Quality: ${{ needs.dockerfile-quality.result }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Check results
+        env:
+          # Through env, not expanded inside the script: needs carries the
+          # outputs of the changes job, and a quote in one of them would end
+          # a single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
-          results='${{ toJSON(needs) }}'
-          echo "$results" | jq .
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
 
-          # Only "failure" counts. A skipped job is a job the filter decided
-          # was irrelevant, and treating != success as a failure would turn
-          # every skip into a blocked pull request.
-          failed=$(echo "$results" | jq -r '
-            to_entries[]
-            | select(.value.result == "failure")
-            | .key
-          ')
+          # Allow-list: only "success" and "skipped" pass. A skipped job is
+          # a job the filter decided was irrelevant, and treating != success
+          # as a failure would turn every skip into a blocked pull request.
+          # "cancelled" fails with "failure": a job that hits its
+          # timeout-minutes ends as cancelled, and a cancelled job proved
+          # nothing. Any other result fails closed.
+          failed=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "$NEEDS_JSON")
 
           if [ -n "$failed" ]; then
-            echo "::error::Failed jobs: $failed"
+            echo "::error::Jobs that did not pass: $failed"
             exit 1
           fi
 

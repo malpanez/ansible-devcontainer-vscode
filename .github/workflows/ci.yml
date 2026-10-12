@@ -22,6 +22,10 @@ env:
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
   UV_VERSION: "0.13.0"
+  # Must equal the pins in release.yml, the Makefile and the pre-commit
+  # hook: scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
+  # renovate: datasource=docker depName=hadolint/hadolint
+  HADOLINT_VERSION: "v2.15.1"
 
 permissions:
   contents: read
@@ -39,6 +43,7 @@ jobs:
       terraform: ${{ steps.filter.outputs.terraform }}
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
       scripts: ${{ steps.filter.outputs.scripts }}
+      hadolint: ${{ steps.filter.outputs.hadolint }}
       python: ${{ steps.filter.outputs.python }}
       python_version: ${{ steps.toolchain.outputs.python_version }}
       go_version: ${{ steps.toolchain.outputs.go_version }}
@@ -84,8 +89,23 @@ jobs:
               # very jobs that would prove it still works. Same blind spot as
               # a published image with no gating scan.
               - 'scripts/devcontainers-cli/**'
+              # The scan ignore policy decides what the image scan blocks, so
+              # a change to it must run that scan. PR #546 (2026-10-12) changed
+              # only this file, every build job skipped and CI went green
+              # without exercising the policy it was changing.
+              - '.grype.yaml'
             scripts:
               - 'scripts/**'
+            # The files that pin hadolint and the guard that compares them,
+            # so a pull request moving a single pin still runs Dockerfile
+            # Lint. A filter of its own, not more paths under devcontainer:
+            # that one also starts the image builds.
+            hadolint:
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/release.yml'
+              - 'Makefile'
+              - '.pre-commit-config.yaml'
+              - 'scripts/check-hadolint-parity.sh'
             python:
               - '**/*.py'
               - 'requirements.txt'
@@ -263,19 +283,24 @@ jobs:
     name: Dockerfile Lint
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.devcontainer == 'true'
+    if: needs.changes.outputs.devcontainer == 'true' || needs.changes.outputs.hadolint == 'true'
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+      - name: Check hadolint version parity
+        run: bash scripts/check-hadolint-parity.sh
+
       - name: Run hadolint on each Dockerfile
         run: |
-          for dockerfile in devcontainers/*/Dockerfile; do
+          # Dockerfile*, not Dockerfile: the narrower glob never linted
+          # devcontainers/ansible/Dockerfile.podman.
+          for dockerfile in devcontainers/*/Dockerfile*; do
             if [ -f "$dockerfile" ]; then
               echo "Linting $dockerfile"
-              docker run --rm -i hadolint/hadolint:v2.14.0 hadolint \
+              docker run --rm -i "hadolint/hadolint:${HADOLINT_VERSION}" hadolint \
                 --failure-threshold error \
                 - < "$dockerfile"
             fi
@@ -776,19 +801,34 @@ jobs:
     if: always()
     steps:
       - name: Check results
+        env:
+          # Through env, not expanded inside the script: needs carries the
+          # outputs of the changes job, and a quote in one of them would end
+          # a single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           echo "Checking CI results..."
-          results='${{ toJSON(needs) }}'
-          echo "$results" | jq .
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
 
-          failed=$(echo "$results" | jq -r '
-            to_entries[]
-            | select(.value.result == "failure")
-            | .key
-          ')
+          # Allow-list: only "success" and "skipped" pass. A skipped job is
+          # a job the changes filter decided was irrelevant, and it has to
+          # stay green or every filtered pull request would be blocked.
+          # "cancelled" fails with "failure": a job that hits its
+          # timeout-minutes ends as cancelled, and a cancelled job proved
+          # nothing. Any other result fails closed.
+          #
+          # A run superseded through cancel-in-progress therefore reports
+          # CI Success as failed on the OLD commit. That is intended; the new
+          # commit gets its own run. Do not relax this to make it green.
+          failed=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "$NEEDS_JSON")
 
           if [ -n "$failed" ]; then
-            echo "::error::Failed jobs: $failed"
+            echo "::error::Jobs that did not pass: $failed"
             exit 1
           fi
 

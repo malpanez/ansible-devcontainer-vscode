@@ -92,15 +92,17 @@ blocked promotion:
    filters are therefore banned in `ci.yml`, `codeql.yml`, `quality.yml` and
    `sbom-verification.yml`; each one runs a cheap `changes` job
    (`dorny/paths-filter`) and gates the expensive jobs on its outputs, and
-   each aggregate job is `if: always()` and fails only on a job whose result
-   is `failure`, so a skipped job stays green.
+   each aggregate job is `if: always()` and passes only the results `success`
+   and `skipped`, so a skipped job stays green while a failed or cancelled
+   one (a job that times out ends as `cancelled`) turns the check red.
 
 2. **`Quality Summary` gates that the metrics ran, not what they found.** The
    jobs in `quality.yml` are deliberately non-blocking (`continue-on-error`,
    `no-fail: true`): they publish complexity, dead-code, lint and Hadolint
-   reports. The check fails only if one of those jobs itself fails -- for
-   example when the hash-pinned install breaks. The lint gates that can
-   actually reject a change live in `ci.yml` and in the pre-commit hooks.
+   reports. The check fails only if one of those jobs itself fails or is
+   cancelled -- for example when the hash-pinned install breaks. The lint
+   gates that can actually reject a change live in `ci.yml` and in the
+   pre-commit hooks.
 
 ---
 
