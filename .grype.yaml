@@ -3,12 +3,12 @@
 # Replaces .trivyignore after migration from Trivy (compromised March 2026)
 # See: https://github.com/aquasecurity/trivy/discussions/10425
 #
-# POLICY — Go stdlib / x-crypto in pre-compiled upstream binaries
-# ---------------------------------------------------------------
+# POLICY — Go stdlib and vendored modules in pre-compiled upstream binaries
+# -------------------------------------------------------------------------
 # grype reads the Go build info embedded in each binary and reports the
-# toolchain's stdlib (and vendored x/crypto) as vulnerable whenever a
-# newer Go patch release exists. These are THIRD-PARTY release binaries
-# (terraform, terragrunt, tflint, sops, age, gh, podman, aws-cli's
+# toolchain's stdlib (and vendored golang.org/x modules) as vulnerable
+# whenever a newer Go patch release exists. These are THIRD-PARTY release
+# binaries (terraform, terragrunt, tflint, sops, age, gh, podman, aws-cli's
 # bundled Python): we cannot recompile them, and the vulnerable code
 # paths (net/http & SSH servers, x/crypto SSH auth) are not exercised by
 # these CLIs run locally in a devcontainer. Rather than chase each new
@@ -124,6 +124,30 @@ ignore:
   - package:
       name: golang.org/x/net
       location: "/usr/bin/gh"
+  # x/net: the Go security release of 2026-10-08 (fixed in x/net v0.60.0)
+  # published GO-2026-6603, -6610, -6611, -6612 and -6617 against both
+  # stdlib net/http and golang.org/x/net; it is the same HTTP/2 code. No
+  # upstream release carries the fix yet (2026-10-12): terraform 1.16.5
+  # and terragrunt 1.1.6 embed v0.58.0, tflint 0.64.0 v0.56.0, sops 3.13.3
+  # v0.57.0, and these are the latest releases, so there is nothing to
+  # bump to. 6603, 6611, 6612 and 6617 are HTTP/2 SERVER issues; these
+  # CLIs do not serve HTTP/2. 6610 is an HTTP/2 TRANSPORT (client) issue:
+  # a malicious or compromised server or proxy could send malformed
+  # framing headers to these tools. That one is ACCEPTED, not unreachable.
+  # Renovate tracks all four tools, so the ignore goes inert for these
+  # advisories as soon as upstream ships a rebuild.
+  - package:
+      name: golang.org/x/net
+      location: "/usr/local/bin/terraform"
+  - package:
+      name: golang.org/x/net
+      location: "/usr/local/bin/terragrunt"
+  - package:
+      name: golang.org/x/net
+      location: "/usr/local/bin/tflint"
+  - package:
+      name: golang.org/x/net
+      location: "/usr/local/bin/sops"
 
   # --- vendored grpc in pre-compiled release binaries (same policy as
   # stdlib above: we cannot rebuild these, and no gRPC server is served).
