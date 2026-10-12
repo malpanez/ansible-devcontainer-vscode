@@ -84,6 +84,11 @@ jobs:
               # very jobs that would prove it still works. Same blind spot as
               # a published image with no gating scan.
               - 'scripts/devcontainers-cli/**'
+              # The scan ignore policy decides what the image scan blocks, so
+              # a change to it must run that scan. PR #546 (2026-10-12) changed
+              # only this file, every build job skipped and CI went green
+              # without exercising the policy it was changing.
+              - '.grype.yaml'
             scripts:
               - 'scripts/**'
             python:
