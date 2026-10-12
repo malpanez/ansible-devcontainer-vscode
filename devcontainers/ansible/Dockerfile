@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.27
+# syntax=docker/dockerfile:1.28
 # The builder and the runtime stage both start from the hardened
 # devcontainer-base layer (apt tools, gh, checksum-verified uv,
 # pre-commit, vscode user), so the two stages and the base pulled beside
