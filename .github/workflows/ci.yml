@@ -22,6 +22,10 @@ env:
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
   UV_VERSION: "0.13.0"
+  # Must equal the pins in release.yml, the Makefile and the pre-commit
+  # hook: scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
+  # renovate: datasource=docker depName=hadolint/hadolint
+  HADOLINT_VERSION: "v2.15.1"
 
 permissions:
   contents: read
@@ -39,6 +43,7 @@ jobs:
       terraform: ${{ steps.filter.outputs.terraform }}
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
       scripts: ${{ steps.filter.outputs.scripts }}
+      hadolint: ${{ steps.filter.outputs.hadolint }}
       python: ${{ steps.filter.outputs.python }}
       python_version: ${{ steps.toolchain.outputs.python_version }}
       go_version: ${{ steps.toolchain.outputs.go_version }}
@@ -91,6 +96,16 @@ jobs:
               - '.grype.yaml'
             scripts:
               - 'scripts/**'
+            # The files that pin hadolint and the guard that compares them,
+            # so a pull request moving a single pin still runs Dockerfile
+            # Lint. A filter of its own, not more paths under devcontainer:
+            # that one also starts the image builds.
+            hadolint:
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/release.yml'
+              - 'Makefile'
+              - '.pre-commit-config.yaml'
+              - 'scripts/check-hadolint-parity.sh'
             python:
               - '**/*.py'
               - 'requirements.txt'
@@ -268,19 +283,24 @@ jobs:
     name: Dockerfile Lint
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.devcontainer == 'true'
+    if: needs.changes.outputs.devcontainer == 'true' || needs.changes.outputs.hadolint == 'true'
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+      - name: Check hadolint version parity
+        run: bash scripts/check-hadolint-parity.sh
+
       - name: Run hadolint on each Dockerfile
         run: |
-          for dockerfile in devcontainers/*/Dockerfile; do
+          # Dockerfile*, not Dockerfile: the narrower glob never linted
+          # devcontainers/ansible/Dockerfile.podman.
+          for dockerfile in devcontainers/*/Dockerfile*; do
             if [ -f "$dockerfile" ]; then
               echo "Linting $dockerfile"
-              docker run --rm -i hadolint/hadolint:v2.14.0 hadolint \
+              docker run --rm -i "hadolint/hadolint:${HADOLINT_VERSION}" hadolint \
                 --failure-threshold error \
                 - < "$dockerfile"
             fi
