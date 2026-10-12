@@ -390,32 +390,52 @@ jobs:
   sbom-verification-success:
     name: SBOM Verification Success
     runs-on: ubuntu-latest
+    # changes and generate-sbom are listed on purpose: when either fails, the
+    # three verify jobs are skipped, and a skip passes -- so without them
+    # this required check stayed green with no SBOM generated at all.
+    # compare-sbom-changes is left out: it only comments on the pull request.
     needs:
+      - changes
+      - generate-sbom
       - verify-sbom-quality
       - scan-sbom-vulnerabilities
       - verify-dependency-licenses
     if: always()
     steps:
       - name: Check results
+        env:
+          # Through env, not expanded inside the script: needs carries the
+          # outputs of the changes job, and a quote in one of them would end
+          # a single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           echo "Checking SBOM verification results..."
-          results='${{ toJSON(needs) }}'
-          echo "$results" | jq .
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
 
-          # Check for actual failures (not including skipped or cancelled)
-          failed=$(echo "$results" | jq -r '
-            to_entries[]
-            | select(.value.result == "failure")
-            | .key
-          ')
+          # Allow-list: only "success" and "skipped" pass. A skipped job is
+          # a job the changes filter decided was irrelevant. "cancelled"
+          # fails with "failure" -- a job that hits its timeout-minutes ends
+          # as cancelled, and a cancelled job proved nothing. Any other
+          # result fails closed.
+          #
+          # This gates that the SBOMs were generated and verified, not what
+          # the vulnerability scan found: its findings stay reporting-only
+          # (continue-on-error above); the blocking scan is ci.yml's.
+          failed=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "$NEEDS_JSON")
 
           if [ -n "$failed" ]; then
-            echo "::warning::Some SBOM checks had issues: $failed"
-            echo "⚠️ SBOM verification completed with warnings" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Review the individual job outputs for details." >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Note**: This workflow does not block merges - issues are informational only." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Jobs that did not pass: $failed"
+            {
+              echo "❌ SBOM verification failed: $failed"
+              echo ""
+              echo "Review the individual job outputs for details."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           else
             echo "✅ All SBOM verifications passed successfully" >> "$GITHUB_STEP_SUMMARY"
           fi

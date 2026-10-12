@@ -395,19 +395,27 @@ jobs:
     if: always()
     steps:
       - name: Check results
+        env:
+          # Through env, not expanded inside the script: a quote in a job
+          # output would end a single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           echo "Checking benchmark results..."
-          results='${{ toJSON(needs) }}'
-          echo "$results" | jq .
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
 
-          failed=$(echo "$results" | jq -r '
-            to_entries[]
-            | select(.value.result == "failure")
-            | .key
-          ')
+          # Allow-list: only "success" and "skipped" pass. "cancelled" fails
+          # with "failure" -- a job that hits its timeout-minutes ends as
+          # cancelled, and a cancelled job proved nothing. Any other result
+          # fails closed.
+          failed=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "$NEEDS_JSON")
 
           if [ -n "$failed" ]; then
-            echo "::error::Failed jobs: $failed"
+            echo "::error::Jobs that did not pass: $failed"
             exit 1
           fi
 

@@ -105,18 +105,49 @@ jobs:
     needs: [changes, analyze]
     if: always()
     steps:
-      - name: Generate summary
+      - name: Check results
+        env:
+          # Through env, not expanded inside the script: needs carries the
+          # outputs of the changes job, and a quote in one of them would end
+          # a single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          ANALYZE_RESULT: ${{ needs.analyze.result }}
         run: |
-          echo "## CodeQL Analysis Complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "CodeQL security analysis has completed." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Status**: ${{ needs.analyze.result }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Review results in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning)." >> "$GITHUB_STEP_SUMMARY"
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
 
-      - name: Check status
-        if: needs.analyze.result == 'failure'
-        run: |
-          echo "::error::CodeQL analysis failed"
-          exit 1
+          # Allow-list: only "success" and "skipped" pass. A docs-only pull
+          # request skips analyze through the changes filter, and that has
+          # to stay green or every such pull request would be blocked.
+          # "cancelled" fails with "failure": a job that hits its
+          # timeout-minutes ends as cancelled, and a cancelled job proved
+          # nothing. Any other result fails closed. changes is checked too:
+          # when it fails, analyze is skipped, and a skip passes.
+          failed=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "$NEEDS_JSON")
+
+          # One summary for both paths, written before the exit below, so it
+          # never says "Complete" over a job that failed or was cancelled.
+          {
+            if [ -n "$failed" ]; then
+              echo "## CodeQL Analysis Did Not Pass"
+              echo ""
+              echo "Jobs that did not pass: $failed"
+            else
+              echo "## CodeQL Analysis Complete"
+              echo ""
+              echo "CodeQL security analysis has completed."
+            fi
+            echo ""
+            echo "**Status**: $ANALYZE_RESULT"
+            echo ""
+            echo "Review results in the [Security tab](https://github.com/$GITHUB_REPOSITORY/security/code-scanning)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$failed" ]; then
+            echo "::error::Jobs that did not pass: $failed"
+            exit 1
+          fi
