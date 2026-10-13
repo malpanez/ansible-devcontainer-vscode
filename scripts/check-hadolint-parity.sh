@@ -52,31 +52,39 @@ report_error() {
 }
 
 image_tags() {
+  local file="$1"
+
   sed -n \
     -e '/^[[:space:]]*#/d' \
     -e 's/.*hadolint\/hadolint:\(v\{0,1\}[0-9][0-9A-Za-z._-]*\).*/\1/p' \
-    "$1"
+    "${file}"
 }
 
 workflow_pins() {
+  local file="$1"
+
   sed -n \
     -e 's/^[[:space:]]*HADOLINT_VERSION:[[:space:]]*\([^[:space:]]\{1,\}\).*/\1/p' \
-    "$1"
-  image_tags "$1"
+    "${file}"
+  image_tags "${file}"
 }
 
 makefile_pins() {
-  image_tags "$1"
+  local file="$1"
+
+  image_tags "${file}"
 }
 
 pre_commit_pins() {
+  local file="$1"
+
   awk '
     /^[[:space:]]*-[[:space:]]*repo:/ {
       in_hadolint = ($0 ~ /\/hadolint-py[^A-Za-z0-9_-]*$/)
       next
     }
     in_hadolint && /^[[:space:]]*rev:/ { print $2 }
-  ' "$1"
+  ' "${file}"
 }
 
 normalise_version() {
