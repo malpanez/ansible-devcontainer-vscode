@@ -2,7 +2,7 @@
 #    uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
 ansible==14.5.0
     # via ansible-devcontainer
-ansible-builder==3.1.1
+ansible-builder==3.2.0
     # via ansible-navigator
 ansible-compat==26.10.0
     # via
@@ -16,7 +16,7 @@ ansible-core==2.21.5
     #   ansible-lint
     #   molecule
     #   pytest-ansible
-ansible-lint==26.10.0
+ansible-lint==26.10.1
     # via
     #   ansible-devcontainer
     #   ansible-navigator
@@ -24,7 +24,7 @@ ansible-navigator==26.10.0
     # via ansible-devcontainer
 ansible-runner==2.4.3
     # via ansible-navigator
-ast-serialize==0.13.0
+ast-serialize==0.13.1
     # via mypy
 asttokens==3.0.2
     # via stack-data
@@ -41,14 +41,14 @@ black==26.10.1
     # via ansible-lint
 boolean-py==5.0
     # via license-expression
-boto3==1.43.111
-botocore==1.43.111
+boto3==1.43.114
+botocore==1.43.114
     # via
     #   boto3
     #   s3transfer
 bracex==3.1
     # via wcmatch
-certifi==2026.7.22
+certifi==2026.10.18
     # via requests
 cffi==2.1.1
     # via
@@ -79,7 +79,7 @@ cryptography==50.0.2
     #   ansible-lint
 detect-secrets==1.5.0
     # via ansible-devcontainer
-distlib==0.4.3
+distlib==0.4.4
     # via virtualenv
 distro==1.9.0
     # via
@@ -96,7 +96,7 @@ execnet==2.1.2
     # via pytest-xdist
 executing==2.3.0
     # via stack-data
-filelock==4.1.1
+filelock==4.2.4
     # via
     #   ansible-lint
     #   python-discovery
@@ -110,7 +110,7 @@ iniconfig==2.3.1
 ipython==9.17.1
 ipython-pygments-lexers==1.1.1
     # via ipython
-jedi==0.20.0
+jedi==0.20.1
     # via ipython
 jinja2==3.1.6
     # via
@@ -149,7 +149,7 @@ mdurl==0.1.2
     # via markdown-it-py
 molecule==26.10.0
     # via molecule-plugins
-molecule-plugins==26.9.28
+molecule-plugins==26.10.12
 mypy==2.4.0
 mypy-extensions==1.1.0
     # via
@@ -193,18 +193,18 @@ pexpect==4.9.0
     # via
     #   ansible-runner
     #   ipython
-platformdirs==4.13.0
+platformdirs==4.13.5
     # via
     #   black
     #   virtualenv
-pluggy==1.6.0
+pluggy==1.7.0
     # via
     #   molecule
     #   pytest
     #   pytest-cov
 ply==3.11
     # via spdx-tools
-pre-commit==4.6.2
+pre-commit==4.7.0
     # via ansible-devcontainer
 prompt-toolkit==3.0.53
     # via ipython
@@ -239,7 +239,7 @@ python-daemon==3.1.2
     # via ansible-runner
 python-dateutil==2.9.0.post0
     # via botocore
-python-discovery==1.6.2
+python-discovery==1.6.4
     # via virtualenv
 pytokens==0.4.1
     # via black
@@ -285,7 +285,7 @@ rpds-py==2026.9.1
     #   referencing
 ruamel-yaml==0.19.1
     # via ansible-lint
-ruff==0.17.0
+ruff==0.17.1
 s3transfer==0.19.2
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2'
@@ -331,7 +331,7 @@ urllib3==2.8.0
     #   botocore
     #   docker
     #   requests
-virtualenv==21.14.7
+virtualenv==21.14.11
     # via pre-commit
 vulture==2.16
 wcmatch==11.1

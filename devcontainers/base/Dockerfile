@@ -17,10 +17,10 @@ ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.0
+ARG UV_VERSION=0.13.1
 # Kept in step with the pre-commit pinned in pyproject/uv.lock so the
 # image and the repo run the same hooks. Renovate bumps it.
-ARG PRE_COMMIT_VERSION=4.6.2
+ARG PRE_COMMIT_VERSION=4.7.0
 
 # Common system packages used across Python-based stacks.
 # hadolint ignore=DL3008,DL3015

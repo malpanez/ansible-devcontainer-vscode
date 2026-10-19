@@ -21,7 +21,7 @@ env:
   # derives them from the Dockerfiles that ship them, so CI cannot drift from
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.13.0"
+  UV_VERSION: "0.13.1"
   # Must equal the pins in release.yml, the Makefile and the pre-commit
   # hook: scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
   # renovate: datasource=docker depName=hadolint/hadolint
@@ -773,7 +773,7 @@ jobs:
           output-format: sarif
 
       - name: Upload Grype SARIF
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee  # v4
         if: always() && github.event_name == 'push'
         with:
           sarif_file: ${{ steps.grype-fs.outputs.sarif }}
