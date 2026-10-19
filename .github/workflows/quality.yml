@@ -22,7 +22,7 @@ permissions:
 
 env:
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.13.0"
+  UV_VERSION: "0.13.1"
 
 jobs:
   changes:
