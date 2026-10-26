@@ -18,7 +18,7 @@ ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.1
+ARG UV_VERSION=0.13.5
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
