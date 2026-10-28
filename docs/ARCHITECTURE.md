@@ -154,10 +154,10 @@ graph TD
     D1 --> D3[Build other stacks]
     D2 & D3 --> D4[Push to GHCR<br/>:latest + :sha-xxxxx]
 
-    E --> E1[Build all images]
-    E1 --> E2[Generate SBOMs]
-    E2 --> E3[Sign with cosign]
-    E3 --> E4[Push to GHCR<br/>:v1.2.3]
+    E --> E1[Wait until build-containers<br/>is idle on main]
+    E1 --> E2[Pick gated digests<br/>:sha-xxxxx or :main]
+    E2 --> E3[Verify cosign signature<br/>re-scan with Grype]
+    E3 --> E4[Tag digests on GHCR<br/>:v1.2.3 + signed SBOMs]
 
     F --> F1[apt full-upgrade]
     F1 --> F2[Rebuild images]
@@ -187,7 +187,7 @@ The `build-containers.yml` workflow builds:
 
 - **On PR**: Build only, no push
 - **On push to main**: `:latest` + `:sha-<commit>`
-- **On tag push**: `:<tag>` only (e.g., `:v1.2.3`; `:py<major><minor>-<tag>` for the base) -- a release never moves `:latest`
+- **On tag push**: `:<tag>` only (e.g., `:v1.2.3`; `:py<major><minor>-<tag>` for the base), added to the digest build-containers already gated and signed -- a release rebuilds nothing and never moves `:latest`
 - **Weekly schedule**: Refreshes `:latest` with security updates
 
 ## Container Variant Comparison

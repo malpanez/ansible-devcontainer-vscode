@@ -80,13 +80,12 @@ repos:
   # Keep this pinned to the same hadolint as every other call site,
   # currently v2.15.1:
   #   - ci.yml, HADOLINT_VERSION (Dockerfile Lint, the gate that blocks merges)
-  #   - release.yml, HADOLINT_VERSION (release preflight lint)
   #   - Makefile, validate-docker (hadolint/hadolint:<tag>)
   #   - quality.yml, hadolint/hadolint-action@v3.5.0, which bundles 2.15.1
   #     (code scanning, report-only)
-  # scripts/check-hadolint-parity.sh compares this rev with the first three
-  # and fails Dockerfile Lint when they differ. Renovate moves only the two
-  # HADOLINT_VERSION values; bump this rev and the Makefile on the same pull
+  # scripts/check-hadolint-parity.sh compares this rev with the first two
+  # and fails Dockerfile Lint when they differ. Renovate moves only the
+  # HADOLINT_VERSION value; bump this rev and the Makefile on the same pull
   # request. The hadolint inside the action is compared by nothing.
   # When they drift, the local hook silently enforces a different ruleset
   # than CI: at v2.12.0.3 it did not know DL3064 at all, so five findings
