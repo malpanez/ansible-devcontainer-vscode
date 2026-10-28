@@ -74,7 +74,12 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+# The uv cache lives in a cache mount, as the apt caches above do, so the
+# downloaded wheels never land in a layer: written to /root/.cache/uv they
+# shipped in every image built on this one, and scanners catalogued those
+# archived copies as installed packages.
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
     && install -d -m 755 "/home/${USERNAME}/.cache/pre-commit" \
     && install -d -m 700 "/home/${USERNAME}/.ansible/tmp" \
@@ -98,8 +103,8 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     # --only-binary :all: refuses sdists, so no setup.py from a
     # dependency runs at build time (docker:S8541). Safe here because
     # pre-commit and its deps publish wheels for amd64 and arm64; the
-    # other install sites cannot use it (they build the local project,
-    # or pull onigurumacffi, which has no aarch64 wheel).
+    # other install sites cannot use it (they pull onigurumacffi, which
+    # has no aarch64 wheel).
     && uv pip install --system --only-binary :all: "pre-commit==${PRE_COMMIT_VERSION}" \
     && mkdir -p /workspace \
     && chown "${USERNAME}:${USERNAME}" /workspace
