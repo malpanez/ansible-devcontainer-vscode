@@ -11,7 +11,6 @@ SCRIPT = REPO_ROOT / "scripts" / "check-hadolint-parity.sh"
 
 FILES = {
     "ci": ("HADOLINT_CI_WORKFLOW", "ci.yml"),
-    "release": ("HADOLINT_RELEASE_WORKFLOW", "release.yml"),
     "makefile": ("HADOLINT_MAKEFILE", "Makefile"),
     "pre_commit": ("HADOLINT_PRE_COMMIT_CONFIG", "pre-commit-config.yaml"),
 }
@@ -70,7 +69,6 @@ def _pre_commit(version: str | None) -> str:
 
 RENDERERS = {
     "ci": _workflow,
-    "release": _workflow,
     "makefile": _makefile,
     "pre_commit": _pre_commit,
 }
@@ -118,7 +116,6 @@ def test_real_repository_pins_one_hadolint_version() -> None:
     found = _found(proc.stdout)
     assert list(found) == [
         ".github/workflows/ci.yml",
-        ".github/workflows/release.yml",
         "Makefile",
         ".pre-commit-config.yaml",
     ]
@@ -137,11 +134,11 @@ def test_equal_pins_pass_and_are_printed_per_file(tmp_path: Path) -> None:
     assert proc.stderr == ""
     assert _found(proc.stdout) == {path: "2.15.1" for path in env.values()}
     assert proc.stdout.splitlines()[-1] == (
-        "check-hadolint-parity: all 4 call sites pin hadolint 2.15.1"
+        "check-hadolint-parity: all 3 call sites pin hadolint 2.15.1"
     )
 
 
-@pytest.mark.parametrize("differing", ["release", "makefile", "pre_commit"])
+@pytest.mark.parametrize("differing", ["makefile", "pre_commit"])
 def test_one_differing_pin_fails_and_names_only_that_file(
     tmp_path: Path, differing: str
 ) -> None:
@@ -164,9 +161,8 @@ def test_differing_gate_pin_fails_and_names_every_other_file(tmp_path: Path) -> 
 
     assert proc.returncode == 1
     errors = _errors(proc.stderr)
-    assert len(errors) == 3
+    assert len(errors) == 2
     for variable in (
-        "HADOLINT_RELEASE_WORKFLOW",
         "HADOLINT_MAKEFILE",
         "HADOLINT_PRE_COMMIT_CONFIG",
     ):
@@ -200,7 +196,7 @@ def test_docker_tag_variant_suffix_is_ignored(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr
 
 
-@pytest.mark.parametrize("missing", ["ci", "release", "makefile", "pre_commit"])
+@pytest.mark.parametrize("missing", ["ci", "makefile", "pre_commit"])
 def test_missing_pin_fails_and_names_the_file(tmp_path: Path, missing: str) -> None:
     env = _write(tmp_path, **{missing: None})
     proc = _run(env)
@@ -214,7 +210,7 @@ def test_missing_pin_fails_and_names_the_file(tmp_path: Path, missing: str) -> N
     assert _found(proc.stdout)[env[variable]] == "<not found>"
 
 
-@pytest.mark.parametrize("missing", ["ci", "release", "makefile", "pre_commit"])
+@pytest.mark.parametrize("missing", ["ci", "makefile", "pre_commit"])
 def test_missing_file_fails_and_names_the_file(tmp_path: Path, missing: str) -> None:
     env = _write(tmp_path)
     variable, _ = FILES[missing]
@@ -230,7 +226,7 @@ def test_missing_file_fails_and_names_the_file(tmp_path: Path, missing: str) -> 
     ("key", "value"),
     [
         ("ci", "latest"),
-        ("release", "${{ vars.HADOLINT_VERSION }}"),
+        ("ci", "${{ vars.HADOLINT_VERSION }}"),
         ("pre_commit", "main"),
         ("pre_commit", "v2.15"),
     ],
@@ -249,7 +245,7 @@ def test_literal_image_tag_in_a_workflow_must_match_its_variable(
     tmp_path: Path,
 ) -> None:
     env = _write(tmp_path)
-    workflow = Path(env["HADOLINT_RELEASE_WORKFLOW"])
+    workflow = Path(env["HADOLINT_CI_WORKFLOW"])
     workflow.write_text(
         workflow.read_text(encoding="utf-8")
         + "      - run: docker run --rm -i hadolint/hadolint:v2.14.0 < g\n",

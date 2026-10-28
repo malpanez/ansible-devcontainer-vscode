@@ -174,7 +174,7 @@ GitHub Actions workflows live under `.github/workflows/`:
 
 - `ci.yml` – runs repository-wide `uvx pre-commit run --all-files`, lints shell and PowerShell scripts, keeps Go/Terraform checks, builds every Dev Container as a multi-arch (`linux/amd64,linux/arm64`) `buildx` job with registry-backed caches, smoke-tests the loaded images, and gates on Trivy CRITICAL findings plus `hadolint`.
 - `lint.yml` – lightweight watcher that reuses the same `uvx pre-commit` pipeline when YAML or Ansible content changes.
-- `release.yml` – publishes tagged releases, reuses the hardened build pipeline, pushes images/SBOMs to GHCR, and signs them with cosign.
+- `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
 
 All jobs use Python 3.12 on `ubuntu-latest`. The shared toolchain mirrors the Dev Container ensuring parity between local development and CI.
 

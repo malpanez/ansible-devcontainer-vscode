@@ -29,7 +29,7 @@ We support the latest tagged release and the `main` branch. Older tags may remai
 
 - All third-party binaries should be fetched over HTTPS with checksum validation. Multi-architecture builds must verify the checksum that matches the target platform.
 - Pin dependency versions (Python, Go, Terraform, etc.) to avoid unexpected upgrades. Re-run the security scans in CI (`hadolint`, `grype`) after any bump.
-- Sign published container images with Cosign (this repository signs every published digest keyless from `build-containers.yml` and `release.yml`) and push to GHCR from protected branches or tagged releases only.
+- Sign published container images with Cosign (this repository signs every published digest keyless from `build-containers.yml`; `release.yml` only adds version tags to those signed digests and signs the release SBOMs) and push to GHCR from protected branches or tagged releases only.
 
 ## Verifying Published Images
 

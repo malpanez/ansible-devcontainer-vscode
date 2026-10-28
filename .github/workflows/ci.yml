@@ -22,8 +22,8 @@ env:
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
   UV_VERSION: "0.13.5"
-  # Must equal the pins in release.yml, the Makefile and the pre-commit
-  # hook: scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
+  # Must equal the pins in the Makefile and the pre-commit hook:
+  # scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
   # renovate: datasource=docker depName=hadolint/hadolint
   HADOLINT_VERSION: "v2.15.1"
 
@@ -102,7 +102,6 @@ jobs:
             # that one also starts the image builds.
             hadolint:
               - '.github/workflows/ci.yml'
-              - '.github/workflows/release.yml'
               - 'Makefile'
               - '.pre-commit-config.yaml'
               - 'scripts/check-hadolint-parity.sh'

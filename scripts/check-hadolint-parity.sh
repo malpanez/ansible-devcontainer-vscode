@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Fail when the places that pin hadolint disagree on its version.
 #
-# hadolint is invoked by version from four files:
+# hadolint is invoked by version from three files:
 #   .github/workflows/ci.yml       HADOLINT_VERSION      Dockerfile Lint, the merge gate
-#   .github/workflows/release.yml  HADOLINT_VERSION      release preflight lint
 #   Makefile                       hadolint/hadolint:<tag>  validate-docker
 #   .pre-commit-config.yaml        rev: of AleksaC/hadolint-py
-# Renovate tracks only the two workflows (the '# renovate:' annotation above
+# Renovate tracks only the workflow (the '# renovate:' annotation above
 # HADOLINT_VERSION); the Makefile and the pre-commit rev are bumped by hand.
+# release.yml linted the Dockerfiles too until it stopped building images: it
+# now promotes digests build-containers.yml built, so it has nothing to lint.
 #
 # They drifted once without anything noticing: the gate, the release lint and
 # the Makefile sat at v2.14.0 while pre-commit and the code-scanning action
@@ -26,16 +27,15 @@
 # carries two different ones fails the check: an unreadable pin is not parity.
 #
 # Prints one "<file> <version>" line per file on stdout, '::error' lines on
-# stderr, and exits 1 on any problem. HADOLINT_CI_WORKFLOW,
-# HADOLINT_RELEASE_WORKFLOW, HADOLINT_MAKEFILE and HADOLINT_PRE_COMMIT_CONFIG
-# point the script at other files (the tests use them).
+# stderr, and exits 1 on any problem. HADOLINT_CI_WORKFLOW, HADOLINT_MAKEFILE
+# and HADOLINT_PRE_COMMIT_CONFIG point the script at other files (the tests
+# use them).
 set -euo pipefail
 
 SCRIPT_NAME="check-hadolint-parity"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 HADOLINT_CI_WORKFLOW="${HADOLINT_CI_WORKFLOW:-${REPO_ROOT}/.github/workflows/ci.yml}"
-HADOLINT_RELEASE_WORKFLOW="${HADOLINT_RELEASE_WORKFLOW:-${REPO_ROOT}/.github/workflows/release.yml}"
 HADOLINT_MAKEFILE="${HADOLINT_MAKEFILE:-${REPO_ROOT}/Makefile}"
 HADOLINT_PRE_COMMIT_CONFIG="${HADOLINT_PRE_COMMIT_CONFIG:-${REPO_ROOT}/.pre-commit-config.yaml}"
 
@@ -171,8 +171,6 @@ compare_pins() {
 
 main() {
   resolve_pin "${HADOLINT_CI_WORKFLOW}" workflow_pins \
-    'HADOLINT_VERSION: "v<major>.<minor>.<patch>"'
-  resolve_pin "${HADOLINT_RELEASE_WORKFLOW}" workflow_pins \
     'HADOLINT_VERSION: "v<major>.<minor>.<patch>"'
   resolve_pin "${HADOLINT_MAKEFILE}" makefile_pins \
     'hadolint/hadolint:v<major>.<minor>.<patch>'

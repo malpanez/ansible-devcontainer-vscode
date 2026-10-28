@@ -1,108 +1,339 @@
 ---
 name: Release
 
+# A release promotes images, it never builds them. build-containers.yml is the
+# only workflow that builds, scans, attests and signs the devcontainer images;
+# this one picks the digest it gated for the tagged commit, checks that
+# build-containers signed it on main, scans it again with the same policy and
+# only then adds the version tag to that exact digest.
+#
+# Up to v1.3.29 this workflow rebuilt every image instead. Only an amd64
+# preflight build was scanned, for criticals only, and the pushed digests were
+# not: v1.3.29 shipped fixable criticals in golang, ansible and terraform.
+
 on:
   push:
     tags:
       - 'v*.*.*'
 
-env:
-  # Same hadolint as the CI gate (ci.yml), the Makefile and the pre-commit
-  # hook; scripts/check-hadolint-parity.sh fails CI when they disagree.
-  # renovate: datasource=docker depName=hadolint/hadolint
-  HADOLINT_VERSION: "v2.15.1"
-
 permissions:
   contents: read
 
+# One run per tag at a time; never cancel one that may be writing tags.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  create-release:
-    name: Create GitHub Release
+  resolve:
+    name: Resolve gated digests
     runs-on: ubuntu-latest
+    timeout-minutes: 135
     permissions:
-      contents: write
+      contents: read  # checkout with history
+      actions: read  # list the build-containers runs of the tagged commit
+      packages: read  # resolve tags and labels on GHCR
+    outputs:
+      images: ${{ steps.resolve.outputs.images }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          # The fallback check diffs the tagged commit against the commit an
+          # image was built from.
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Create Release
+      # auto-release.yml pushes the tag from the same push to main that starts
+      # build-containers.yml, so for a commit that changed the images the
+      # build is still running: its sha-<commit> tags do not exist yet, or
+      # (before the scan gate) point at digests nothing has judged. The wait
+      # lasts until build-containers is idle on main, not only for runs of
+      # this commit: any run (the nightly) moves main and sha-<commit> image
+      # by image, and resolving halfway would mix images of two runs.
+      - name: Wait for build-containers to finish on main
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG_SHA: ${{ github.sha }}
+          WAIT_MINUTES: "120"
+          POLL_SECONDS: "60"
         run: |
           set -euo pipefail
-          # --generate-notes works with zero prior releases, unlike
-          # changelog actions that 404 on "latest release" (first-run trap).
-          gh release create "${TAG}" --generate-notes --verify-tag
+          RUNS_API="repos/${GITHUB_REPOSITORY}/actions/workflows/build-containers.yml/runs"
+          DEADLINE=$(( $(date +%s) + WAIT_MINUTES * 60 ))
+          while :; do
+            # A failed poll is retried until the deadline: one API hiccup
+            # must not end a two-hour wait.
+            if PENDING="$(gh api --method GET "${RUNS_API}" -f branch=main -f per_page=50 \
+              --jq '[.workflow_runs[] | select(.status != "completed") | .html_url] | join(", ")')"; then
+              if [ -z "${PENDING}" ]; then
+                break
+              fi
+            else
+              PENDING="the runs could not be listed"
+            fi
+            if [ "$(date +%s)" -ge "${DEADLINE}" ]; then
+              echo "::error::build-containers.yml was still busy on main after ${WAIT_MINUTES} minutes" \
+                "(${PENDING}). Nothing was tagged or released. Re-run this workflow once it is idle."
+              exit 1
+            fi
+            echo "Waiting for build-containers on main: ${PENDING}"
+            sleep "${POLL_SECONDS}"
+          done
+          RUNS="$(gh api --method GET "${RUNS_API}" -f head_sha="${TAG_SHA}" -f branch=main -f per_page=100 \
+            --jq '[.workflow_runs[] | {event, conclusion, html_url}]')"
+          if [ "$(jq length <<<"${RUNS}")" -eq 0 ]; then
+            echo "No build-containers run for ${TAG_SHA}: it changed no image, so images come from main."
+            exit 0
+          fi
+          jq -r '.[] | "\(.event) run \(.html_url): \(.conclusion)"' <<<"${RUNS}"
+          if [ "$(jq '[.[] | select(.conclusion == "success")] | length' <<<"${RUNS}")" -eq 0 ]; then
+            echo "::error::No build-containers run of ${TAG_SHA} succeeded, so the images of this commit did not" \
+              "pass the scan gate. Nothing was tagged or released. Fix the image, let build-containers pass on" \
+              "main for this commit (dispatch it with stack 'all'), then re-run this workflow; or cut a new release."
+            exit 1
+          fi
 
-  publish-container:
-    name: Publish Devcontainer Images
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Every image is pinned to a digest here, once, and the later jobs use
+      # only that digest: a nightly build moving main or sha-<commit> while
+      # the release runs cannot change what gets scanned and tagged.
+      # sha-<commit> is build-containers' gated image of the tagged commit.
+      # Without it (the commit changed no image) main is used, but only when
+      # nothing that makes build-containers rebuild changed between the
+      # commit main was built from and the tagged one.
+      - name: Resolve the digest to release for every image
+        id: resolve
+        env:
+          OWNER: ${{ github.repository_owner }}
+          TAG_SHA: ${{ github.sha }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Prints the digest of a reference; returns 1 when the tag does not
+          # exist and 2 on any other error, which must not become a fallback.
+          resolve_digest() {
+            local ref="$1"
+            local err
+            local out
+            err="$(mktemp)"
+            if out="$(docker buildx imagetools inspect "${ref}" --format '{{json .Manifest}}' 2>"${err}")"; then
+              rm -f "${err}"
+              jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))' <<<"${out}" || return 2
+              return 0
+            fi
+            if grep -q ': not found$' "${err}"; then
+              rm -f "${err}"
+              return 1
+            fi
+            cat "${err}" >&2
+            rm -f "${err}"
+            return 2
+          }
+
+          # The revision label of every platform image; empty unless they agree.
+          revision_of() {
+            local ref="$1"
+            docker buildx imagetools inspect "${ref}" --format '{{json .Image}}' | jq -r '
+              (if has("config") then [.] else [.[]] end)
+              | map(.config.Labels["org.opencontainers.image.revision"] // "")
+              | unique
+              | if length == 1 then .[0] else "" end'
+          }
+
+          if ! [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::${VERSION} is not a usable image tag (v<major>.<minor>.<patch>[-suffix])."
+            exit 1
+          fi
+          PYTAG="$(bash scripts/derive-python-tag.sh)"
+          SHA_TAG="sha-${TAG_SHA:0:7}"
+          # The push paths of build-containers.yml: what makes it rebuild.
+          IMAGE_INPUTS=(devcontainers/ .github/workflows/build-containers.yml)
+          IMAGES=(base ansible ansible-podman terraform golang latex)
+
+          RECORDS="[]"
+          FAILED=0
+          for NAME in "${IMAGES[@]}"; do
+            IMAGE="ghcr.io/${OWNER}/devcontainer-${NAME}"
+            VERSION_TAG="${VERSION}"
+            if [ "${NAME}" = "base" ]; then
+              VERSION_TAG="${PYTAG}-${VERSION}"
+            fi
+
+            SOURCE="${SHA_TAG}"
+            STATUS=0
+            DIGEST="$(resolve_digest "${IMAGE}:${SOURCE}")" || STATUS=$?
+            if [ "${STATUS}" -eq 1 ]; then
+              SOURCE="main"
+              STATUS=0
+              DIGEST="$(resolve_digest "${IMAGE}:${SOURCE}")" || STATUS=$?
+            fi
+            if [ "${STATUS}" -eq 1 ]; then
+              echo "::error::${IMAGE} has neither ${SHA_TAG} nor main: there is no gated image to release."
+              FAILED=1
+              continue
+            fi
+            if [ "${STATUS}" -ne 0 ]; then
+              echo "::error::Could not resolve ${IMAGE}:${SOURCE} (error above)."
+              FAILED=1
+              continue
+            fi
+
+            if ! REVISION="$(revision_of "${IMAGE}@${DIGEST}")"; then
+              echo "::error::Could not read the image config of ${IMAGE}@${DIGEST} (error above)."
+              FAILED=1
+              continue
+            fi
+            if ! [[ "${REVISION}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::${IMAGE}@${DIGEST} (${SOURCE}) has no single org.opencontainers.image.revision" \
+                "label ('${REVISION}'), so what it was built from cannot be checked."
+              FAILED=1
+              continue
+            fi
+            if [ "${SOURCE}" = "${SHA_TAG}" ] && [ "${REVISION}" != "${TAG_SHA}" ]; then
+              echo "::error::${IMAGE}:${SOURCE} was built from ${REVISION}, not from ${TAG_SHA}."
+              FAILED=1
+              continue
+            fi
+            if [ "${SOURCE}" = "main" ]; then
+              if ! git cat-file -e "${REVISION}^{commit}" 2>/dev/null; then
+                echo "::error::${IMAGE}:main was built from ${REVISION}, which is not in this repository's history."
+                FAILED=1
+                continue
+              fi
+              if ! git diff --quiet "${REVISION}" "${TAG_SHA}" -- "${IMAGE_INPUTS[@]}"; then
+                INPUTS_TEXT="${IMAGE_INPUTS[*]}"
+                echo "::error::${IMAGE} has no ${SHA_TAG}, and its main tag was built from ${REVISION}, but" \
+                  "${INPUTS_TEXT// / or } changed between that commit and ${TAG_SHA}: the images of this" \
+                  "commit have not passed build-containers. Dispatch build-containers on main (stack 'all')," \
+                  "then re-run this workflow."
+                FAILED=1
+                continue
+              fi
+            fi
+
+            # A version tag is published once. A re-run may add it again to
+            # the same digest, never move it.
+            STATUS=0
+            EXISTING="$(resolve_digest "${IMAGE}:${VERSION_TAG}")" || STATUS=$?
+            if [ "${STATUS}" -eq 0 ] && [ "${EXISTING}" != "${DIGEST}" ]; then
+              echo "::error::${IMAGE}:${VERSION_TAG} already exists on ${EXISTING}, not on the gated ${DIGEST};" \
+                "a release tag is never moved. Cut a new release instead."
+              FAILED=1
+              continue
+            fi
+            if [ "${STATUS}" -gt 1 ]; then
+              echo "::error::Could not check whether ${IMAGE}:${VERSION_TAG} already exists (error above)."
+              FAILED=1
+              continue
+            fi
+
+            echo "${IMAGE}:${VERSION_TAG} <- ${SOURCE} ${DIGEST} (built from ${REVISION})"
+            RECORDS="$(jq -c \
+              --arg name "${NAME}" --arg image "${IMAGE}" --arg digest "${DIGEST}" \
+              --arg source "${SOURCE}" --arg revision "${REVISION}" --arg version_tag "${VERSION_TAG}" \
+              '. + [{name: $name, image: $image, digest: $digest, source: $source,
+                     revision: $revision, version_tag: $version_tag}]' <<<"${RECORDS}")"
+          done
+
+          if [ "${FAILED}" -ne 0 ]; then
+            echo "::error::Nothing was tagged or released; see the errors above."
+            exit 1
+          fi
+          {
+            echo "### Images for ${VERSION}"
+            echo
+            echo "| Image | Version tag | Selected by | Digest | Built from |"
+            echo "| --- | --- | --- | --- | --- |"
+            jq -r '.[] | "| \(.image) | \(.version_tag) | \(.source) | \(.digest) | \(.revision) |"' <<<"${RECORDS}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "images=${RECORDS}" >> "${GITHUB_OUTPUT}"
+
+  gate:
+    name: Gate ${{ matrix.name }}
+    needs: resolve
     runs-on: ubuntu-latest
-    needs: create-release
+    timeout-minutes: 30
     permissions:
-      contents: write
-      packages: write
-      id-token: write
+      contents: read  # checkout for .grype.yaml
+      packages: read  # pull the image and its signatures
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.resolve.outputs.images) }}
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Lint Dockerfiles with hadolint
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      # build-containers.yml signs keyless with its run's GitHub OIDC identity
+      # and, since its scan gate (#578), only digests that passed it; the scan
+      # below judges the image either way. The workflow-sha claim binds the
+      # signature to the commit the revision label names, so the release
+      # notes cannot credit an image to the wrong commit.
+      - name: Verify build-containers signed ${{ matrix.name }} on main
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ matrix.digest }}
+          REVISION: ${{ matrix.revision }}
+          SIGNER: https://github.com/${{ github.repository }}/.github/workflows/build-containers.yml@refs/heads/main
         run: |
           set -euo pipefail
-          find devcontainers .devcontainer -name Dockerfile -print0 |
-          while IFS= read -r -d '' file; do
-            echo "Linting ${file}"
-            docker run --rm -i "hadolint/hadolint:${HADOLINT_VERSION}" < "${file}"
-          done
+          cosign verify \
+            --certificate-identity "${SIGNER}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
+            --certificate-github-workflow-sha "${REVISION}" \
+            "${IMAGE}@${DIGEST}" >/dev/null
+          echo "${IMAGE}@${DIGEST} is signed by ${SIGNER} at ${REVISION}."
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+      # The gate's policy (build-containers.yml): .grype.yaml, fixable
+      # high/critical findings block. Advisories published since the image
+      # was gated count too. Nothing is uploaded to code scanning:
+      # build-containers owns the grype-<image> categories.
+      - name: Scan ${{ matrix.name }} with the gate's policy
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          image: ${{ matrix.image }}@${{ matrix.digest }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "true"
+          output-format: table
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+  publish:
+    name: Publish ${{ github.ref_name }}
+    needs: [resolve, gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write  # create the GitHub release and upload the SBOMs
+      packages: write  # add the version tags on GHCR
+      id-token: write  # keyless cosign signatures of the SBOMs
 
-      - name: Preflight build and smoke-test images
-        run: |
-          set -euo pipefail
-          stacks=(base ansible terraform golang latex)
-          for stack in "${stacks[@]}"; do
-            args=(--stack "${stack}" --build --image "devcontainer-${stack}:preflight")
-            if [[ "${stack}" == "ansible" ]]; then
-              args+=(--base-image devcontainer-base:preflight)
-            fi
-            ./scripts/smoke-devcontainer-image.sh "${args[@]}"
-          done
-
-      - name: Grype scan preflight images
-        run: |
-          set -euo pipefail
-          images=(
-            devcontainer-base:preflight
-            devcontainer-ansible:preflight
-            devcontainer-terraform:preflight
-            devcontainer-golang:preflight
-            devcontainer-latex:preflight
-          )
-          mkdir -p "$HOME/.cache/grype"
-          for image in "${images[@]}"; do
-            echo "Scanning ${image}"
-            docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v "$HOME/.cache/grype:/.cache/grype" \
-              -v "${GITHUB_WORKSPACE}/.grype.yaml:/.grype.yaml:ro" \
-              -e GRYPE_CONFIG=/.grype.yaml \
-              anchore/grype:v0.110.0 \
-                --only-fixed \
-                --fail-on critical \
-                "docker:${image}"
-          done
-
-      - name: Login to GitHub Container Registry
+    steps:
+      - name: Login to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
           registry: ghcr.io
@@ -123,124 +354,120 @@ jobs:
           SYFT_CMD: ${{ steps.install_syft.outputs.cmd }}
         run: sudo ln -sf "${SYFT_CMD}" /usr/local/bin/syft
 
-      - name: Derive base Python tag
-        id: pytag
-        run: |
-          set -euo pipefail
-          # Never hardcode this. See scripts/derive-python-tag.sh for why.
-          tag="$(bash scripts/derive-python-tag.sh)"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "devcontainer-base Python stream tag: ${tag}"
-
-      # A release publishes immutable, version-qualified tags only; the rolling
-      # tags (`latest`, `main`, the derived Python stream tag) belong to
-      # build-containers.yml alone. When this job wrote `latest` and the bare
-      # stream tag too, the last writer won per tag: after v1.3.27 (2026-10-12)
-      # ansible:latest was this job's digest, ansible:main build-containers',
-      # and base:py314 != base:main, until the next scheduled build re-tagged.
-      - name: Build and push base image
-        id: build_base
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          file: devcontainers/base/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base:${{ steps.pytag.outputs.tag }}-${{ github.ref_name }}
-
-      - name: Build and push Ansible image
-        id: build_ansible
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          file: devcontainers/ansible/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible:${{ github.ref_name }}
-
-      - name: Build and push Terraform image
-        id: build_terraform
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          file: devcontainers/terraform/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform:${{ github.ref_name }}
-
-      - name: Build and push Golang image
-        id: build_golang
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          file: devcontainers/golang/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-golang:${{ github.ref_name }}
-
-      - name: Build and push LaTeX image
-        id: build_latex
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          file: devcontainers/latex/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/devcontainer-latex:${{ github.ref_name }}
-
-      - name: Sign published images
+      # One source and no --annotation: buildx then pushes the gated index
+      # bytes unchanged under the new tag; anything else writes a new index
+      # that nothing scanned or signed. Every dry run is checked before the
+      # first tag is written, so a mismatch leaves no image half-released.
+      - name: Tag the gated digests with ${{ github.ref_name }}
         env:
-          COSIGN_EXPERIMENTAL: "1"
+          IMAGES_JSON: ${{ needs.resolve.outputs.images }}
         run: |
           set -euo pipefail
-          cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build_base.outputs.digest }}
-          cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}
-          cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-terraform@${{ steps.build_terraform.outputs.digest }}
-          cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-golang@${{ steps.build_golang.outputs.digest }}
-          cosign sign --yes \
-            ghcr.io/${{ github.repository_owner }}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}
+          ROWS_TSV="$(jq -r '.[] | [.image, .digest, .version_tag] | @tsv' <<<"${IMAGES_JSON}")"
+          if [ -z "${ROWS_TSV}" ]; then
+            echo "::error::The resolve job handed over no images."
+            exit 1
+          fi
+          mapfile -t ROWS <<<"${ROWS_TSV}"
+          for ROW in "${ROWS[@]}"; do
+            IFS=$'\t' read -r IMAGE DIGEST VERSION_TAG <<<"${ROW}"
+            PLANNED="sha256:$(docker buildx imagetools create --dry-run --tag "${IMAGE}:${VERSION_TAG}" \
+              "${IMAGE}@${DIGEST}" | head -c -1 | sha256sum | cut -d' ' -f1)"
+            if [ "${PLANNED}" != "${DIGEST}" ]; then
+              echo "::error::imagetools would tag a new index ${PLANNED} as ${IMAGE}:${VERSION_TAG}, not the" \
+                "gated ${DIGEST}; no tag was written."
+              exit 1
+            fi
+          done
+          for ROW in "${ROWS[@]}"; do
+            IFS=$'\t' read -r IMAGE DIGEST VERSION_TAG <<<"${ROW}"
+            docker buildx imagetools create --tag "${IMAGE}:${VERSION_TAG}" "${IMAGE}@${DIGEST}"
+          done
+          for ROW in "${ROWS[@]}"; do
+            IFS=$'\t' read -r IMAGE DIGEST VERSION_TAG <<<"${ROW}"
+            RESOLVED="sha256:$(docker buildx imagetools inspect --raw "${IMAGE}:${VERSION_TAG}" \
+              | sha256sum | cut -d' ' -f1)"
+            if [ "${RESOLVED}" != "${DIGEST}" ]; then
+              echo "::error::${IMAGE}:${VERSION_TAG} resolves to ${RESOLVED}, not the gated ${DIGEST}."
+              exit 1
+            fi
+            echo "${IMAGE}:${VERSION_TAG} -> ${DIGEST}"
+          done
 
-      - name: Generate SBOM artifacts
+      - name: Generate SBOMs of the released digests
+        env:
+          IMAGES_JSON: ${{ needs.resolve.outputs.images }}
         run: |
           set -euo pipefail
           mkdir -p sbom
-          registry="ghcr.io/${{ github.repository_owner }}"
-          syft "${registry}/devcontainer-base@${{ steps.build_base.outputs.digest }}" \
-            -o spdx-json > sbom/devcontainer-base.spdx.json
-          syft "${registry}/devcontainer-ansible@${{ steps.build_ansible.outputs.digest }}" \
-            -o spdx-json > sbom/devcontainer-ansible.spdx.json
-          syft "${registry}/devcontainer-terraform@${{ steps.build_terraform.outputs.digest }}" \
-            -o spdx-json > sbom/devcontainer-terraform.spdx.json
-          syft "${registry}/devcontainer-golang@${{ steps.build_golang.outputs.digest }}" \
-            -o spdx-json > sbom/devcontainer-golang.spdx.json
-          syft "${registry}/devcontainer-latex@${{ steps.build_latex.outputs.digest }}" \
-            -o spdx-json > sbom/devcontainer-latex.spdx.json
+          ROWS_TSV="$(jq -r '.[] | [.name, .image, .digest] | @tsv' <<<"${IMAGES_JSON}")"
+          mapfile -t ROWS <<<"${ROWS_TSV}"
+          for ROW in "${ROWS[@]}"; do
+            IFS=$'\t' read -r NAME IMAGE DIGEST <<<"${ROW}"
+            syft "${IMAGE}@${DIGEST}" -o spdx-json > "sbom/devcontainer-${NAME}.spdx.json"
+          done
 
-      - name: Sign SBOMs and attach to release
+      - name: Sign SBOMs
+        run: |
+          set -euo pipefail
+          for SBOM in sbom/*.spdx.json; do
+            # cosign v3 --bundle writes ONLY the sigstore bundle (it ignores
+            # the legacy --output-signature/-certificate flags). The
+            # .sigstore suffix is what OpenSSF Scorecard recognises as a
+            # release signature; verify with `cosign verify-blob --bundle`.
+            cosign sign-blob --yes "${SBOM}" \
+              --bundle "${SBOM%.spdx.json}.sigstore"
+          done
+
+      - name: Write the image table for the release notes
+        env:
+          IMAGES_JSON: ${{ needs.resolve.outputs.images }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          SIGNER="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build-containers.yml@refs/heads/main"
+          {
+            echo "## Container images"
+            echo
+            echo "Each version tag was added to a digest that \`build-containers.yml\` built, scanned and signed;"
+            echo "this release rebuilt nothing. *Selected by* \`sha-<commit>\` is the gated build of the tagged"
+            echo "commit; \`main\` means the tagged commit changed no image, so the latest gated build of main"
+            echo "was released."
+            echo
+            echo "| Image | Tag | Digest | Built from | Selected by |"
+            echo "| --- | --- | --- | --- | --- |"
+            jq -r --arg url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit" \
+              '.[] | "| `\(.image)` | `\(.version_tag)` | `\(.digest)` | [`\(.revision[0:7])`](\($url)/\(.revision)) | `\(.source)` |"' \
+              <<<"${IMAGES_JSON}"
+            echo
+            echo "Verify an image before use:"
+            echo
+            echo '```bash'
+            echo "cosign verify $(jq -r '.[] | select(.name == "ansible") | .image' <<<"${IMAGES_JSON}"):${TAG} \\"
+            echo "  --certificate-identity \"${SIGNER}\" \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+            echo '```'
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          for sbom in sbom/*.spdx.json; do
-            # cosign v3 --bundle writes ONLY the sigstore bundle (it ignores
-            # the legacy --output-signature/-certificate flags). The
-            # .sigstore suffix is what OpenSSF Scorecard recognises as a
-            # release signature; verify with `cosign verify-blob --bundle`.
-            cosign sign-blob --yes "${sbom}" \
-              --bundle "${sbom%.spdx.json}.sigstore"
-          done
-          gh release upload "${TAG}" \
-            sbom/*.spdx.json sbom/*.sigstore --clobber
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::notice::Release ${TAG} already exists (re-run); replacing its SBOM assets only."
+            gh release upload "${TAG}" --repo "${GITHUB_REPOSITORY}" --clobber \
+              sbom/*.spdx.json sbom/*.sigstore
+          else
+            # --generate-notes works with zero prior releases, unlike
+            # changelog actions that 404 on "latest release" (first-run
+            # trap); the image table is prepended to the generated notes.
+            gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --verify-tag \
+              --generate-notes --notes-file release-notes.md \
+              sbom/*.spdx.json sbom/*.sigstore
+          fi
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
@@ -249,21 +476,23 @@ jobs:
           path: sbom/
 
   smoke-ghcr:
-    name: GHCR Release Smoke Test
-    needs: publish-container
+    name: GHCR Release Smoke Test (${{ matrix.name }})
+    needs: [resolve, publish]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
-      contents: read
-      packages: read
-
+      contents: read  # checkout for the smoke script
+      packages: read  # pull the published tag
     strategy:
       fail-fast: false
       matrix:
-        stack: [ansible, terraform, golang, latex]
+        include: ${{ fromJSON(needs.resolve.outputs.images) }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Login to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
@@ -272,11 +501,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Smoke the PUBLISHED image, not a local rebuild: the devcontainer.json
-      # builds from Dockerfile (ignoring the tag), so 'devcontainer up' never
-      # exercised what was pushed. docker run auto-pulls the GHCR ref.
-      - name: Smoke published ${{ matrix.stack }} @ ${{ github.ref_name }}
+      # Smoke the PUBLISHED tag, not a local rebuild: docker run pulls it.
+      # The script has no podman stack; ansible-podman gets the ansible
+      # checks, which it ships the same tooling for.
+      - name: Smoke published ${{ matrix.name }}:${{ matrix.version_tag }}
+        env:
+          NAME: ${{ matrix.name }}
+          REF: ${{ matrix.image }}:${{ matrix.version_tag }}
         run: |
-          bash scripts/smoke-devcontainer-image.sh \
-            --stack "${{ matrix.stack }}" \
-            --image "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}:${{ github.ref_name }}"
+          set -euo pipefail
+          bash scripts/smoke-devcontainer-image.sh --stack "${NAME%-podman}" --image "${REF}"
