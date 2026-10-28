@@ -448,6 +448,14 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
+      # Each Dockerfile labels its own description; metadata-action's
+      # repository-wide one would replace it.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Prepare build metadata
         id: buildmeta
         run: |
@@ -462,7 +470,7 @@ jobs:
           push: false
           load: true
           tags: devcontainer-${{ matrix.stack }}${{ matrix.variant }}:ci
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           build-args: |
             BUILD_DATE=${{ steps.buildmeta.outputs.created }}
             VCS_REF=${{ github.sha }}

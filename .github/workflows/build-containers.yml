@@ -124,6 +124,14 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
 
+      # Each Dockerfile labels its own description; metadata-action's
+      # repository-wide one would replace it.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Determine target platforms
         env:
           STACK: ${{ steps.stack.outputs.stack }}
@@ -164,7 +172,7 @@ jobs:
           file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           # Uncached unless triggered by push: see build-base.
@@ -368,6 +376,13 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      # See build-single.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Resolve registry cache
         id: rcache
         env:
@@ -403,7 +418,7 @@ jobs:
           file: devcontainers/base/Dockerfile
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           # Scheduled and manually dispatched builds run uncached. The
@@ -682,6 +697,13 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      # See build-single.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Resolve registry cache
         id: rcache
         env:
@@ -712,7 +734,7 @@ jobs:
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           # The published image must sit on the base built in THIS run,
           # otherwise it ships the digest pinned in the Dockerfile, which is
           # by construction at least one rebuild behind (base is rebuilt daily

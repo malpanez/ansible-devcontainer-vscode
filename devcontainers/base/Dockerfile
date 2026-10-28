@@ -8,6 +8,7 @@ ARG TARGETOS
 
 LABEL maintainer="alpanez.alcalde@gmail.com" \
       description="Shared Python base layer for infrastructure devcontainers" \
+      org.opencontainers.image.description="Shared Python base layer for infrastructure devcontainers" \
       org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="malpanez"
