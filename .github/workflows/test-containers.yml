@@ -32,6 +32,8 @@ jobs:
       any_changed: ${{ steps.filter.outputs.any_changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Detect changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
@@ -67,6 +69,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
@@ -123,12 +127,14 @@ jobs:
           rm -rf "${tmp}"
 
       - name: Run structure tests for ${{ matrix.stack }}
+        env:
+          STACK: ${{ matrix.stack }}
         run: |
           container-structure-test test \
-            --image test-${{ matrix.stack }}:latest \
-            --config tests/container-structure/${{ matrix.stack }}.yaml \
+            --image "test-${STACK}:latest" \
+            --config "tests/container-structure/${STACK}.yaml" \
             --output junit \
-            --test-report test-results-${{ matrix.stack }}.xml
+            --test-report "test-results-${STACK}.xml"
 
       - name: Publish test results
         if: always()
@@ -139,9 +145,11 @@ jobs:
 
       - name: Get image size
         if: always()
+        env:
+          STACK: ${{ matrix.stack }}
         run: |
-          SIZE=$(docker images test-${{ matrix.stack }} --format "{{.Size}}")
-          echo "📦 **${{ matrix.stack }}** image size: \`$SIZE\`" >> $GITHUB_STEP_SUMMARY
+          SIZE=$(docker images "test-${STACK}" --format "{{.Size}}")
+          echo "📦 **${STACK}** image size: \`$SIZE\`" >> "$GITHUB_STEP_SUMMARY"
 
   summary:
     name: Test Summary
@@ -150,9 +158,11 @@ jobs:
     if: always()
     steps:
       - name: Generate summary
+        env:
+          TEST_RESULT: ${{ needs.test-containers.result }}
         run: |
-          echo "# Container Structure Tests" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ All container structure tests completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Test Results**: ${{ needs.test-containers.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Container Structure Tests" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ All container structure tests completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Test Results**: ${TEST_RESULT}" >> "$GITHUB_STEP_SUMMARY"

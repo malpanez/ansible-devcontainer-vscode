@@ -49,6 +49,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
@@ -88,16 +90,18 @@ jobs:
 
       - name: Benchmark container startup
         id: benchmark
+        env:
+          CONTAINER_NAME: ${{ matrix.container.name }}
         run: |
-          echo "Running ${{ env.BENCHMARK_ITERATIONS }} iterations..."
+          echo "Running ${BENCHMARK_ITERATIONS} iterations..."
           total_time=0
 
-          for i in $(seq 1 ${{ env.BENCHMARK_ITERATIONS }}); do
-            echo "Iteration $i/${{ env.BENCHMARK_ITERATIONS }}"
+          for i in $(seq 1 "${BENCHMARK_ITERATIONS}"); do
+            echo "Iteration $i/${BENCHMARK_ITERATIONS}"
 
             # Measure startup time
             start_time=$(date +%s%N)
-            docker run --rm benchmark-${{ matrix.container.name }}:test echo "Ready" > /dev/null 2>&1
+            docker run --rm "benchmark-${CONTAINER_NAME}:test" echo "Ready" > /dev/null 2>&1
             end_time=$(date +%s%N)
 
             # Calculate time in milliseconds
@@ -107,22 +111,25 @@ jobs:
           done
 
           # Calculate average
-          avg_time=$((total_time / ${{ env.BENCHMARK_ITERATIONS }}))
+          avg_time=$((total_time / BENCHMARK_ITERATIONS))
           echo "average_ms=${avg_time}" >> "$GITHUB_OUTPUT"
-          echo "### Container: ${{ matrix.container.name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Container: ${CONTAINER_NAME}" >> "$GITHUB_STEP_SUMMARY"
           echo "Average startup time: **${avg_time}ms**" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Store benchmark result
+        env:
+          CONTAINER_NAME: ${{ matrix.container.name }}
+          AVERAGE_MS: ${{ steps.benchmark.outputs.average_ms }}
         run: |
-          mkdir -p ${{ env.BENCHMARK_RESULTS_DIR }}
-          cat > ${{ env.BENCHMARK_RESULTS_DIR }}/${{ matrix.container.name }}.json <<EOF
+          mkdir -p "${BENCHMARK_RESULTS_DIR}"
+          cat > "${BENCHMARK_RESULTS_DIR}/${CONTAINER_NAME}.json" <<EOF
           {
-            "container": "${{ matrix.container.name }}",
+            "container": "${CONTAINER_NAME}",
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "commit": "${{ github.sha }}",
-            "branch": "${{ github.ref_name }}",
-            "average_startup_ms": ${{ steps.benchmark.outputs.average_ms }},
-            "iterations": ${{ env.BENCHMARK_ITERATIONS }}
+            "commit": "${GITHUB_SHA}",
+            "branch": "${GITHUB_REF_NAME}",
+            "average_startup_ms": ${AVERAGE_MS},
+            "iterations": ${BENCHMARK_ITERATIONS}
           }
           EOF
 
@@ -148,6 +155,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
@@ -178,13 +187,16 @@ jobs:
 
       - name: Benchmark build time (cold cache)
         id: cold-build
+        env:
+          CONTAINER_NAME: ${{ matrix.container.name }}
+          CONTAINER_PATH: ${{ matrix.container.path }}
         run: |
           start_time=$(date +%s%N)
           docker buildx build \
-            --tag benchmark-build-${{ matrix.container.name }}:cold \
+            --tag "benchmark-build-${CONTAINER_NAME}:cold" \
             --load \
             --no-cache \
-            --file ${{ matrix.container.path }}/Dockerfile \
+            --file "${CONTAINER_PATH}/Dockerfile" \
             .
           end_time=$(date +%s%N)
 
@@ -194,13 +206,18 @@ jobs:
 
       - name: Benchmark build time (warm cache)
         id: warm-build
+        env:
+          CONTAINER_NAME: ${{ matrix.container.name }}
+          CONTAINER_PATH: ${{ matrix.container.path }}
+          RCACHE_ARGS: ${{ steps.rcache.outputs.args }}
         run: |
+          read -r -a CACHE_FLAGS <<< "${RCACHE_ARGS}"
           start_time=$(date +%s%N)
           docker buildx build \
-            --tag benchmark-build-${{ matrix.container.name }}:warm \
+            --tag "benchmark-build-${CONTAINER_NAME}:warm" \
             --load \
-            ${{ steps.rcache.outputs.args }} \
-            --file ${{ matrix.container.path }}/Dockerfile \
+            "${CACHE_FLAGS[@]}" \
+            --file "${CONTAINER_PATH}/Dockerfile" \
             .
           end_time=$(date +%s%N)
 
@@ -209,16 +226,20 @@ jobs:
           echo "Warm build time: **${elapsed}s**" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Store benchmark results
+        env:
+          CONTAINER_NAME: ${{ matrix.container.name }}
+          COLD_BUILD_SECONDS: ${{ steps.cold-build.outputs.cold_build_seconds }}
+          WARM_BUILD_SECONDS: ${{ steps.warm-build.outputs.warm_build_seconds }}
         run: |
-          mkdir -p ${{ env.BENCHMARK_RESULTS_DIR }}
-          cat > ${{ env.BENCHMARK_RESULTS_DIR }}/${{ matrix.container.name }}-build.json <<EOF
+          mkdir -p "${BENCHMARK_RESULTS_DIR}"
+          cat > "${BENCHMARK_RESULTS_DIR}/${CONTAINER_NAME}-build.json" <<EOF
           {
-            "container": "${{ matrix.container.name }}",
+            "container": "${CONTAINER_NAME}",
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "commit": "${{ github.sha }}",
-            "branch": "${{ github.ref_name }}",
-            "cold_build_seconds": ${{ steps.cold-build.outputs.cold_build_seconds }},
-            "warm_build_seconds": ${{ steps.warm-build.outputs.warm_build_seconds }}
+            "commit": "${GITHUB_SHA}",
+            "branch": "${GITHUB_REF_NAME}",
+            "cold_build_seconds": ${COLD_BUILD_SECONDS},
+            "warm_build_seconds": ${WARM_BUILD_SECONDS}
           }
           EOF
 
@@ -237,6 +258,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1

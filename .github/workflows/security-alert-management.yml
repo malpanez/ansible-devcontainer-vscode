@@ -37,12 +37,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up environment variables
+        env:
+          DISPATCH_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          DISPATCH_MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "DRY_RUN=${{ github.event.inputs.dry_run }}" >> "$GITHUB_ENV"
-            echo "MAX_ALERT_AGE_DAYS=${{ github.event.inputs.max_age_days }}" >> "$GITHUB_ENV"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "DRY_RUN=${DISPATCH_DRY_RUN}" >> "$GITHUB_ENV"
+            echo "MAX_ALERT_AGE_DAYS=${DISPATCH_MAX_AGE_DAYS}" >> "$GITHUB_ENV"
           else
             # Scheduled runs: report-only; dismissals require an explicit
             # workflow_dispatch with dry_run=false
@@ -55,7 +60,7 @@ jobs:
           echo "Configuration:"
           echo "  Dry Run: ${DRY_RUN}"
           echo "  Max Alert Age: ${MAX_ALERT_AGE_DAYS} days"
-          echo "  Trigger: ${{ github.event_name }}"
+          echo "  Trigger: ${GITHUB_EVENT_NAME}"
 
       - name: Run alert management script
         env:
@@ -68,14 +73,14 @@ jobs:
         run: |
           echo "## Security Alert Management Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Trigger**: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger**: ${GITHUB_EVENT_NAME}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Dry Run**: ${DRY_RUN}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Max Alert Age**: ${MAX_ALERT_AGE_DAYS} days" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Timestamp**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Get current alert count
-          OPEN_ALERTS=$(gh api repos/${{ github.repository }}/code-scanning/alerts \
+          OPEN_ALERTS=$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts" \
             --jq '[.[] | select(.state == "open")] | length')
           echo "- **Current Open Alerts**: ${OPEN_ALERTS}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -98,6 +103,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Generate alert statistics
         env:
@@ -107,7 +114,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # Get all alerts
-          ALERTS=$(gh api repos/${{ github.repository }}/code-scanning/alerts)
+          ALERTS=$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts")
 
           # Count by state
           OPEN=$(echo "$ALERTS" | jq '[.[] | select(.state == "open")] | length')
