@@ -8,6 +8,7 @@ on:
       - 'devcontainers/**'
       - '.devcontainer/**'
       - 'Dockerfile'
+      - 'requirements-ansible.txt'
       - '.github/workflows/benchmark.yml'
   push:
     branches: [main, develop]
@@ -15,6 +16,7 @@ on:
       - 'devcontainers/**'
       - '.devcontainer/**'
       - 'Dockerfile'
+      - 'requirements-ansible.txt'
   workflow_dispatch:
   schedule:
     # Run weekly on Monday at 6 AM UTC

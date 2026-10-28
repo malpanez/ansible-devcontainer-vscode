@@ -177,7 +177,12 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/pre-commit" \
-    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/terraform
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/terraform \
+    # install -d creates parents as root; hand ~/.cache and ~/.local to vscode
+    && chown "${USERNAME}:${USERNAME}" \
+         "/home/${USERNAME}/.cache" \
+         "/home/${USERNAME}/.local" \
+         "/home/${USERNAME}/.local/share"
 
 COPY --chmod=0444 templates/pre-commit/terraform/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml
 COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit

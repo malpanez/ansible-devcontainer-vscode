@@ -5,12 +5,14 @@ on:
   pull_request:
     paths:
       - 'devcontainers/**'
+      - 'requirements-ansible.txt'
       - 'tests/container-structure/**'
       - '.github/workflows/test-containers.yml'
   push:
     branches: [main, develop]
     paths:
       - 'devcontainers/**'
+      - 'requirements-ansible.txt'
       - 'tests/container-structure/**'
   workflow_dispatch:
 
@@ -28,8 +30,11 @@ jobs:
     permissions:
       contents: read
     outputs:
-      stacks: ${{ steps.filter.outputs.changes }}
-      any_changed: ${{ steps.filter.outputs.any_changed }}
+      # paths-filter sets `changes` and one output per filter, never
+      # `any_changed`: gating on that left every push and pull request with
+      # no structure test at all. A dispatch diffs only the last commit (or
+      # the branch against main), usually nothing, so it tests every stack.
+      stacks: ${{ github.event_name == 'workflow_dispatch' && '["golang","ansible","terraform","latex"]' || steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -46,6 +51,8 @@ jobs:
             ansible:
               - 'devcontainers/ansible/**'
               - 'devcontainers/base/**'
+              # The ansible Dockerfiles install this uv.lock export
+              - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
             terraform:
               - 'devcontainers/terraform/**'
@@ -58,10 +65,12 @@ jobs:
     name: Test ${{ matrix.stack }} Container
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.any_changed == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-changes.outputs.stacks != '[]'
     timeout-minutes: 30
     permissions:
       contents: read
+      checks: write  # publish-unit-test-result-action creates the check run
+      pull-requests: write  # and comments the results on the pull request
     strategy:
       fail-fast: false
       matrix:

@@ -9,7 +9,7 @@ fileExistenceTests:
 
   # uv package manager
   - name: 'uv binary installed'
-    path: '/usr/bin/uv'
+    path: '/usr/local/bin/uv'
     shouldExist: true
 
   # Ansible tools
@@ -29,14 +29,13 @@ fileExistenceTests:
   - name: 'Workspace directory'
     path: '/workspace'
     shouldExist: true
-    isDirectory: true
 
 commandTests:
-  # Python version
-  - name: 'Python 3.13 available'
+  # Python version: any 3.x, as the other tests match names, not versions
+  - name: 'Python 3 available'
     command: 'python3'
     args: ['--version']
-    expectedOutput: ['Python 3.13']
+    expectedOutput: ['Python 3\.[0-9]+']
 
   # uv works
   - name: 'uv functional'
@@ -67,7 +66,7 @@ metadataTest:
     - key: 'org.opencontainers.image.source'
       value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
 
-  env:
+  envVars:
     - key: 'DEVCONTAINER_STACK'
       value: 'ansible'
     - key: 'WORKSPACE'

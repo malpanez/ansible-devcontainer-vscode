@@ -27,6 +27,8 @@ on:
     branches: [main]
     paths:
       - 'devcontainers/**'
+      # Installed by both ansible Dockerfiles; a lock bump is an image change
+      - 'requirements-ansible.txt'
       - '.github/workflows/build-containers.yml'
   # No `pull_request: [closed]` trigger. It had the same paths filter as the
   # push trigger above, so every promotion merged by a user or a PAT started
