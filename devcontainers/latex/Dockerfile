@@ -103,7 +103,11 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/Tectonic" \
-    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/latex
+    && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/latex \
+    # install -d creates parents as root; hand ~/.cache and ~/.local to vscode
+    && chown "${USERNAME}:${USERNAME}" \
+         "/home/${USERNAME}/.cache" \
+         "/home/${USERNAME}/.local"
 
 COPY --link --chmod=0444 templates/pre-commit/latex/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/latex/.pre-commit-config.yaml
 COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
