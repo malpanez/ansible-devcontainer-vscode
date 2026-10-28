@@ -18,9 +18,10 @@ on:
           - latex
   schedule:
     # Daily, uncached (see `no-cache` in build-base): every image is rebuilt
-    # from its pinned base, so the OS upgrade layer really runs and published
-    # images stay at most ~24h behind security updates. Also covers
-    # promotions merged by tokens whose pushes emit no events
+    # from its pinned base, so the OS upgrade layer really runs and an image
+    # that passes the scan gate is at most ~24h behind security updates. One
+    # that fails it keeps its previous tags until the finding is fixed. Also
+    # covers promotions merged by tokens whose pushes emit no events
     - cron: '0 3 * * *'
   push:
     branches: [main]
@@ -144,14 +145,15 @@ jobs:
           # ignore-error: a cache export problem must never fail a publish.
           echo "to=type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push
+      # Pushed untagged: see build-base.
+      - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          tags: ${{ steps.meta.outputs.tags }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
+          tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
@@ -161,6 +163,87 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Scan with Grype
+        id: grype_scan
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}@${{ steps.build.outputs.digest }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
+      - name: Keep only high/critical findings in SARIF
+        if: always() && steps.grype_scan.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+        run: |
+          jq '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" > sarif-filtered.json
+          mv sarif-filtered.json "${SARIF_FILE}"
+
+      - name: Check if SARIF file exists
+        id: sarif_check
+        if: always()
+        env:
+          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+          IMAGE: devcontainer-${{ steps.stack.outputs.stack }}
+        run: |
+          if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SARIF file not generated for ${IMAGE}"
+          fi
+
+      - name: Upload Grype SARIF
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        if: always() && steps.sarif_check.outputs.exists == 'true'
+        with:
+          sarif_file: ${{ steps.grype_scan.outputs.sarif }}
+          category: grype-${{ steps.stack.outputs.stack }}
+
+      # Scan gate: see base-freshness. Every step after it runs only when it
+      # passed.
+      - name: Fail when the image has fixable findings
+        if: always() && steps.build.outcome == 'success'
+        env:
+          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+          IMAGE: devcontainer-${{ steps.stack.outputs.stack }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SARIF_FILE}" ] || [ ! -f "${SARIF_FILE}" ]; then
+            echo "::error::No Grype SARIF for ${IMAGE}: an image the scan could not judge is not tagged." \
+              "Check the Grype scan step."
+            exit 1
+          fi
+          COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"
+          echo "Fixable high/critical findings in ${IMAGE}: ${COUNT}"
+          if [ "${COUNT}" -eq 0 ]; then
+            exit 0
+          fi
+          mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
+          printf '%s\n' "${RULE_IDS[@]}"
+          {
+            echo "### ${IMAGE}: ${COUNT} fixable high/critical finding(s), not tagged"
+            echo
+            printf -- '- %s\n' "${RULE_IDS[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${EVENT_NAME}" = "push" ]; then
+            echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s), listed above, and was" \
+              "not tagged: its tags stay on the last image that passed. This build reused the registry" \
+              "cache, which can be up to a day old; the next scheduled build rebuilds uncached."
+          else
+            echo "::error::${IMAGE} was freshly built (uncached) and still has ${COUNT} fixable" \
+              "high/critical finding(s), listed above, so it was not tagged: its tags stay on the last" \
+              "image that passed. Rebuilding will not clear them: bump the pinned component (or widen" \
+              "the Dockerfile's upgrade step) that ships the vulnerable package, or record a justified" \
+              "exception in .grype.yaml."
+          fi
+          exit 1
+
+      # Not for a rejected digest: see build-base.
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
@@ -172,9 +255,46 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
 
       - name: Sign image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          cosign sign --yes \
-            "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}@${{ steps.build.outputs.digest }}"
+          set -euo pipefail
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      # Tags last: see build-base.
+      - name: Tag the gated digest
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+          TAG_LIST="$(jq -r '.tags[]' <<<"${META_JSON}")"
+          if [ -z "${TAG_LIST}" ]; then
+            echo "::error::docker/metadata-action produced no tags for ${IMAGE}."
+            exit 1
+          fi
+          mapfile -t TAGS <<<"${TAG_LIST}"
+          TAG_ARGS=()
+          for TAG in "${TAGS[@]}"; do
+            TAG_ARGS+=(--tag "${TAG}")
+          done
+          PLANNED="sha256:$(docker buildx imagetools create --dry-run "${TAG_ARGS[@]}" "${IMAGE}@${DIGEST}" \
+            | head -c -1 | sha256sum | cut -d' ' -f1)"
+          if [ "${PLANNED}" != "${DIGEST}" ]; then
+            echo "::error::imagetools would tag a new index ${PLANNED}, not the gated ${DIGEST}; no tag moved."
+            exit 1
+          fi
+          docker buildx imagetools create "${TAG_ARGS[@]}" "${IMAGE}@${DIGEST}"
+          for TAG in "${TAGS[@]}"; do
+            RESOLVED="sha256:$(docker buildx imagetools inspect --raw "${TAG}" | sha256sum | cut -d' ' -f1)"
+            if [ "${RESOLVED}" != "${DIGEST}" ]; then
+              echo "::error::${TAG} resolves to ${RESOLVED}, not the gated ${DIGEST}."
+              exit 1
+            fi
+            echo "${TAG} -> ${DIGEST}"
+          done
 
   build-base:
     # schedule and push always build everything; workflow_dispatch only when
@@ -257,14 +377,20 @@ jobs:
           # ignore-error: a cache export problem must never fail a publish.
           echo "to=type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push base
+      # Pushed by digest, untagged (`tags:` names only the repository, and
+      # push-by-digest pushes no tag): tags move only once the scan gate has
+      # passed and the digest is attested and signed (the last steps), so a
+      # rejected image never becomes `latest` or `main`. Its tags stay on the
+      # last image that passed, and cleanup-ghcr.yml prunes the untagged
+      # digest after two weeks.
+      - name: Build and push base by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: devcontainers/base
           file: devcontainers/base/Dockerfile
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          tags: ${{ steps.meta.outputs.tags }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
+          tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
@@ -281,21 +407,6 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Attest
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
-        with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
-
-      - name: Sign image
-        run: |
-          cosign sign --yes \
-            "ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build.outputs.digest }}"
-
       - name: Scan base image with Grype
         id: grype_base
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
@@ -303,8 +414,7 @@ jobs:
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
-          # By digest, not :main -- the gate below must judge the image this
-          # run built, also when dispatched from another branch.
+          # By digest: nothing is tagged until this scan has passed.
           image: ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build.outputs.digest }}
           severity-cutoff: high
           only-fixed: true
@@ -337,6 +447,8 @@ jobs:
           sarif_file: ${{ steps.grype_base.outputs.sarif }}
           category: grype-base
 
+      # An empty count means the scan could not judge the image: it is not
+      # tagged, and base-freshness fails the run.
       - name: Count fixable findings
         id: findings
         if: always()
@@ -344,63 +456,137 @@ jobs:
           SARIF_FILE: ${{ steps.grype_base.outputs.sarif }}
         run: |
           set -euo pipefail
-          COUNT=0
+          COUNT=""
           if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
             if ! COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"; then
-              COUNT=0
-              echo "::warning::Unreadable SARIF for devcontainer-base; reporting 0 fixable findings"
+              COUNT=""
+              echo "::warning::Unreadable SARIF for devcontainer-base; it will not be tagged"
             fi
           else
-            echo "::warning::No SARIF for devcontainer-base; reporting 0 fixable findings"
+            echo "::warning::No SARIF for devcontainer-base; it will not be tagged"
           fi
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
-          echo "Fixable high/critical findings in devcontainer-base: ${COUNT}"
-          if [ "${COUNT}" -gt 0 ]; then
+          echo "Fixable high/critical findings in devcontainer-base: ${COUNT:-unknown}"
+          if [ -n "${COUNT}" ] && [ "${COUNT}" -gt 0 ]; then
             mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
             printf '%s\n' "${RULE_IDS[@]}"
             {
-              echo "### devcontainer-base: ${COUNT} fixable high/critical finding(s)"
+              echo "### devcontainer-base: ${COUNT} fixable high/critical finding(s), not tagged"
               echo
               printf -- '- %s\n' "${RULE_IDS[@]}"
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  # Fresh-image gate, here for the base and as the last step of build-all for
-  # every stack. It is skipped on push because those builds reuse cache up to
-  # ~24h old, and a fix published since then is cleared by the next scheduled
-  # build on its own. After an uncached build a fixable finding is one the
-  # Dockerfile's upgrade step did not clear, so it needs a human. A separate
-  # job because build-all needs build-base: failing build-base itself would
-  # stop the stacks from being published.
+      # A rejected digest is neither attested nor signed: a signature and a
+      # provenance attestation from this workflow mean the image passed.
+      - name: Attest
+        if: steps.findings.outputs.count == '0'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Install cosign
+        if: steps.findings.outputs.count == '0'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Sign image
+        if: steps.findings.outputs.count == '0'
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      # Tags last, so a tag never points at a digest that is not attested and
+      # signed; a failure above leaves them on the last image that passed.
+      # One source and no --annotation: buildx then pushes the scanned index
+      # bytes unchanged under every tag. Anything else makes it write a new
+      # index, whose digest was never scanned, attested or signed. The dry run
+      # (it prints the index plus a newline) proves that before a tag moves,
+      # the read-back after.
+      - name: Tag the gated digest
+        if: steps.findings.outputs.count == '0'
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          DIGEST: ${{ steps.build.outputs.digest }}
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+          TAG_LIST="$(jq -r '.tags[]' <<<"${META_JSON}")"
+          if [ -z "${TAG_LIST}" ]; then
+            echo "::error::docker/metadata-action produced no tags for ${IMAGE}."
+            exit 1
+          fi
+          mapfile -t TAGS <<<"${TAG_LIST}"
+          TAG_ARGS=()
+          for TAG in "${TAGS[@]}"; do
+            TAG_ARGS+=(--tag "${TAG}")
+          done
+          PLANNED="sha256:$(docker buildx imagetools create --dry-run "${TAG_ARGS[@]}" "${IMAGE}@${DIGEST}" \
+            | head -c -1 | sha256sum | cut -d' ' -f1)"
+          if [ "${PLANNED}" != "${DIGEST}" ]; then
+            echo "::error::imagetools would tag a new index ${PLANNED}, not the gated ${DIGEST}; no tag moved."
+            exit 1
+          fi
+          docker buildx imagetools create "${TAG_ARGS[@]}" "${IMAGE}@${DIGEST}"
+          for TAG in "${TAGS[@]}"; do
+            RESOLVED="sha256:$(docker buildx imagetools inspect --raw "${TAG}" | sha256sum | cut -d' ' -f1)"
+            if [ "${RESOLVED}" != "${DIGEST}" ]; then
+              echo "::error::${TAG} resolves to ${RESOLVED}, not the gated ${DIGEST}."
+              exit 1
+            fi
+            echo "${TAG} -> ${DIGEST}"
+          done
+
+  # Scan gate, here for the base and as a step before tagging in build-all and
+  # build-single, on every event: an image with fixable high/critical findings
+  # is never tagged. After an uncached (scheduled or dispatched) build such a
+  # finding is one the Dockerfile's upgrade step did not clear, so it needs a
+  # human. A push build reuses cache up to ~24h old, so its finding may be
+  # cleared by the next scheduled build on its own. A separate job because
+  # build-all needs build-base: failing build-base itself would stop every
+  # stack from being built and judged on its own.
   base-freshness:
     name: Base image has no fixable findings
     needs: build-base
-    if: always() && github.event_name != 'push' && needs.build-base.result == 'success'
+    if: always() && needs.build-base.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
 
     steps:
-      - name: Fail when the fresh base image still has fixable findings
+      - name: Fail when the base image has fixable findings
         env:
           FIXABLE_FINDINGS: ${{ needs.build-base.outputs.fixable_findings }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           case "${FIXABLE_FINDINGS}" in
             0)
-              echo "devcontainer-base was built uncached and has no fixable high/critical findings."
+              echo "devcontainer-base has no fixable high/critical findings and was tagged."
               ;;
             ''|*[!0-9]*)
-              echo "::error::build-base reported no usable finding count ('${FIXABLE_FINDINGS}');" \
-                "check its 'Count fixable findings' step."
+              echo "::error::build-base has no usable finding count ('${FIXABLE_FINDINGS}'), so the" \
+                "base image was not tagged; check its Grype scan and 'Count fixable findings' steps."
               exit 1
               ;;
             *)
-              echo "::error::devcontainer-base was freshly built (uncached) and still has" \
-                "${FIXABLE_FINDINGS} fixable high/critical finding(s); rule ids are in the" \
-                "build-base job summary. Rebuilding will not clear them: bump the pinned" \
-                "component (or widen the Dockerfile's upgrade step) that ships the vulnerable" \
-                "package, or record a justified exception in .grype.yaml."
+              if [ "${EVENT_NAME}" = "push" ]; then
+                echo "::error::devcontainer-base has ${FIXABLE_FINDINGS} fixable high/critical" \
+                  "finding(s), listed in the build-base job summary, and was not tagged: its tags stay" \
+                  "on the last image that passed. This build reused the registry cache, which can be" \
+                  "up to a day old; the next scheduled build rebuilds uncached."
+              else
+                echo "::error::devcontainer-base was freshly built (uncached) and still has" \
+                  "${FIXABLE_FINDINGS} fixable high/critical finding(s), listed in the build-base job" \
+                  "summary, so it was not tagged: its tags stay on the last image that passed." \
+                  "Rebuilding will not clear them: bump the pinned component (or widen the" \
+                  "Dockerfile's upgrade step) that ships the vulnerable package, or record a" \
+                  "justified exception in .grype.yaml."
+              fi
               exit 1
               ;;
           esac
@@ -503,14 +689,15 @@ jobs:
           # ignore-error: a cache export problem must never fail a publish.
           echo "to=type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push ${{ matrix.stack }}${{ matrix.variant }}
+      # Pushed untagged: see build-base.
+      - name: Build and push ${{ matrix.stack }}${{ matrix.variant }} by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
-          outputs: type=image,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
-          tags: ${{ steps.meta.outputs.tags }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
+          tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           labels: ${{ steps.meta.outputs.labels }}
           # The published image must sit on the base built in THIS run,
           # otherwise it ships the digest pinned in the Dockerfile, which is
@@ -528,21 +715,6 @@ jobs:
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
-
-      - name: Attest
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
-        with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
-
-      - name: Sign image
-        run: |
-          cosign sign --yes \
-            "ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}@${{ steps.build.outputs.digest }}"
 
       - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Grype
         id: grype_scan
@@ -583,14 +755,21 @@ jobs:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
           category: grype-${{ matrix.stack }}${{ matrix.variant }}
 
-      # Fresh-image gate: see base-freshness. Must stay the last step.
-      - name: Fail when a fresh image still has fixable findings
-        if: always() && github.event_name != 'push' && steps.sarif_check.outputs.exists == 'true'
+      # Scan gate: see base-freshness. Every step after it runs only when it
+      # passed.
+      - name: Fail when the image has fixable findings
+        if: always() && steps.build.outcome == 'success'
         env:
           SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
           IMAGE: devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          if [ -z "${SARIF_FILE}" ] || [ ! -f "${SARIF_FILE}" ]; then
+            echo "::error::No Grype SARIF for ${IMAGE}: an image the scan could not judge is not tagged." \
+              "Check the Grype scan step."
+            exit 1
+          fi
           COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"
           echo "Fixable high/critical findings in ${IMAGE}: ${COUNT}"
           if [ "${COUNT}" -eq 0 ]; then
@@ -599,12 +778,72 @@ jobs:
           mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
           printf '%s\n' "${RULE_IDS[@]}"
           {
-            echo "### ${IMAGE}: ${COUNT} fixable high/critical finding(s)"
+            echo "### ${IMAGE}: ${COUNT} fixable high/critical finding(s), not tagged"
             echo
             printf -- '- %s\n' "${RULE_IDS[@]}"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::error::${IMAGE} was freshly built (uncached) and still has ${COUNT} fixable" \
-            "high/critical finding(s), listed above. Rebuilding will not clear them: bump the" \
-            "pinned component (or widen the Dockerfile's upgrade step) that ships the vulnerable" \
-            "package, or record a justified exception in .grype.yaml."
+          if [ "${EVENT_NAME}" = "push" ]; then
+            echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s), listed above, and was" \
+              "not tagged: its tags stay on the last image that passed. This build reused the registry" \
+              "cache, which can be up to a day old; the next scheduled build rebuilds uncached."
+          else
+            echo "::error::${IMAGE} was freshly built (uncached) and still has ${COUNT} fixable" \
+              "high/critical finding(s), listed above, so it was not tagged: its tags stay on the last" \
+              "image that passed. Rebuilding will not clear them: bump the pinned component (or widen" \
+              "the Dockerfile's upgrade step) that ships the vulnerable package, or record a justified" \
+              "exception in .grype.yaml."
+          fi
           exit 1
+
+      # Not for a rejected digest: see build-base.
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Sign image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      # Tags last: see build-base.
+      - name: Tag the gated digest
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+          TAG_LIST="$(jq -r '.tags[]' <<<"${META_JSON}")"
+          if [ -z "${TAG_LIST}" ]; then
+            echo "::error::docker/metadata-action produced no tags for ${IMAGE}."
+            exit 1
+          fi
+          mapfile -t TAGS <<<"${TAG_LIST}"
+          TAG_ARGS=()
+          for TAG in "${TAGS[@]}"; do
+            TAG_ARGS+=(--tag "${TAG}")
+          done
+          PLANNED="sha256:$(docker buildx imagetools create --dry-run "${TAG_ARGS[@]}" "${IMAGE}@${DIGEST}" \
+            | head -c -1 | sha256sum | cut -d' ' -f1)"
+          if [ "${PLANNED}" != "${DIGEST}" ]; then
+            echo "::error::imagetools would tag a new index ${PLANNED}, not the gated ${DIGEST}; no tag moved."
+            exit 1
+          fi
+          docker buildx imagetools create "${TAG_ARGS[@]}" "${IMAGE}@${DIGEST}"
+          for TAG in "${TAGS[@]}"; do
+            RESOLVED="sha256:$(docker buildx imagetools inspect --raw "${TAG}" | sha256sum | cut -d' ' -f1)"
+            if [ "${RESOLVED}" != "${DIGEST}" ]; then
+              echo "::error::${TAG} resolves to ${RESOLVED}, not the gated ${DIGEST}."
+              exit 1
+            fi
+            echo "${TAG} -> ${DIGEST}"
+          done
