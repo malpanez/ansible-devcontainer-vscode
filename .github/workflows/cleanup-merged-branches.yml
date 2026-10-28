@@ -31,6 +31,8 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          # The dispatch path runs git fetch and git push --delete with it.
+          persist-credentials: true
 
       - name: Delete merged branch
         if: github.event_name == 'pull_request'
@@ -63,10 +65,11 @@ jobs:
 
       - name: Cleanup old merged branches
         if: github.event_name == 'workflow_dispatch'
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           echo "🔍 Finding branches merged into main..."
 
-          DRY_RUN="${{ inputs.dry_run }}"
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "🔍 DRY RUN MODE - No branches will be deleted"
           fi

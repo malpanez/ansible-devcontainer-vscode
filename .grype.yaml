@@ -163,3 +163,31 @@ ignore:
   - package:
       name: google.golang.org/grpc
       location: "/usr/bin/gh"
+
+  # go-jose v4 <= 4.1.5, GHSA-mgcc-cww5-fp2q (published 2026-10-27, fixed
+  # in 4.1.6): a JWK carrying crafted RSA private-key parameters makes
+  # crypto/rsa PrivateKey.Validate run in cubic time, so parsing it burns
+  # CPU. terraform 1.17.0, terragrunt 1.2.1, tflint 0.65.0 and sops 3.13.3,
+  # the latest releases (checked 2026-10-28), all embed v4.1.4, so there is
+  # nothing to bump to. Reaching it takes a JWK supplied by a malicious or
+  # compromised endpoint or file, and the worst case is a CLI hung on one
+  # developer's machine: ACCEPTED, not unreachable. Scoped to this one
+  # advisory, so any other go-jose finding in these binaries still blocks.
+  # Renovate tracks all four tools; remove these rules once each ships
+  # go-jose >= 4.1.6.
+  - vulnerability: GHSA-mgcc-cww5-fp2q
+    package:
+      name: github.com/go-jose/go-jose/v4
+      location: "/usr/local/bin/terraform"
+  - vulnerability: GHSA-mgcc-cww5-fp2q
+    package:
+      name: github.com/go-jose/go-jose/v4
+      location: "/usr/local/bin/terragrunt"
+  - vulnerability: GHSA-mgcc-cww5-fp2q
+    package:
+      name: github.com/go-jose/go-jose/v4
+      location: "/usr/local/bin/tflint"
+  - vulnerability: GHSA-mgcc-cww5-fp2q
+    package:
+      name: github.com/go-jose/go-jose/v4
+      location: "/usr/local/bin/sops"

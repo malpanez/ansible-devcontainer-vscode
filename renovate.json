@@ -203,7 +203,7 @@
         "/^\\.github/workflows/.+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*[\"']?(?<currentValue>[^\"'\\s]+)"
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?(?:\\s+[A-Z_]+_DIGEST:\\s*[\"']?(?<currentDigest>sha256:[a-f0-9]{64}))?"
       ]
     },
     {
