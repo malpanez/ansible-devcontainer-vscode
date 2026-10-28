@@ -37,6 +37,8 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
@@ -75,9 +77,11 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/devcontainer-base:sha-${{ github.sha }}
 
       - name: Verify base tags
+        env:
+          PYTAG: ${{ steps.pytag.outputs.tag }}
         run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/devcontainer-base:${{ steps.pytag.outputs.tag }}
-          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-base:${{ steps.pytag.outputs.tag }}
+          docker buildx imagetools inspect "ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-base:${PYTAG}"
+          docker pull "ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-base:${PYTAG}"
 
   repair-stack:
     name: Repair ${{ github.event.inputs.stack }}
@@ -92,6 +96,8 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
@@ -132,9 +138,11 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:sha-${{ github.sha }}
 
       - name: Verify latest tag
+        env:
+          STACK: ${{ github.event.inputs.stack }}
         run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest
-          docker pull ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest
+          docker buildx imagetools inspect "ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${STACK}:latest"
+          docker pull "ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${STACK}:latest"
 
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
@@ -144,6 +152,8 @@ jobs:
           push-to-registry: true
 
       - name: Smoke test published image
+        env:
+          STACK: ${{ github.event.inputs.stack }}
         run: |
-          docker run --rm ghcr.io/${{ github.repository_owner }}/devcontainer-${{ github.event.inputs.stack }}:latest \
-            sh -c "echo '${{ github.event.inputs.stack }} latest is healthy'"
+          docker run --rm "ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${STACK}:latest" \
+            sh -c 'echo "$1 latest is healthy"' sh "${STACK}"

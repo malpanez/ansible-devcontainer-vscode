@@ -34,6 +34,8 @@ jobs:
       sbom: ${{ steps.filter.outputs.sbom }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         id: filter
         with:
@@ -68,15 +70,20 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
       - name: Validate build context
+        env:
+          TARGET_NAME: ${{ matrix.target.name }}
+          TARGET_CONTEXT: ${{ matrix.target.context }}
         run: |
-          echo "Building: ${{ matrix.target.name }}"
-          echo "Context: ${{ matrix.target.context }}"
-          ls -la ${{ matrix.target.context }}/
+          echo "Building: ${TARGET_NAME}"
+          echo "Context: ${TARGET_CONTEXT}"
+          ls -la "${TARGET_CONTEXT}/"
 
       - name: Resolve registry cache
         id: rcache
@@ -132,6 +139,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Download all SBOMs
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
@@ -224,8 +233,11 @@ jobs:
         id: grype-scan
         continue-on-error: true
         env:
+          # GRYPE_DIGEST is the index digest of the GRYPE_VERSION tag. Docker
+          # ignores the tag when a digest is given, so bump both together.
           # renovate: datasource=docker depName=anchore/grype
           GRYPE_VERSION: v0.121.0
+          GRYPE_DIGEST: sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
         run: |
           # Pinned container instead of `curl ... | sh`: that installer was
           # fetched from the main branch (unpinned, can change without
@@ -235,7 +247,7 @@ jobs:
             sbom_name=$(basename "$sbom_file" .spdx.json)
             echo "Scanning $sbom_name..."
             docker run --rm -v "${PWD}:/work" -w /work \
-              "anchore/grype:${GRYPE_VERSION}" \
+              "anchore/grype:${GRYPE_VERSION}@${GRYPE_DIGEST}" \
               sbom:"$sbom_file" --fail-on critical --quiet || true
           done 2>&1 | grep -v "failed to parse SARIF" || true
 
@@ -269,6 +281,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Download all SBOMs
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2

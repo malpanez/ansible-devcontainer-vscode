@@ -12,9 +12,9 @@ This repository publishes six container images to GHCR:
 | `devcontainer-golang`         | `latest` | amd64, arm64 | Go development environment                           |
 | `devcontainer-latex`          | `latest` | amd64 only   | LaTeX with Tectonic engine                           |
 
-`.github/workflows/build-containers.yml` is the only workflow that publishes these images to GHCR. It runs on the daily schedule, on pushes to `main` that touch `devcontainers/**`, and on manual dispatch (one stack or all), and it is the only place that signs with cosign, attaches provenance attestations, and Grype-scans what it pushed. Scheduled and manual runs build without cache; push runs reuse the registry cache (`:buildcache-publish`) that every run re-exports, so they start from the layers of the last uncached build. The single exception is `.github/workflows/release.yml`, which owns release tags (`:<tag>`), and `.github/workflows/repair-ghcr.yml`, which republishes one stack on demand. `ci.yml` builds the images for testing but never pushes them.
+`.github/workflows/build-containers.yml` is the only workflow that publishes these images to GHCR. It runs on the daily schedule, on pushes to `main` that touch `devcontainers/**`, and on manual dispatch (one stack or all), and it is the only place that signs with cosign, attaches provenance attestations, and Grype-scans what it pushed. Scheduled and manual runs build without cache; push runs reuse the registry cache (`:buildcache-publish`) that every run re-exports, so they start from the layers of the last uncached build. The exceptions are `.github/workflows/release.yml`, which builds nothing and only adds release tags (`:<tag>`) to digests build-containers already published, and `.github/workflows/repair-ghcr.yml`, which republishes one stack on demand. `ci.yml` builds the images for testing but never pushes them.
 
-Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` produce only the immutable `:<tag>` (`:py<major><minor>-<tag>` for the base) and never move the rolling tags.
+Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` add only the immutable `:<tag>` (`:py<major><minor>-<tag>` for the base) to all six images, `devcontainer-ansible-podman` included, and never move the rolling tags.
 
 `devcontainer-ansible` is built on the base image produced in the same run: `build-all` overrides the `BASE_IMAGE` build-arg with `devcontainer-base@<digest>` from the `build-base` job, so a published ansible image always contains the base published beside it. The digest pinned in `devcontainers/ansible/Dockerfile` is what local and PR builds resolve, and Renovate keeps it fresh.
 
@@ -39,15 +39,23 @@ docker build \
 
 You can now reference the local tag from `.devcontainer/devcontainer.json` or push it to GHCR with `docker push`.
 
-Release builds sign every image with [cosign](https://github.com/sigstore/cosign) and attach SPDX SBOMs generated with [Syft](https://github.com/anchore/syft). Verify a published image with:
+A release promotes images, it does not build them. On a version tag, `release.yml` does this for each of the six images:
+
+1. Waits (up to two hours) until no `build-containers.yml` run is in progress on `main`, so it never reads tags a run is still moving, and fails when the tagged commit has build runs and none of them succeeded.
+2. Takes the digest of `:sha-<commit>`, the gated build of the tagged commit. When that tag does not exist because the commit changed no image, it takes `:main` instead, but only if nothing under `devcontainers/` or `.github/workflows/build-containers.yml` changed between the commit `:main` was built from (its `org.opencontainers.image.revision` label) and the tagged one. An image with neither tag fails the release.
+3. Verifies with cosign that `build-containers.yml` signed that digest on `main`, at the commit the revision label names.
+4. Scans the digest again with the gate's policy (`.grype.yaml`, fixable high/critical findings block), since advisories may have been published after the image was gated.
+5. Only when every image passed, adds the version tag to each exact digest (a `docker buildx imagetools create` dry run must reproduce the digest before any tag is written, and every tag is read back). An existing version tag is never moved to another digest.
+
+The release notes list the digest of every image and the commit it was built from, and the release carries a [Syft](https://github.com/anchore/syft) SPDX SBOM of each released digest with its keyless cosign bundle (`.sigstore`); the same SBOMs are kept as the `devcontainer-sbom` workflow artifact. Verify a released image with:
 
 ```bash
 cosign verify ghcr.io/malpanez/devcontainer-ansible:<tag> \
-  --certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>" \
+  --certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/build-containers.yml@refs/heads/main" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
-Replace `<tag>` with the release you want to verify (for example `v1.2.3`). Published images are consumed from the public owner-level namespace such as `ghcr.io/malpanez/devcontainer-ansible:latest`; SBOMs ship as release workflow artifacts under the `devcontainer-sbom` name so you can audit dependencies alongside the signed image.
+Replace `<tag>` with the release you want to verify (for example `v1.2.3`). Releases whose notes have no *Container images* table (v1.3.29 and earlier) were rebuilt and signed by `release.yml` itself: verify those with `--certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>"`. Published images are consumed from the public owner-level namespace such as `ghcr.io/malpanez/devcontainer-ansible:latest`.
 
 If a published image ever becomes unavailable or `latest` resolves to a broken manifest, run the manual GitHub Actions workflow `Repair GHCR Images` to republish `devcontainer-base` and the affected stack, then verify `docker pull` and `docker buildx imagetools inspect` against the public tags.
 

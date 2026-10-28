@@ -37,6 +37,7 @@ jobs:
           # from github-actions[bot] are rejected (GH006). BOT_TOKEN is an
           # admin PAT and bypasses (enforce_admins is off).
           token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Configure Git
         run: |
@@ -66,6 +67,6 @@ jobs:
         run: |
           echo "## Sync Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Trigger**: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Main SHA**: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger**: ${GITHUB_EVENT_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Main SHA**: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Status**: Check job logs for details" >> "$GITHUB_STEP_SUMMARY"

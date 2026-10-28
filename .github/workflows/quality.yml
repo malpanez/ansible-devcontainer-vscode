@@ -37,6 +37,8 @@ jobs:
       dockerfile: ${{ steps.filter.outputs.dockerfile }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         id: filter
@@ -76,6 +78,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       # The image's Python is the source of truth. A literal python-version
       # here is a dependency to Renovate, which bumped it to 3.15 ahead of the
@@ -152,6 +156,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
@@ -176,6 +182,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Derive toolchain versions from the Dockerfiles
         id: toolchain
@@ -213,6 +221,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Hadolint
         uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387  # v3.5.0
@@ -237,16 +247,21 @@ jobs:
     if: always()
     steps:
       - name: Generate summary
+        env:
+          PYTHON_RESULT: ${{ needs.python-quality.result }}
+          YAML_RESULT: ${{ needs.yaml-quality.result }}
+          ANSIBLE_RESULT: ${{ needs.ansible-quality.result }}
+          DOCKERFILE_RESULT: ${{ needs.dockerfile-quality.result }}
         run: |
-          echo "# Code Quality Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Quality checks completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Jobs Status:" >> $GITHUB_STEP_SUMMARY
-          echo "- Python Quality: ${{ needs.python-quality.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- YAML Quality: ${{ needs.yaml-quality.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Ansible Quality: ${{ needs.ansible-quality.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Dockerfile Quality: ${{ needs.dockerfile-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "# Code Quality Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Quality checks completed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Jobs Status:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Python Quality: ${PYTHON_RESULT}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- YAML Quality: ${YAML_RESULT}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ansible Quality: ${ANSIBLE_RESULT}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dockerfile Quality: ${DOCKERFILE_RESULT}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check results
         env:
