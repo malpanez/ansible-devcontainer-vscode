@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.28
 # renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
 ARG TECTONIC_VERSION=0.17.0
-FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
 
 ARG TECTONIC_VERSION
 ARG TARGETARCH
@@ -72,7 +72,7 @@ RUN set -eux; \
     rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.1
+ARG UV_VERSION=0.13.5
 RUN set -eux; \
     case "$(dpkg --print-architecture)" in \
       amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \

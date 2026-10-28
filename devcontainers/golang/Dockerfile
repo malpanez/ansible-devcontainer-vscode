@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-FROM golang:1.27.2-alpine3.23@sha256:9e45f0eb4a63ed37ad6e604950407558b7c738e34e015ae77a5d4ad369cde079
+FROM golang:1.27.3-alpine3.23@sha256:754d5200fc3edae76d3b6598a9a3fac7e74981ee6a5413ab955025f185753ef2
 
 # Upgrade every package the pinned base ships, not a named list. The FROM
 # digest freezes the Alpine package set at the moment it was cut, so every
@@ -18,7 +18,7 @@ ARG BUILD_DATE="unknown"
 ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.1
+ARG UV_VERSION=0.13.5
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
