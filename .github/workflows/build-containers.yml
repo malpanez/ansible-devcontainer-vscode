@@ -61,6 +61,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
@@ -79,21 +81,25 @@ jobs:
 
       - name: Resolve stack input
         id: stack
+        env:
+          STACK_INPUT: ${{ github.event.inputs.stack }}
         run: |
-          case "${{ github.event.inputs.stack }}" in
+          case "${STACK_INPUT}" in
             base|ansible|golang|terraform|latex)
-              echo "stack=${{ github.event.inputs.stack }}" >> "$GITHUB_OUTPUT"
+              echo "stack=${STACK_INPUT}" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "::error::Invalid stack input: ${{ github.event.inputs.stack }}"
+              echo "::error::Invalid stack input: ${STACK_INPUT}"
               exit 1
               ;;
           esac
 
       - name: Configure metadata tags
         id: meta_tags
+        env:
+          STACK: ${{ steps.stack.outputs.stack }}
         run: |
-          if [ "${{ steps.stack.outputs.stack }}" = "base" ]; then
+          if [ "${STACK}" = "base" ]; then
             {
               echo "tags<<EOF"
               echo "type=raw,value=$(bash scripts/derive-python-tag.sh)"
@@ -119,8 +125,10 @@ jobs:
           tags: ${{ steps.meta_tags.outputs.tags }}
 
       - name: Determine target platforms
+        env:
+          STACK: ${{ steps.stack.outputs.stack }}
         run: |
-          if [ "${{ steps.stack.outputs.stack }}" = "latex" ]; then
+          if [ "${STACK}" = "latex" ]; then
             echo "PLATFORMS=linux/amd64" >> "$GITHUB_ENV"
           else
             echo "PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
@@ -320,6 +328,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
@@ -644,6 +654,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
@@ -742,12 +754,13 @@ jobs:
         if: always()
         env:
           SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+          IMAGE: devcontainer-${{ matrix.stack }}${{ matrix.variant }}
         run: |
           if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SARIF file not generated for ${{ matrix.stack }}${{ matrix.variant }}"
+            echo "::warning::SARIF file not generated for ${IMAGE}"
           fi
 
       - name: Upload Grype SARIF for ${{ matrix.stack }}${{ matrix.variant }}
