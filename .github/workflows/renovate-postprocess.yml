@@ -38,6 +38,7 @@ jobs:
           ref: ${{ github.head_ref }}
           # BOT_TOKEN so the push-back emits events and CI re-runs.
           token: ${{ secrets.BOT_TOKEN }}
+          persist-credentials: true
           fetch-depth: 0
 
       # Read from the PR's own Dockerfile, so a PR that bumps the base image's

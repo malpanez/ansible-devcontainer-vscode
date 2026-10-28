@@ -29,6 +29,8 @@ jobs:
       pytag: ${{ steps.pytag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - name: Derive base Python tag
         id: pytag
         run: |
@@ -109,12 +111,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify manifest and platform children resolve
+        env:
+          IMAGE: ${{ matrix.image }}
+          TAG: ${{ matrix.tag }}
         run: |
           # --format .Image forces resolution of the per-platform child
           # manifests and configs; a bare inspect only fetches the index
           # and reported success while every child was missing.
           docker buildx imagetools inspect \
-            "ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.tag }}" \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/${IMAGE}:${TAG}" \
             --format '{{json .Image}}' > /dev/null
           echo "OK: all platform manifests resolve"
 

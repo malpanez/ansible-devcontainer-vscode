@@ -30,6 +30,7 @@ jobs:
           # pushed with GITHUB_TOKEN (event-less). BOT_TOKEN fallback
           # keeps tagging working but skips the release build.
           token: ${{ secrets.BOT_TOKEN || github.token }}
+          persist-credentials: true
 
       - name: Compute next version
         id: version
