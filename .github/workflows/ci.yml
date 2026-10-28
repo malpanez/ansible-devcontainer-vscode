@@ -71,6 +71,10 @@ jobs:
               # The base Dockerfile sets the Python these jobs run on (see
               # the toolchain step below), so a base bump must exercise them.
               - 'devcontainers/base/Dockerfile'
+              # playbooks/test-environment.yml asserts the installed ansible
+              # against the pins in this export, and molecule converges
+              # install from it.
+              - 'requirements-ansible.txt'
             golang-files:
               - '**/*.go'
               - 'go.mod'
@@ -94,6 +98,10 @@ jobs:
               # only this file, every build job skipped and CI went green
               # without exercising the policy it was changing.
               - '.grype.yaml'
+              # Both ansible Dockerfiles install exactly this export, so a
+              # lock bump changes the image as much as a Dockerfile edit and
+              # must be built and scanned the same way.
+              - 'requirements-ansible.txt'
             scripts:
               - 'scripts/**'
             # The files that pin hadolint and the guard that compares them,

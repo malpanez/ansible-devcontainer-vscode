@@ -5,12 +5,14 @@ on:
   pull_request:
     paths:
       - 'devcontainers/**'
+      - 'requirements-ansible.txt'
       - 'tests/container-structure/**'
       - '.github/workflows/test-containers.yml'
   push:
     branches: [main, develop]
     paths:
       - 'devcontainers/**'
+      - 'requirements-ansible.txt'
       - 'tests/container-structure/**'
   workflow_dispatch:
 
@@ -44,6 +46,8 @@ jobs:
             ansible:
               - 'devcontainers/ansible/**'
               - 'devcontainers/base/**'
+              # The ansible Dockerfiles install this uv.lock export
+              - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
             terraform:
               - 'devcontainers/terraform/**'

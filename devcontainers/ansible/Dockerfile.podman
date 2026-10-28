@@ -46,8 +46,8 @@ RUN set -eux; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
     rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}"
 
-# Stage 2: resolve the Python stack. Build tools live only here — arm64
-# needs gcc + libonig-dev for onigurumacffi (no aarch64 wheel).
+# Stage 2: install the locked Python stack. Build tools live only here —
+# arm64 needs gcc + libonig-dev for onigurumacffi (no aarch64 wheel).
 FROM uv-base AS python-builder
 
 # hadolint ignore=DL3008
@@ -60,14 +60,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libonig-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml /tmp/pyproject.toml
+# The hashed uv.lock export, the same one the main Dockerfile installs. It
+# already carries ansible-navigator and ansible-builder (a navigator
+# dependency), which this stage used to add on top, unpinned.
+COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
-WORKDIR /tmp
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv pip install --system . \
-    && uv pip install --system \
-       ansible-navigator \
-       ansible-builder
+    uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt
 
 # Stage 3: runtime image with Podman, no build toolchain
 FROM uv-base

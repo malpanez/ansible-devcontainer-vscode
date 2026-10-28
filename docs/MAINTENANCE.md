@@ -56,6 +56,13 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   the vulnerable version — the next regeneration would have reverted it.
   When something looks updated, check the lock too:
   `grep -A1 'name = "<pkg>"' uv.lock`.
+- **The ansible images install `requirements-ansible.txt`, not
+  `pyproject.toml`** (`uv pip install --system --require-hashes -r`), so
+  their Python versions move only through the lock — Renovate lock file
+  maintenance or a security PR — while the nightly uncached rebuild
+  refreshes OS packages only. Resolving `pyproject.toml` at build time let
+  the cached CI layer and the nightly publish ship different versions,
+  neither of them the lock's (certifi, 2026-10-26).
 - **CI tools belong in a dependency group, not in a bare `pip install`.**
   `quality.yml` and `sbom-verification.yml` install their tooling from
   `requirements-ci-quality.txt` with `--require-hashes`; the group lives in

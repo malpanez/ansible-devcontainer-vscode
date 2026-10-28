@@ -22,8 +22,8 @@
 # project's quality profile instead.
 ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:24633a57eec8fd24067bd4772621f1b42975c1b465002461bfd87ea679a0f0a7
 
-# Stage 1: resolve the Python stack. Build tools live only in this stage:
-# arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
+# Stage 1: install the locked Python stack. Build tools live only in this
+# stage: arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
 # ansible-navigator) publishes no aarch64 wheel.
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE} AS python-builder
@@ -45,11 +45,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libonig-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml /tmp/pyproject.toml
+# The hashed uv.lock export, not pyproject.toml: resolving pyproject at
+# build time picked whatever PyPI served that day, so the cached CI layer
+# and the uncached nightly publish shipped different versions, neither of
+# them the lock's (certifi, 2026-10-26).
+COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
-WORKDIR /tmp
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv pip install --system .
+    uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt
 
 # Stage 2: runtime image without any build toolchain
 # hadolint ignore=DL3006
@@ -86,6 +89,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get autoremove -y --purge \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Base already ships site-packages (pre-commit and its deps, at whatever
+# versions base resolved). COPY only adds files, so every package the lock
+# moves would keep the base's old dist-info beside the new one and scanners
+# would report both versions (pre-commit 4.6.2 next to 4.7.0, 2026-10-28).
+# The builder's tree copied below is a superset: it started from this base.
+RUN find /usr/local/lib -mindepth 2 -maxdepth 2 -type d -name site-packages \
+      -exec rm -rf {} +
 
 # Copy the whole lib tree (not a version-pinned site-packages path): the
 # builder shares this stage's base, so its Python minor always matches —
