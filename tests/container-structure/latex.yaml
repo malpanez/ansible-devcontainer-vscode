@@ -25,14 +25,16 @@ fileExistenceTests:
   - name: 'Tectonic cache directory'
     path: '/home/vscode/.cache/Tectonic'
     shouldExist: true
-    isDirectory: true
 
 commandTests:
+  # Versions pin the major only: the Dockerfile ARGs (checksum-verified,
+  # bumped by Renovate) own the exact version, and minor pins here went
+  # stale on every bump without anyone noticing.
   # Tectonic version
   - name: 'Tectonic version'
     command: 'tectonic'
     args: ['--version']
-    expectedOutput: ['Tectonic 0.15']
+    expectedOutput: ['Tectonic 0\.[0-9]+']
 
   # uv functional
   - name: 'uv functional'
@@ -51,7 +53,7 @@ metadataTest:
     - key: 'org.opencontainers.image.source'
       value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
 
-  env:
+  envVars:
     - key: 'DEVCONTAINER_STACK'
       value: 'latex'
     - key: 'WORKSPACE'

@@ -28,15 +28,17 @@ fileExistenceTests:
   - name: 'Workspace directory exists'
     path: '/workspace'
     shouldExist: true
-    isDirectory: true
 
 # Command execution tests
 commandTests:
+  # Versions pin the major only: the Dockerfile ARGs (checksum-verified,
+  # bumped by Renovate) own the exact version, and minor pins here went
+  # stale on every bump without anyone noticing.
   # Go version validation
   - name: 'Go version matches expected'
     command: 'go'
     args: ['version']
-    expectedOutput: ['go1.25.4', 'linux']
+    expectedOutput: ['go1\.[0-9]+', 'linux']
 
   # uv functionality
   - name: 'uv is functional'
@@ -67,7 +69,9 @@ commandTests:
     command: 'sh'
     args:
       - '-c'
-      - 'echo "package main\nfunc main() {}" | go run -'
+      # `go run -` never read stdin ("no go files listed"); use a file. No
+      # shell variables: the tool expands $name from the image env first.
+      - 'cd "$(mktemp -d)" && printf "package main\nfunc main() {}\n" > main.go && go run main.go'
     exitCode: 0
 
 # Metadata validation
@@ -78,7 +82,7 @@ metadataTest:
     - key: 'org.opencontainers.image.description'
       value: 'Golang devcontainer with uv-driven pre-commit workflow'
 
-  env:
+  envVars:
     - key: 'DEVCONTAINER_STACK'
       value: 'golang'
     - key: 'WORKSPACE'
