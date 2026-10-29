@@ -4,6 +4,8 @@ ARG DEBIAN_VERSION=bookworm-slim
 ARG TERRAFORM_VERSION=1.17.0
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=1.2.1
+# renovate: datasource=github-releases depName=opentofu/opentofu
+ARG TOFU_VERSION=1.13.2
 # renovate: datasource=github-releases depName=terraform-linters/tflint
 ARG TFLINT_VERSION=0.65.0
 # renovate: datasource=github-releases depName=getsops/sops
@@ -15,7 +17,7 @@ ARG UV_VERSION=0.13.5
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS fetch
 ARG TARGETARCH
-ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
+ARG TERRAFORM_VERSION TOFU_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
 COPY devcontainers/terraform/install_age.sh /tmp/install_age.sh
 
@@ -46,6 +48,12 @@ RUN set -eux; \
       -o terraform_SHA256SUMS; \
     grep " terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip" terraform_SHA256SUMS | sha256sum -c -; \
     unzip -d /tmp/bin "terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"; \
+    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_${ARCH}.zip" \
+      -o "tofu_${TOFU_VERSION}_linux_${ARCH}.zip"; \
+    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS" \
+      -o tofu_SHA256SUMS; \
+    grep " tofu_${TOFU_VERSION}_linux_${ARCH}.zip" tofu_SHA256SUMS | sha256sum -c -; \
+    unzip -d /tmp/bin "tofu_${TOFU_VERSION}_linux_${ARCH}.zip" tofu; \
     curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${ARCH}" \
       -o "terragrunt_linux_${ARCH}"; \
     curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/SHA256SUMS" \
@@ -73,7 +81,7 @@ FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2
 ARG IMAGE_VENDOR="malpanez"
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
-      org.opencontainers.image.description="Terraform devcontainer with Terragrunt, TFLint, SOPS, age, and uv-powered pre-commit" \
+      org.opencontainers.image.description="Terraform devcontainer with OpenTofu, Terragrunt, TFLint, SOPS, age, and uv-powered pre-commit" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
@@ -158,6 +166,7 @@ RUN set -eux; \
     && rm -rf /tmp/awscliv2.zip /tmp/aws
 
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform
+COPY --from=fetch --link --chmod=0755 /tmp/bin/tofu /usr/local/bin/tofu
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terragrunt /usr/local/bin/terragrunt
 COPY --from=fetch --link --chmod=0755 /tmp/bin/tflint /usr/local/bin/tflint
 COPY --from=fetch --link --chmod=0755 /tmp/bin/sops /usr/local/bin/sops

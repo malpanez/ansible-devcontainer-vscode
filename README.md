@@ -112,7 +112,7 @@ The image also bakes in `/usr/local/bin/ensure-precommit`, which the `postCreate
 | Stack       | Base image                                                  | Approx. size¹ | Included tooling                                                              | Cache mounts                                  |
 | ----------- | ----------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------- | --------------------------------------------- |
 | `ansible`   | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB       | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume        |
-| `terraform` | multi-stage Debian (bookworm tools + runtime)               | ~240 MB       | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher                   | `${workspace}/.terraform.d/plugin-cache` bind |
+| `terraform` | multi-stage Debian (bookworm tools + runtime)               | ~240 MB       | Terraform CLI, OpenTofu, Terragrunt, TFLint, SOPS, age, `uv` launcher         | `${workspace}/.terraform.d/plugin-cache` bind |
 | `golang`    | `golang:1.23-alpine` (overrideable via `BASE_IMAGE`)        | ~210 MB       | Go toolchain, git, `uv` launcher, sudo minimal                                | Go module & build caches                      |
 | `latex`     | `debian:bookworm-slim` + Tectonic                           | ~320 MB       | Tectonic CLI, git/perl helpers, `uv` launcher                                 | `${HOME}/.cache/tectonic` bind                |
 
@@ -139,7 +139,7 @@ The table below outlines the tooling shipped with the Ansible stack; Terraform i
 | Python packaging | [`uv`](https://github.com/astral-sh/uv) for package installation and script execution                              |
 | Collections      | `ansible.posix`, `community.general`, `community.docker`, `kubernetes.core`, `amazon.aws` (see `requirements.yml`) |
 | VS Code          | Recommended extensions, workspace settings, and tasks delivered by the `vscode_config` role                        |
-| Terraform        | Terraform CLI, Terragrunt, TFLint, Checkov (Dev Container installs; CI mirrors tooling)                            |
+| Terraform        | Terraform CLI, OpenTofu, Terragrunt, TFLint, Checkov (Dev Container installs; CI mirrors tooling)                  |
 
 All Python dependencies for the Ansible stack are declared in `pyproject.toml` and locked in `uv.lock`. The container installs them system-wide with `uv pip install --system .` during build. If you prefer an isolated virtual environment, run `uv venv .venv && uv pip install -e .` inside the container; VS Code will automatically pick up `.venv` thanks to the defaults in `.vscode/settings.json`. Other stacks install only the tooling they need (for example, Terraform pins Terraform/Terragrunt/TFLint via the Dockerfile and installs Checkov with `uv pip install "checkov>=3.0.0,<4.0.0"`).
 
@@ -150,7 +150,7 @@ version tables rot:
 
 - **Python packages**: `pyproject.toml` + `uv.lock` (exports:
   `requirements.txt`, `requirements-ansible.txt`)
-- **CLI tools** (terraform, terragrunt, tflint, sops, age, uv, AWS CLI,
+- **CLI tools** (terraform, tofu, terragrunt, tflint, sops, age, uv, AWS CLI,
   tectonic): `ARG *_VERSION` at the top of each `devcontainers/*/Dockerfile`,
   each download verified against its upstream checksum
 - **Base images**: digest-pinned `FROM` lines in the same Dockerfiles

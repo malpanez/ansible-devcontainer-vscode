@@ -8,6 +8,11 @@ fileExistenceTests:
     shouldExist: true
     permissions: '-rwxr-xr-x'
 
+  - name: 'tofu binary'
+    path: '/usr/local/bin/tofu'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+
   - name: 'terragrunt binary'
     path: '/usr/local/bin/terragrunt'
     shouldExist: true
@@ -78,6 +83,12 @@ commandTests:
     command: 'terraform'
     args: ['version']
     expectedOutput: ['Terraform v1\.[0-9]+']
+
+  # OpenTofu version
+  - name: 'OpenTofu version'
+    command: 'tofu'
+    args: ['version']
+    expectedOutput: ['OpenTofu v1\.[0-9]+']
 
   # Terragrunt version
   - name: 'Terragrunt version'
