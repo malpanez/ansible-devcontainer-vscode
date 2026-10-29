@@ -108,11 +108,12 @@
       "enabled": false
     },
     {
-      "description": "Generated files: Renovate must not edit them. requirements.txt and requirements-ansible.txt come from uv.lock via `uv export`; .devcontainer/ is a copy of devcontainers/<stack>/ produced by scripts/use-devcontainer.sh. Editing generated files desynchronised the exports from the lock (2026-08-16, where it made a HIGH cryptography fix look applied while the lock stayed vulnerable) and duplicates every devcontainer PR: #411 patched .devcontainer while #412 patched the terraform template it is generated from. Renovate manages the sources; the companion regenerates the copies.",
+      "description": "Generated files: Renovate must not edit them. requirements.txt and the requirements-*.txt exports come from uv.lock via `uv export`; .devcontainer/ is a copy of devcontainers/<stack>/ produced by scripts/use-devcontainer.sh. Editing generated files desynchronised the exports from the lock (2026-08-16, where it made a HIGH cryptography fix look applied while the lock stayed vulnerable) and duplicates every devcontainer PR: #411 patched .devcontainer while #412 patched the terraform template it is generated from. Renovate manages the sources; the companion regenerates the copies.",
       "matchFileNames": [
         "requirements.txt",
         "requirements-ansible.txt",
         "requirements-ci-quality.txt",
+        "requirements-devcontainer-tools.txt",
         ".devcontainer/**"
       ],
       "enabled": false
@@ -130,6 +131,19 @@
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "astral-sh/uv"
+    },
+    {
+      "customType": "regex",
+      "description": "The CPython that uv installs for the pinned pre-commit and yamllint in the images not built on python:* (terraform, golang, latex), kept at the base image's version: same datasource and depName as the python:* FROM lines. A bump stays red until the pinned uv knows that Python build; bump uv first.",
+      "managerFilePatterns": [
+        "/^devcontainers/(terraform|golang|latex)/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG TOOLS_PYTHON_VERSION=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "python",
+      "versioningTemplate": "docker"
     },
     {
       "customType": "regex",
@@ -242,18 +256,6 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?(?:\\s+[A-Z_]+_DIGEST:\\s*[\"']?(?<currentDigest>sha256:[a-f0-9]{64}))?"
       ]
-    },
-    {
-      "customType": "regex",
-      "description": "pre-commit pinned as an ARG in the base image",
-      "managerFilePatterns": [
-        "/devcontainers/base/Dockerfile/"
-      ],
-      "matchStrings": [
-        "ARG PRE_COMMIT_VERSION=(?<currentValue>[0-9.]+)"
-      ],
-      "datasourceTemplate": "pypi",
-      "depNameTemplate": "pre-commit"
     },
     {
       "customType": "regex",

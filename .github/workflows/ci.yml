@@ -109,6 +109,9 @@ jobs:
               # lock bump changes the image as much as a Dockerfile edit and
               # must be built and scanned the same way.
               - 'requirements-ansible.txt'
+              # Same for base, terraform, golang and latex: pre-commit and
+              # yamllint come from this export.
+              - 'requirements-devcontainer-tools.txt'
             # The files that name the images the templates and examples open
             # from, checked by Devcontainer State. A filter of its own, not
             # more paths under devcontainer: examples/ is no image input, and

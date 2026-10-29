@@ -102,6 +102,7 @@ jobs:
             uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
             uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt
             uv export --format requirements-txt --frozen --only-group ci-quality -o requirements-ci-quality.txt
+            uv export --format requirements-txt --frozen --only-group devcontainer-tools -o requirements-devcontainer-tools.txt
           fi
 
       - name: Commit and push if anything changed

@@ -98,12 +98,13 @@ Benefits:
 
 ```mermaid
 graph TD
-    A[Container Build] -->|Does NOT install| B[pre-commit]
+    L[uv.lock] -->|uv export, hashed| R[requirements-*.txt]
+    R -->|--require-hashes at build| A[Container image]
+    A --> E[pre-commit + yamllint, pinned]
 
     C[Developer opens container] --> D[ensure-precommit.sh]
-    D -->|uv tool install pre-commit| E[pre-commit installed]
     D -->|copies template| F[.pre-commit-config.yaml]
-    D -->|uvx pre-commit install| G[Git hooks active]
+    D -->|image's pre-commit install| G[Git hooks active]
 
     H[CI Pipeline] -->|uvx pre-commit run --all-files| I[Validates PRs]
 
@@ -114,20 +115,19 @@ graph TD
     style I fill:#f3e5f5
 ```
 
-### Lazy Loading Strategy
+### Pinned at build time
 
-Pre-commit is **NOT** baked into container images. Instead:
+Pre-commit and yamllint are baked into every image, at the versions `uv.lock` pins:
 
-1. **Template stored** at `/usr/local/share/devcontainer-skel/<stack>/.pre-commit-config.yaml`
-2. **Script provided** at `/usr/local/bin/ensure-precommit`
-3. **Installed on-demand** via `uv tool install pre-commit`
-4. **Always fresh** - gets latest version when installed
+1. **Installed from the lock**: the ansible images from `requirements-ansible.txt`; base, terraform, golang and latex from `requirements-devcontainer-tools.txt` (the `devcontainer-tools` dependency group). Both are `uv export` output with a hash for every package, installed with `--require-hashes --only-binary :all:`.
+2. **Their own interpreter where the image has none**: terraform, golang and latex install them into a root-owned venv at `/opt/devcontainer-tools`, on a uv-managed CPython pinned to the base image's version (uv verifies its sha256), and link only `pre-commit` and `yamllint` into `/usr/local/bin`.
+3. **Template stored** at `/usr/local/share/devcontainer-skel/<stack>/.pre-commit-config.yaml`
+4. **Script provided** at `/usr/local/bin/ensure-precommit`: copies the template and installs the git hook. It installs nothing; without pre-commit on `PATH` it fails, because the image is broken.
 
 Benefits:
-- Smaller container images (~50MB saved)
-- Always up-to-date pre-commit
-- Fast installs via uv
-- Consistent across all stacks
+- The same pre-commit in every image as in the lock, bumped by Renovate's lock maintenance
+- Scanned with the image, instead of downloaded unpinned on every container create
+- Nothing to download when the container starts
 
 ## CI/CD Pipeline Flow
 

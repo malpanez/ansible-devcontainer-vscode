@@ -183,9 +183,7 @@ git push
 
 #### Setup
 ```bash
-# Install pre-commit (already in devcontainer)
-uv pip install --system pre-commit
-
+# pre-commit ships in every devcontainer image, pinned from uv.lock
 # Install hooks
 pre-commit install
 
@@ -535,7 +533,7 @@ in `Promote develop to main`, no Renovate PRs on Monday
 3. Test with latest base image:
    ```bash
    docker pull python:3.12.12-slim-bookworm
-   docker build devcontainers/base
+   docker build -f devcontainers/base/Dockerfile .
    ```
 4. Check tool download URLs still valid
 

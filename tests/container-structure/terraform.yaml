@@ -38,6 +38,28 @@ fileExistenceTests:
     path: '/usr/local/bin/uv'
     shouldExist: true
 
+  # pre-commit and yamllint: the devcontainer-tools group of uv.lock, in a
+  # venv root owns (devcontainers/<stack>/Dockerfile), linked onto PATH.
+  - name: 'Tools venv owned by root'
+    path: '/opt/devcontainer-tools'
+    shouldExist: true
+    uid: 0
+    gid: 0
+    permissions: 'drwxr-xr-x'
+
+  - name: 'pre-commit on PATH'
+    path: '/usr/local/bin/pre-commit'
+    shouldExist: true
+
+  - name: 'yamllint on PATH'
+    path: '/usr/local/bin/yamllint'
+    shouldExist: true
+
+  - name: 'ensure-precommit installed'
+    path: '/usr/local/bin/ensure-precommit'
+    shouldExist: true
+    permissions: '-r-xr-xr-x'
+
   # Pre-commit template
   - name: 'Pre-commit template'
     path: '/usr/local/share/devcontainer-skel/terraform/.pre-commit-config.yaml'
@@ -85,6 +107,123 @@ commandTests:
   - name: 'uv functional'
     command: 'uv'
     args: ['--version']
+    exitCode: 0
+
+  # Major only, like the tools above: uv.lock owns the exact versions.
+  - name: 'pre-commit available'
+    command: 'pre-commit'
+    args: ['--version']
+    expectedOutput: ['pre-commit [0-9]+\.[0-9]+']
+
+  - name: 'yamllint available'
+    command: 'yamllint'
+    args: ['--version']
+    expectedOutput: ['yamllint [0-9]+\.[0-9]+']
+
+  # One copy of each, the venv's. Before, the image had none and
+  # ensure-precommit installed an unpinned one on every container create.
+  - name: 'pre-commit and yamllint installed once'
+    command: 'sh'
+    args:
+      - '-c'
+      - 'find / -xdev \( -name "pre_commit-*-info" -o -name "yamllint-*-info" \) 2>/dev/null | sort'
+    expectedOutput:
+      - '\A/opt/devcontainer-tools/venv/lib/python3\.[0-9]+/site-packages/pre_commit-[0-9.]+\.dist-info\n/opt/devcontainer-tools/venv/lib/python3\.[0-9]+/site-packages/yamllint-[0-9.]+\.dist-info\n\z'
+
+  # vscode can run the tools but not change them; what users install goes
+  # under their home instead.
+  - name: 'Tools read-only to vscode'
+    command: '/opt/devcontainer-tools/venv/bin/python'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import os, sys
+        bad = []
+        for folder, _, files in os.walk("/opt/devcontainer-tools"):
+            for path in [folder, *(os.path.join(folder, name) for name in files)]:
+                if os.lstat(path).st_uid != 0 or (not os.path.islink(path) and os.access(path, os.W_OK)):
+                    bad.append(path)
+        print(f"writable or not root-owned: {len(bad)}", *bad[:20], sep="\n")
+        sys.exit(1 if bad else 0)
+    expectedOutput: ['writable or not root-owned: 0']
+    exitCode: 0
+
+  # PyYAML's C extension: a wheel built for the wrong libc or architecture
+  # would install and then fall back to the pure-Python loader, or fail.
+  - name: 'PyYAML C extension loads'
+    command: '/opt/devcontainer-tools/venv/bin/python'
+    args: ['-I', '-c', 'import yaml; print("libyaml:", yaml.__with_libyaml__)']
+    expectedOutput: ['libyaml: True']
+
+  # The Dockerfile trims libpython3.14.so* and Tcl/Tk from the managed
+  # Python. A python-build-standalone release that moved them would bring
+  # them back unnoticed; this names whatever is left.
+  - name: 'Managed Python trimmed'
+    command: '/opt/devcontainer-tools/venv/bin/python'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import glob, importlib.util, os, sys
+        lib = os.path.join(sys.base_prefix, "lib")
+        patterns = ("libpython3*.so*", "libtcl*", "libtk*", "tcl*", "tk*", "itcl*", "tdbc*", "thread*")
+        left = [path for pattern in patterns for path in glob.glob(os.path.join(lib, pattern))]
+        left += [name for name in ("tkinter", "_tkinter", "idlelib", "turtledemo", "turtle") if importlib.util.find_spec(name)]
+        print("left behind:", left or "nothing")
+        sys.exit(1 if left else 0)
+    expectedOutput: ['left behind: nothing']
+    exitCode: 0
+
+  # Same check as ansible.yaml, over the tools tree: standard library and
+  # venv alike are compiled at build time, so no timestamp .pyc may remain.
+  - name: 'No stale timestamp bytecode under /opt/devcontainer-tools'
+    command: '/opt/devcontainer-tools/venv/bin/python'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import importlib.util, os, sys
+        stale, total = [], 0
+        for folder, _, files in os.walk("/opt/devcontainer-tools"):
+            for name in files:
+                pyc = os.path.join(folder, name)
+                if not name.endswith(".pyc"):
+                    continue
+                with open(pyc, "rb") as fh:
+                    head = fh.read(16)
+                if int.from_bytes(head[4:8], "little") != 0:
+                    continue
+                try:
+                    src = os.stat(importlib.util.source_from_cache(pyc))
+                except (ValueError, OSError):
+                    continue
+                total += 1
+                recorded = (int.from_bytes(head[8:12], "little"), int.from_bytes(head[12:16], "little"))
+                if recorded != (int(src.st_mtime) & 0xFFFFFFFF, src.st_size & 0xFFFFFFFF):
+                    stale.append(pyc)
+        print(f"stale timestamp .pyc: {len(stale)} of {total}", *stale[:20], sep="\n")
+        sys.exit(1 if stale else 0)
+    expectedOutput: ['stale timestamp \.pyc: 0 of']
+    exitCode: 0
+
+  # The check above also passes on a tree with no bytecode at all. This one
+  # fails if the build stopped compiling: checked-hash .pyc carry flags 0b11.
+  - name: 'Tools bytecode compiled checked-hash'
+    command: '/opt/devcontainer-tools/venv/bin/python'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import importlib.util, json, sys
+        import pre_commit.main
+        flags = []
+        for module in (pre_commit.main, json):
+            with open(importlib.util.cache_from_source(module.__file__), "rb") as fh:
+                flags.append(int.from_bytes(fh.read(8)[4:8], "little"))
+        print("checked-hash bytecode:", flags == [3, 3])
+        sys.exit(0 if flags == [3, 3] else 1)
+    expectedOutput: ['checked-hash bytecode: True']
     exitCode: 0
 
   # Workspace writable

@@ -158,7 +158,7 @@ jobs:
           # The push paths of build-containers.yml: what makes it rebuild.
           # requirements-ansible.txt was missing, so a lock bump that no build
           # had published could be released as :main's older image.
-          IMAGE_INPUTS=(devcontainers/ requirements-ansible.txt .github/workflows/build-containers.yml)
+          IMAGE_INPUTS=(devcontainers/ requirements-ansible.txt requirements-devcontainer-tools.txt .github/workflows/build-containers.yml)
           # Its negated path: the templates only name the published images.
           IMAGE_INPUTS_EXCLUDED=(':(exclude,glob)devcontainers/**/devcontainer*.json')
           IMAGES=(base ansible ansible-podman terraform golang latex)
