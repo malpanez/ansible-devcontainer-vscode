@@ -12,10 +12,13 @@ FROM golang:1.27.3-alpine3.23@sha256:754d5200fc3edae76d3b6598a9a3fac7e74981ee6a5
 # It reaches the base's own packages only. Whatever `apk add` pulls in
 # below (pcre2 arrives with git) is not installed yet at this point and is
 # fetched at its current version when that layer is built.
-RUN apk upgrade --no-cache
+#
+# apk appends the wall-clock time of every run to /var/log/apk.log, and
+# rewrite-timestamp clamps mtimes, not contents: kept, it alone made two
+# builds of one commit differ.
+RUN apk upgrade --no-cache \
+    && rm -f /var/log/apk.log
 
-ARG BUILD_DATE="unknown"
-ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.13.5
@@ -23,9 +26,7 @@ ARG UV_VERSION=0.13.5
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${VCS_REF}"
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
 ENV UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
@@ -38,7 +39,8 @@ RUN apk add --no-cache \
       bash=~5 \
       curl=~8 \
       git=~2 \
-      sudo=~1
+      sudo=~1 \
+    && rm -f /var/log/apk.log
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
@@ -67,6 +69,11 @@ ARG USER_GID=${USER_UID}
 
 RUN addgroup -g "${USER_GID}" "${USERNAME}" \
     && adduser -D -u "${USER_UID}" -G "${USERNAME}" -s /bin/bash "${USERNAME}" \
+    # adduser stamps today's day number into the shadow entry's
+    # last-change field, so the image changed with the build date even
+    # when nothing else did. An empty field disables password aging,
+    # which a locked (!) account never uses.
+    && sed -i "s/^\(${USERNAME}:[^:]*\):[0-9]*:/\1::/" /etc/shadow \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \

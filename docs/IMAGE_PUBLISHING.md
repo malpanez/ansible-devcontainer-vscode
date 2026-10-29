@@ -22,6 +22,44 @@ Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus
 >
 > Images are scanned before they are tagged, on every event. Each build is pushed untagged, by digest; Grype then scans every platform it published (amd64 and arm64), and only an image with no fixable high/critical finding on any platform is attested, signed and tagged. A rejected image leaves its tags on the last one that passed and the run goes red: job `Base image has no fixable findings` for the base, the `build-all` or `build-single` job for a stack. After a scheduled or manual (uncached) build, rebuilding will not clear the finding: bump the pinned component (or widen the Dockerfile's upgrade step) that ships the vulnerable package, or record a justified exception in `.grype.yaml`. A push build reuses cache up to a day old, so the next scheduled build may clear its finding on its own.
 
+## Reproducible builds
+
+Two builds of the same commit, made while the package mirrors serve the same packages, produce the same per-platform image manifest digest. That was verified for `linux/amd64`, all six images, with two uncached builds of each; `linux/arm64` runs the same steps and is expected to match, but has not been verified yet. Everything a build downloads is pinned (base images by digest, GitHub release assets by checksum, the Python stack by hash in `requirements-ansible.txt`) except the OS packages that `apt-get full-upgrade` and `apk upgrade` install, which are whatever the Debian and Alpine mirrors serve at the time.
+
+How a build gets there:
+
+- `build-containers.yml` passes the commit time (`git log -1 --format=%ct`) as the `SOURCE_DATE_EPOCH` build-arg, and so do the image builds in `ci.yml` and `test-containers.yml`, so CI tests the images as they are published. BuildKit writes it as the `created` time of the image config and of every history entry. `rewrite-timestamp=true` on the exporter clamps every file mtime later than it in the layers the build adds; the `FROM` image's layers are kept as they are. The `org.opencontainers.image.created` label carries the same time instead of metadata-action's clock.
+- No Dockerfile declares `ARG SOURCE_DATE_EPOCH`. Undeclared, the value never reaches a `RUN` and changes no cache key; declared, it would invalidate every layer below it on every commit, in CI and in the publish cache alike. The `BUILD_DATE` and `VCS_REF` arguments the Dockerfiles used to declare are gone for the same reason, and metadata-action already labels every image with `created` and `revision`.
+- Some files carry the build's time or randomness in their contents, which no mtime clamp can fix, so the Dockerfiles remove it:
+  - every apt step deletes `/var/log/dpkg.log`, `/var/log/alternatives.log`, `/var/log/apt/history.log`, `/var/log/apt/term.log` and `/var/cache/ldconfig/aux-cache`, and every apk step `/var/log/apk.log`;
+  - the step that creates `vscode` empties the last-change day `useradd`/`adduser` writes into `/etc/shadow`;
+  - `devcontainer-ansible-podman` deletes the random `/etc/machine-id` and `/var/lib/dbus/machine-id` that the systemd and dbus packages generate;
+  - `devcontainer-latex` deletes the fontconfig caches, which record each font directory's mtime;
+  - the ansible builders compile with `CFLAGS=-g0`: on arm64 `onigurumacffi` is built from its sdist, and debug info would embed uv's randomly named build directory in the `.so`.
+- Python bytecode written at build time is checked-hash (`python3 -m compileall --invalidation-mode checked-hash`), not uv's timestamp `.pyc`. A timestamp `.pyc` records its source's mtime, so the clamp makes it stale; `vscode` cannot write to `/usr/local/lib`, so every import of a stale module recompiles it in memory. A structure test fails on any stale timestamp `.pyc` under `/usr/local/lib/python3.*`: `tests/container-structure/base.yaml` for the base, and `ansible.yaml` for the ansible image and for `devcontainer-ansible-podman`, which `test-containers.yml` also checks with `ansible-podman.yaml`. pip, the one package the python image brings, is left uncompiled, as uv always left it. The compile runs in parallel, and parallel writes through overlayfs leave some directories with their old mtime and others with the build's, differently each time; the same step therefore touches every directory under the Python tree, and the clamp sets them all to the epoch.
+
+What is not reproducible:
+
+- The digest a tag points to, the image *index*. It lists the provenance and SBOM attestations, and both describe the run itself: the SLSA provenance records `startedOn`, `finishedOn` and an invocation ID, the SPDX SBOM a `creationInfo.created` time and a random `documentNamespace`. Compare the per-platform manifests inside the index instead.
+- A rebuild after the mirrors have moved, typically on another day. `apt-get full-upgrade` and `apk upgrade` install the newest packages on purpose, so that every scheduled build ships the security fixes published since the last one, and the digest moves with them.
+- `devcontainer-ansible` across different bases. Published builds use the base built in the same run, so two ansible builds match only when their `BASE_IMAGE` resolves to the same base manifest.
+
+To check it, build one image twice without cache and compare the manifest digests. The OCI exporter needs a `docker-container` builder (`docker buildx create --use`) or Docker's containerd image store:
+
+```bash
+EPOCH="$(git log -1 --format=%ct)"
+for run in 1 2; do
+  docker buildx build --no-cache --platform linux/amd64 \
+    --build-arg SOURCE_DATE_EPOCH="${EPOCH}" \
+    --provenance=false --sbom=false \
+    --output "type=oci,dest=golang-${run}.tar,rewrite-timestamp=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true" \
+    -f devcontainers/golang/Dockerfile .
+  tar -xOf "golang-${run}.tar" index.json | jq -r '.manifests[0].digest'
+done
+```
+
+Without attestations the OCI layout points straight at the image manifest, and its digest is the one the attested build lists in its index. For two published runs, resolve each run's index digest (the `digest` output of its build step) to the platform manifest with `IMAGE=ghcr.io/malpanez/devcontainer-<stack> DIGEST=<index digest> PLATFORM=linux/amd64 REQUIRED=true bash scripts/resolve-platform-manifest.sh`.
+
 To build or test images locally:
 
 ```bash

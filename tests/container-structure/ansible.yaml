@@ -61,6 +61,43 @@ commandTests:
     args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
     exitCode: 0
 
+  # A timestamp .pyc records its source's mtime and size. Published images
+  # are exported with rewrite-timestamp, which clamps mtimes to
+  # SOURCE_DATE_EPOCH, so a .pyc written at build time in that mode goes
+  # stale and, since vscode cannot rewrite /usr/local/lib, every import of
+  # it recompiles in memory. Build-time bytecode is checked-hash for that
+  # reason (devcontainers/base/Dockerfile); this fails if any is not.
+  - name: 'No stale timestamp bytecode under /usr/local/lib'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import glob, importlib.util, os, sys
+        stale, total = [], 0
+        for root in glob.glob("/usr/local/lib/python3.*"):
+            for folder, _, files in os.walk(root):
+                for name in files:
+                    pyc = os.path.join(folder, name)
+                    if not name.endswith(".pyc"):
+                        continue
+                    with open(pyc, "rb") as fh:
+                        head = fh.read(16)
+                    if int.from_bytes(head[4:8], "little") != 0:
+                        continue
+                    try:
+                        src = os.stat(importlib.util.source_from_cache(pyc))
+                    except (ValueError, OSError):
+                        continue
+                    total += 1
+                    recorded = (int.from_bytes(head[8:12], "little"), int.from_bytes(head[12:16], "little"))
+                    if recorded != (int(src.st_mtime) & 0xFFFFFFFF, src.st_size & 0xFFFFFFFF):
+                        stale.append(pyc)
+        print(f"stale timestamp .pyc: {len(stale)} of {total}", *stale[:20], sep="\n")
+        sys.exit(1 if stale else 0)
+    expectedOutput: ['stale timestamp \.pyc: 0 of']
+    exitCode: 0
+
 metadataTest:
   labels:
     - key: 'org.opencontainers.image.source'
