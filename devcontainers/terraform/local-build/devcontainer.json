@@ -1,0 +1,46 @@
+{
+  "name": "Terraform Dev Container (local build)",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "${localWorkspaceFolder}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "hashicorp.terraform",
+        "gruntwork.terragrunt",
+        "tamasfe.even-better-toml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "[terraform]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2
+        },
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "editor.rulers": [120]
+      }
+    }
+  },
+  "mounts": [
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    "source=terraform-plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=volume"
+  ],
+  "remoteEnv": {
+    "TF_PLUGIN_CACHE_DIR": "/workspaces/.terraform.d/plugin-cache",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "TF_IN_AUTOMATION": "1",
+    "SOPS_AGE_KEY_FILE": "/workspace/.secrets/age.key"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

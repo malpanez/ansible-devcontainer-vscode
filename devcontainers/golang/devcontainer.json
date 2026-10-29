@@ -1,9 +1,6 @@
 {
   "name": "Go Dev Container",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "../.."
-  },
+  "image": "ghcr.io/malpanez/devcontainer-golang:v1.4.0@sha256:b5712a3182b88bd421ba9b4040aa856ec669227b69157eb6f53dca4a11a91176",
   "customizations": {
     "vscode": {
       "extensions": [

@@ -93,7 +93,7 @@ cosign verify ghcr.io/malpanez/devcontainer-ansible:<tag> \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 ```
 
-Replace `<tag>` with the release you want to verify (for example `v1.2.3`). Releases whose notes have no *Container images* table (v1.3.29 and earlier) were rebuilt and signed by `release.yml` itself: verify those with `--certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>"`. Published images are consumed from the public owner-level namespace such as `ghcr.io/malpanez/devcontainer-ansible:latest`.
+Replace `<tag>` with the release you want to verify (for example `v1.2.3`). Releases whose notes have no *Container images* table (v1.3.29 and earlier) were rebuilt and signed by `release.yml` itself: verify those with `--certificate-identity "https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>"`. Published images are consumed from the public owner-level namespace. The dev container templates pin a release by tag and index digest, `ghcr.io/malpanez/devcontainer-ansible:vX.Y.Z@sha256:…`, which nothing moves or deletes; `latest` follows the last gated build of `main`.
 
 If a published image ever becomes unavailable or `latest` resolves to a broken manifest, dispatch `Build and Publish Containers` on `main` with `stack: all`: it rebuilds every image uncached, builds ansible on the base from the same run, and republishes only what passes the scan gate. A single-stack dispatch also works, but ansible then uses the base digest pinned in its Dockerfile, and `ansible-podman` is only rebuilt by `all`. Then verify `docker pull` and `docker buildx imagetools inspect` against the public tags.
 

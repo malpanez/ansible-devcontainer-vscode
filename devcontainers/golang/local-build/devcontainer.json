@@ -1,0 +1,46 @@
+{
+  "name": "Go Dev Container (local build)",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "${localWorkspaceFolder}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "ms-vscode.makefile-tools",
+        "GitHub.vscode-pull-request-github",
+        "mhutchie.git-graph"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.formatTool": "goimports",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "go.testFlags": [
+          "-v"
+        ]
+      }
+    }
+  },
+  "mounts": [
+    "source=go-mod-cache,target=/home/vscode/go/pkg/mod,type=volume",
+    "source=go-build-cache,target=/home/vscode/.cache/go-build,type=volume"
+  ],
+  "remoteEnv": {
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "GOMODCACHE": "/home/vscode/go/pkg/mod",
+    "GOCACHE": "/home/vscode/.cache/go-build"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit && go env -w GOMODCACHE=$GOMODCACHE && go env -w GOCACHE=$GOCACHE"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

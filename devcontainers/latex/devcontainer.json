@@ -1,9 +1,6 @@
 {
   "name": "LaTeX Dev Container",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "../.."
-  },
+  "image": "ghcr.io/malpanez/devcontainer-latex:v1.4.0@sha256:3416e24b7d48ab9895e83b0c49cd3bb1b91145ea295bed2b866c8c4de0d1538a",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
