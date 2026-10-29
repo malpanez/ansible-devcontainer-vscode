@@ -35,14 +35,15 @@ download_verified() {
 read_list() {
   local LIST="$1" DEST_DIR="$2"
   local NAME VERSION SHA256 EXTRA
-  while read -r NAME VERSION SHA256 EXTRA || [ -n "${NAME}" ]; do
+  while read -r NAME VERSION SHA256 EXTRA || [[ -n "${NAME}" ]]; do
     case "${NAME}" in
       '' | '#'*) continue ;;
+      *) ;;
     esac
     if [[ ! "${NAME}" =~ ^[a-z0-9_]+\.[a-z0-9_]+$ ]] \
       || [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] \
       || [[ ! "${SHA256}" =~ ^[a-f0-9]{64}$ ]] \
-      || [ -n "${EXTRA}" ]; then
+      || [[ -n "${EXTRA}" ]]; then
       printf '%s: malformed line: %s %s %s %s\n' "${LIST}" "${NAME}" "${VERSION}" "${SHA256}" "${EXTRA}" >&2
       exit 1
     fi
@@ -51,10 +52,10 @@ read_list() {
 }
 
 main() {
-  [ "$#" -ge 2 ] || usage
+  [[ "$#" -ge 2 ]] || usage
   local SITE="$1"
   shift
-  [ -d "${SITE}" ] || { printf '%s is not a directory\n' "${SITE}" >&2; exit 1; }
+  [[ -d "${SITE}" ]] || { printf '%s is not a directory\n' "${SITE}" >&2; exit 1; }
 
   WORK="$(mktemp -d)"
   trap 'rm -rf "${WORK}"' EXIT
@@ -65,7 +66,7 @@ main() {
   done
 
   local ARTIFACTS=("${WORK}"/*.tar.gz)
-  [ -e "${ARTIFACTS[0]}" ] || { echo "no collections listed in: $*" >&2; exit 1; }
+  [[ -e "${ARTIFACTS[0]}" ]] || { echo "no collections listed in: $*" >&2; exit 1; }
 
   ANSIBLE_COLLECTIONS_PATH="${SITE}" ansible-galaxy collection install \
     --offline --collections-path "${SITE}" "${ARTIFACTS[@]}"

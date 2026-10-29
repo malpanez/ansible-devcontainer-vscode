@@ -30,8 +30,13 @@ LISTS_GLOB = "devcontainers/ansible/collections*.txt"
 GALAXY_API = (
     "https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections"
 )
+# The version goes into a Galaxy URL path, so it is held to the shape
+# install-collections.sh accepts instead of any non-blank run.
 PIN_LINE = re.compile(
-    r"^(?P<name>[a-z0-9_]+\.[a-z0-9_]+) (?P<version>\S+) (?P<sha256>[a-f0-9]{64})$"
+    r"^(?P<name>[a-z0-9_]+\.[a-z0-9_]+)"
+    r" (?P<version>[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)"
+    r" (?P<sha256>[a-f0-9]{64})$",
+    re.MULTILINE,
 )
 RETRIABLE = (403, 404, 408, 425, 429, 500, 502, 503, 504)
 
@@ -45,7 +50,7 @@ def http_get(url: str, attempts: int = 4) -> bytes:
             with urllib.request.urlopen(request, timeout=120) as response:
                 body: bytes = response.read()
                 return body
-        except (urllib.error.HTTPError, urllib.error.URLError) as error:
+        except urllib.error.URLError as error:  # HTTPError included
             status = getattr(error, "code", None)
             if attempt == attempts or (status is not None and status not in RETRIABLE):
                 raise
@@ -68,26 +73,23 @@ def galaxy_sha256(name: str, version: str) -> str:
 
 
 def sync_file(path: Path, fetch: Callable[[str, str], str]) -> bool:
-    lines = path.read_text().splitlines(keepends=True)
-    changed = False
-    for index, line in enumerate(lines):
-        stripped = line.rstrip("\n")
-        if not stripped or stripped.startswith("#"):
-            continue
-        match = PIN_LINE.match(stripped)
-        if match is None:
+    text = path.read_text()
+    for number, line in enumerate(text.splitlines(), start=1):
+        if line and not line.startswith("#") and PIN_LINE.fullmatch(line) is None:
             raise RuntimeError(
-                f"{path}:{index + 1}: not '<namespace.name> <version> <sha256>': {stripped}"
+                f"{path}:{number}: not '<namespace.name> <version> <sha256>': {line}"
             )
-        name, version, pinned = match.group("name", "version", "sha256")
+
+    def refreshed(match: re.Match[str]) -> str:
+        name, version = match.group("name", "version")
         print(f"{name} {version}: hashing the Galaxy artifact")
-        digest = fetch(name, version)
-        if digest != pinned:
-            lines[index] = f"{name} {version} {digest}\n"
-            changed = True
-    if changed:
-        path.write_text("".join(lines))
-    return changed
+        return f"{name} {version} {fetch(name, version)}"
+
+    updated = PIN_LINE.sub(refreshed, text)
+    if updated == text:
+        return False
+    path.write_text(updated)
+    return True
 
 
 def sync_hashes(
