@@ -109,6 +109,8 @@ jobs:
               # lock bump changes the image as much as a Dockerfile edit and
               # must be built and scanned the same way.
               - 'requirements-ansible.txt'
+              # Same for ansible-aws: boto3 and botocore come from this export.
+              - 'requirements-aws.txt'
               # Same for base, terraform, golang and latex: pre-commit and
               # yamllint come from this export.
               - 'requirements-devcontainer-tools.txt'
@@ -423,6 +425,19 @@ jobs:
             dockerfile: Dockerfile.podman
             variant: -podman
             platforms: linux/amd64
+          # The -aws images are a stage of the stack's Dockerfile, selected
+          # by target; the entries above leave it empty and build the last
+          # stage, the plain image. Gated here for the same reason as podman.
+          - stack: terraform
+            dockerfile: Dockerfile
+            variant: -aws
+            target: terraform-aws
+            platforms: linux/amd64
+          - stack: ansible
+            dockerfile: Dockerfile
+            variant: -aws
+            target: ansible-aws
+            platforms: linux/amd64
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -455,7 +470,16 @@ jobs:
             echo "use_registry=false" >>"$GITHUB_OUTPUT"
           else
             CACHE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${IMAGE_STACK}:buildcache"
-            echo "cache_from=type=registry,ref=${CACHE_REF}" >>"$GITHUB_OUTPUT"
+            # Probed, as build-containers.yml does: a missing cache-from ref
+            # has been a fatal error in some BuildKit versions, and a new
+            # image (the -aws ones) has no :buildcache until this job's
+            # cache-to writes the first.
+            if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+              echo "cache_from=type=registry,ref=${CACHE_REF}" >>"$GITHUB_OUTPUT"
+            else
+              echo "cache_from=" >>"$GITHUB_OUTPUT"
+              echo "::notice::No cache at ${CACHE_REF} yet; building uncached and seeding it."
+            fi
             echo "cache_to=type=registry,ref=${CACHE_REF},mode=max" >>"$GITHUB_OUTPUT"
             echo "use_registry=true" >>"$GITHUB_OUTPUT"
           fi
@@ -493,6 +517,7 @@ jobs:
         with:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: false
           # The load `load: true` did, plus the timestamp rewrite the
           # published images get, so what this job smoke-tests and scans is

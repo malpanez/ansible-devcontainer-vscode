@@ -8,10 +8,12 @@ This document provides visual architecture diagrams and explanations for the dev
 graph TD
     A[python:3.14-slim-bookworm] --> B[devcontainer-base]
     B --> C[devcontainer-ansible]
+    C --> L[devcontainer-ansible-aws]
 
     K[python:3.14-slim-trixie] --> D[devcontainer-ansible-podman]
 
     E[debian:bookworm-slim] --> F[devcontainer-terraform]
+    F --> M[devcontainer-terraform-aws]
     E --> G[devcontainer-latex]
 
     H[golang:1.27-alpine] --> I[devcontainer-golang]
@@ -21,6 +23,8 @@ graph TD
     style D fill:#fff4e1
     style F fill:#e8f5e9
     style G fill:#fce4ec
+    style L fill:#fff4e1
+    style M fill:#e8f5e9
     style I fill:#f3e5f5
 ```
 
@@ -44,9 +48,14 @@ graph TD
     `python:3.14-slim-trixie` and installs Podman from Debian, because the
     Debian build is ABI-coherent with the rest of the image. Copying binaries
     from `quay.io/containers/podman` was tried and never worked at runtime.
+  - `devcontainer-ansible-aws`: `devcontainer-ansible` plus `amazon.aws`,
+    `boto3`/`botocore` and AWS CLI v2. It is the `ansible-aws` stage of
+    `devcontainers/ansible/Dockerfile`, built with `--target ansible-aws`.
 
 - **Standalone Stacks**: Independent base images
   - `devcontainer-terraform`: Debian-based with HashiCorp tools
+  - `devcontainer-terraform-aws`: `devcontainer-terraform` plus AWS CLI v2,
+    the `terraform-aws` stage of `devcontainers/terraform/Dockerfile`
   - `devcontainer-golang`: Alpine-based Go development
   - `devcontainer-latex`: Debian-based with Tectonic engine
 
@@ -179,7 +188,9 @@ The `build-containers.yml` workflow builds:
 **build-all job matrix:**
 - `ansible` (main Dockerfile)
 - `ansible` (Dockerfile.podman variant → `ansible-podman`)
+- `ansible` (`ansible-aws` target → `ansible-aws`, on the same-run base)
 - `terraform`
+- `terraform` (`terraform-aws` target → `terraform-aws`)
 - `golang`
 - `latex` (amd64 only)
 
@@ -261,7 +272,7 @@ graph TD
 | Tectonic | 0.15.0 | Minor auto-update via Renovate |
 | Ansible | 9.14.0 | Locked via pyproject.toml + uv.lock |
 | uv | 0.9.13 | Pinned in base image |
-| AWS CLI | v2 (latest) | Auto-update from official installer |
+| AWS CLI | v2, `-aws` images only | Pinned with its sha256 in `devcontainers/scripts/install-aws-cli.sh`, bumped by Renovate |
 | github-cli (gh) | latest | Auto-update from apt repository |
 | Podman | 5.7.0 | From official Podman image |
 

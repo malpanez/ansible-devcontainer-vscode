@@ -16,6 +16,10 @@ on:
           - golang
           - terraform
           - latex
+          # The -aws variants, built from the terraform and ansible
+          # Dockerfiles' -aws stages. `all` builds them too.
+          - terraform-aws
+          - ansible-aws
   schedule:
     # Daily, uncached (see `no-cache` in build-base): every image is rebuilt
     # from its pinned base, so the OS upgrade layer really runs and an image
@@ -29,11 +33,13 @@ on:
       - 'devcontainers/**'
       # The dev container templates (and their local-build/ variants) only name
       # the published images; no Dockerfile reads them. A template bump, which
-      # Renovate opens after each release, must not rebuild and republish all
-      # six images. release.yml's IMAGE_INPUTS mirrors this list.
+      # Renovate opens after each release, must not rebuild and republish
+      # every image. release.yml's IMAGE_INPUTS mirrors this list.
       - '!devcontainers/**/devcontainer*.json'
       # Installed by both ansible Dockerfiles; a lock bump is an image change
       - 'requirements-ansible.txt'
+      # Installed by the ansible-aws stage (boto3, botocore)
+      - 'requirements-aws.txt'
       # Installed by base, terraform, golang and latex (pre-commit, yamllint)
       - 'requirements-devcontainer-tools.txt'
       - '.github/workflows/build-containers.yml'
@@ -91,6 +97,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # stack names the image (devcontainer-<stack>); dir the Dockerfile's
+      # folder; target the stage, empty for a Dockerfile's last stage, which
+      # is the plain image in every one of them.
       - name: Resolve stack input
         id: stack
         env:
@@ -98,7 +107,18 @@ jobs:
         run: |
           case "${STACK_INPUT}" in
             base|ansible|golang|terraform|latex)
-              echo "stack=${STACK_INPUT}" >> "$GITHUB_OUTPUT"
+              {
+                echo "stack=${STACK_INPUT}"
+                echo "dir=${STACK_INPUT}"
+                echo "target="
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            terraform-aws|ansible-aws)
+              {
+                echo "stack=${STACK_INPUT}"
+                echo "dir=${STACK_INPUT%-aws}"
+                echo "target=${STACK_INPUT}"
+              } >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Invalid stack input: ${STACK_INPUT}"
@@ -183,7 +203,8 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
-          file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
+          file: devcontainers/${{ steps.stack.outputs.dir }}/Dockerfile
+          target: ${{ steps.stack.outputs.target }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           labels: ${{ steps.labels.outputs.labels }}
@@ -764,10 +785,14 @@ jobs:
         include:
           # Main Dockerfiles
           # base_from_run marks the entries whose Dockerfile consumes
-          # BASE_IMAGE. Only devcontainers/ansible/Dockerfile does; the podman
-          # variant starts from python:3.14-slim-trixie and golang, terraform
-          # and latex do not reference it at all, so they must not be handed
-          # an unconsumed build-arg.
+          # BASE_IMAGE. Only devcontainers/ansible/Dockerfile does (ansible
+          # and ansible-aws); the podman variant starts from
+          # python:3.14-slim-trixie and golang, terraform and latex do not
+          # reference it at all, so they must not be handed an unconsumed
+          # build-arg.
+          # target is the stage to build. Left out, it is empty and the
+          # Dockerfile's last stage is built, which is the plain image in
+          # every Dockerfile here.
           - stack: ansible
             dockerfile: Dockerfile
             variant: ""
@@ -790,6 +815,18 @@ jobs:
             dockerfile: Dockerfile.podman
             variant: -podman
             platforms: linux/amd64,linux/arm64
+          # Variant stages: the -aws images, a stage of the stack's Dockerfile
+          - stack: terraform
+            dockerfile: Dockerfile
+            variant: -aws
+            target: terraform-aws
+            platforms: linux/amd64,linux/arm64
+          - stack: ansible
+            dockerfile: Dockerfile
+            variant: -aws
+            target: ansible-aws
+            platforms: linux/amd64,linux/arm64
+            base_from_run: true
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -863,6 +900,7 @@ jobs:
         with:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           labels: ${{ steps.labels.outputs.labels }}

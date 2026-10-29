@@ -47,10 +47,15 @@ jobs:
       contents: read
     strategy:
       matrix:
+        # Every image build-containers.yml publishes. ansible-podman was
+        # missing until 2026-10-29, so its untagged versions were never pruned.
         image:
           - devcontainer-base
           - devcontainer-ansible
+          - devcontainer-ansible-podman
+          - devcontainer-ansible-aws
           - devcontainer-terraform
+          - devcontainer-terraform-aws
           - devcontainer-golang
           - devcontainer-latex
     steps:
@@ -96,7 +101,13 @@ jobs:
             tag: latest
           - image: devcontainer-ansible
             tag: main
+          - image: devcontainer-ansible-podman
+            tag: latest
+          - image: devcontainer-ansible-aws
+            tag: latest
           - image: devcontainer-terraform
+            tag: latest
+          - image: devcontainer-terraform-aws
             tag: latest
           - image: devcontainer-golang
             tag: latest
@@ -148,18 +159,21 @@ jobs:
     steps:
       - name: Report results
         run: |
-          echo "## GHCR Cleanup Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Cleanup completed successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Images processed:" >> $GITHUB_STEP_SUMMARY
-          echo "- devcontainer-base" >> $GITHUB_STEP_SUMMARY
-          echo "- devcontainer-ansible" >> $GITHUB_STEP_SUMMARY
-          echo "- devcontainer-terraform" >> $GITHUB_STEP_SUMMARY
-          echo "- devcontainer-golang" >> $GITHUB_STEP_SUMMARY
-          echo "- devcontainer-latex" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Retention policy:" >> $GITHUB_STEP_SUMMARY
-          echo "- Untagged: Keep last 3" >> $GITHUB_STEP_SUMMARY
-          echo "- Tagged versions: no automatic deletion" >> $GITHUB_STEP_SUMMARY
-          echo "- Verified after cleanup: the derived Python stream tag, \`main\` and \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "## GHCR Cleanup Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Cleanup completed successfully" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Images processed:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-base" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-ansible" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-ansible-podman" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-ansible-aws" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-terraform" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-terraform-aws" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-golang" >> "$GITHUB_STEP_SUMMARY"
+          echo "- devcontainer-latex" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Retention policy:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Untagged: Keep last 3" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tagged versions: no automatic deletion" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified after cleanup: the derived Python stream tag, \`main\` and \`latest\`" >> "$GITHUB_STEP_SUMMARY"

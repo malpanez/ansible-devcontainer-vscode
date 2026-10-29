@@ -121,7 +121,12 @@ jobs:
             platforms: linux/amd64,linux/arm64
           - name: ansible-podman
             platforms: linux/amd64,linux/arm64
+          # First released in v2.0.0: a release before it has no such tag.
+          - name: ansible-aws
+            platforms: linux/amd64,linux/arm64
           - name: terraform
+            platforms: linux/amd64,linux/arm64
+          - name: terraform-aws
             platforms: linux/amd64,linux/arm64
           - name: golang
             platforms: linux/amd64,linux/arm64
@@ -166,8 +171,8 @@ jobs:
           echo "ref=${REF}" >> "${GITHUB_OUTPUT}"
           if ! DIGEST="$(docker buildx imagetools inspect "${REF}" --format '{{json .Manifest}}' \
             | jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))')"; then
-            echo "::error::Could not resolve ${REF} to a digest (error above). release.yml tags all six" \
-              "images of a release, so this one is missing or unreadable."
+            echo "::error::Could not resolve ${REF} to a digest (error above). release.yml tags every" \
+              "image of a release, so this one is missing or unreadable (or the release predates it)."
             exit 1
           fi
           echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"

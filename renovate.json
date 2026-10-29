@@ -71,9 +71,10 @@
       "groupName": "github-actions"
     },
     {
-      "description": "Group the terraform-stack CLI tools",
+      "description": "Group the terraform-stack CLI tools, with the AWS CLI: it moved from the terraform Dockerfile to devcontainers/scripts/install-aws-cli.sh, the one pin devcontainer-terraform-aws and devcontainer-ansible-aws share, and stays in this group so its bumps keep arriving batched as before.",
       "matchFileNames": [
-        "devcontainers/terraform/Dockerfile"
+        "devcontainers/terraform/Dockerfile",
+        "devcontainers/scripts/install-aws-cli.sh"
       ],
       "groupName": "terraform-stack tools"
     },
@@ -122,6 +123,7 @@
       "matchFileNames": [
         "requirements.txt",
         "requirements-ansible.txt",
+        "requirements-aws.txt",
         "requirements-ci-quality.txt",
         "requirements-devcontainer-tools.txt",
         ".devcontainer/**"
@@ -234,12 +236,12 @@
     },
     {
       "customType": "regex",
-      "description": "aws-cli (git tags, hash recomputed by a postUpgradeTask)",
+      "description": "aws-cli (git tags; both hashes recomputed by Renovate Post-Process). Pinned once, in the install script the terraform-aws and ansible-aws stages share.",
       "managerFilePatterns": [
-        "/devcontainers/terraform/Dockerfile/"
+        "/^devcontainers/scripts/install-aws-cli\\.sh$/"
       ],
       "matchStrings": [
-        "ARG AWS_CLI_VERSION=(?<currentValue>[0-9.]+)"
+        "AWS_CLI_VERSION=(?<currentValue>[0-9.]+)"
       ],
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "aws/aws-cli"

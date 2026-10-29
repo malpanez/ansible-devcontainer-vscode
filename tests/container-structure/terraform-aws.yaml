@@ -1,0 +1,44 @@
+---
+# devcontainer-terraform-aws is the terraform stack plus AWS CLI v2 (the
+# terraform-aws stage of devcontainers/terraform/Dockerfile), so
+# test-containers.yml runs terraform.yaml against it as well; this file holds
+# only what the AWS layer adds. ansible-aws.yaml repeats the AWS CLI checks.
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  - name: 'aws on PATH'
+    path: '/usr/local/bin/aws'
+    shouldExist: true
+
+  - name: 'aws_completer on PATH'
+    path: '/usr/local/bin/aws_completer'
+    shouldExist: true
+
+  - name: 'AWS CLI owned by root'
+    path: '/usr/local/aws-cli'
+    shouldExist: true
+    uid: 0
+    gid: 0
+    permissions: 'drwxr-xr-x'
+
+commandTests:
+  # Major only, as in terraform.yaml: devcontainers/scripts/install-aws-cli.sh
+  # owns the exact version (checksum-verified, bumped by Renovate), and an
+  # exact one here would go stale on every bump.
+  - name: 'AWS CLI v2 runs'
+    command: 'aws'
+    args: ['--version']
+    expectedOutput: ['^aws-cli/2\.[0-9]+\.[0-9]+ ']
+    exitCode: 0
+
+  # Gets as far as looking for credentials, so the CLI and its bundled
+  # Python load and run a command. The instance metadata lookup is off so
+  # that the answer does not depend on the runner's network.
+  - name: 'AWS CLI stops at the missing credentials'
+    command: 'aws'
+    args: ['sts', 'get-caller-identity']
+    envVars:
+      - key: 'AWS_EC2_METADATA_DISABLED'
+        value: 'true'
+    expectedError: ['Unable to locate credentials']
+    exitCode: 253
