@@ -172,6 +172,19 @@
     },
     {
       "customType": "regex",
+      "description": "OpenTofu CLI pinned as an ARG",
+      "managerFilePatterns": [
+        "/devcontainers/terraform/Dockerfile/"
+      ],
+      "matchStrings": [
+        "ARG TOFU_VERSION=(?<currentValue>[0-9.]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "opentofu/opentofu",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
       "description": "terragrunt CLI pinned as an ARG",
       "managerFilePatterns": [
         "/devcontainers/terraform/Dockerfile/"
