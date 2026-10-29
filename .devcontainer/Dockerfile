@@ -164,6 +164,56 @@ COPY --from=fetch --link --chmod=0755 /tmp/bin/sops /usr/local/bin/sops
 COPY --from=fetch --link --chmod=0755 /tmp/bin/age /usr/local/bin/age
 COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-keygen
 
+# pre-commit and yamllint at the versions and hashes uv.lock records
+# (requirements-devcontainer-tools.txt, the export of its devcontainer-tools
+# group), in a venv of their own under /opt/devcontainer-tools: owned by
+# root, read-only to vscode, and apart from anything users install. Only the
+# two entry points are linked onto PATH. ensure-precommit, which every
+# template runs on create, uses this copy and installs nothing. The export is
+# bind-mounted, so it never lands in a layer.
+#
+# The interpreter is the CPython version devcontainer-base runs, installed by
+# the pinned uv, which carries the sha256 of every Python build it can
+# install and refuses a download that does not match. Debian's python3 is no
+# option: bookworm ships 3.11, below the lock's requires-python (>=3.12), so
+# the export has no wheel it could verify.
+#
+# Then it is trimmed of what nothing here loads: libpython3.14.so* (the
+# python executable is linked statically) and Tcl/Tk with tkinter, idlelib
+# and turtle (no display in a dev container). pip and ensurepip stay.
+#
+# --only-binary :all: works because every package in the export publishes
+# wheels for both architectures (musllinux too). Bytecode as in
+# devcontainers/base: checked-hash, -f, every directory touched afterwards.
+# Here it covers the interpreter's standard library as well, which uv
+# installs uncompiled: vscode cannot write under /opt, so every run
+# recompiled it in memory and `pre-commit --version` took twice as long.
+# chmod: uv creates its .lock files world-writable (0666).
+# renovate: datasource=docker depName=python versioning=docker
+ARG TOOLS_PYTHON_VERSION=3.14.8
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
+    UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \
+      uv python install --no-bin "${TOOLS_PYTHON_VERSION}" \
+    && UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \
+      uv venv --managed-python --no-python-downloads --python "${TOOLS_PYTHON_VERSION}" \
+        /opt/devcontainer-tools/venv \
+    && CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --python /opt/devcontainer-tools/venv/bin/python \
+         --require-hashes --only-binary :all: -r /tmp/requirements-devcontainer-tools.txt \
+    && PY_PREFIX="$(/opt/devcontainer-tools/venv/bin/python -c 'import sys; print(sys.base_prefix)')" \
+    && PY_STDLIB="$(/opt/devcontainer-tools/venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
+    && rm -rf "${PY_PREFIX}"/lib/libpython3*.so* \
+         "${PY_PREFIX}"/lib/libtcl* "${PY_PREFIX}"/lib/libtk* "${PY_PREFIX}"/lib/tcl* "${PY_PREFIX}"/lib/tk* \
+         "${PY_PREFIX}"/lib/itcl* "${PY_PREFIX}"/lib/tdbc* "${PY_PREFIX}"/lib/thread* "${PY_PREFIX}"/bin/idle3* \
+         "${PY_STDLIB}"/lib-dynload/_tkinter.* "${PY_STDLIB}"/tkinter "${PY_STDLIB}"/idlelib \
+         "${PY_STDLIB}"/turtledemo "${PY_STDLIB}"/turtle.py \
+    && ln -s /opt/devcontainer-tools/venv/bin/pre-commit /usr/local/bin/pre-commit \
+    && ln -s /opt/devcontainer-tools/venv/bin/yamllint /usr/local/bin/yamllint \
+    && /opt/devcontainer-tools/venv/bin/python -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/pip/' /opt/devcontainer-tools \
+    && chmod -R go-w /opt/devcontainer-tools \
+    && find /opt/devcontainer-tools -type d -exec touch {} +
+
 # DL3064 fires on the *name* containing USERNAME, not on any secret: the
 # value is the fixed, public account the Dev Containers specification
 # expects every image to provide, and renaming it would break the spec.
