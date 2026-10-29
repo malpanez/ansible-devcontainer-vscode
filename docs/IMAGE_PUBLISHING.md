@@ -24,7 +24,7 @@ Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus
 
 ## Reproducible builds
 
-Two builds of the same commit, made while the package mirrors serve the same packages, produce the same per-platform image manifest digest. That was verified for `linux/amd64`, all six images, with two uncached builds of each; `linux/arm64` runs the same steps and is expected to match, but has not been verified yet. Everything a build downloads is pinned (base images by digest, GitHub release assets by checksum, the Python stack by hash in `requirements-ansible.txt`) except the OS packages that `apt-get full-upgrade` and `apk upgrade` install, which are whatever the Debian and Alpine mirrors serve at the time.
+Two builds of the same commit, made while the package mirrors serve the same packages, produce the same per-platform image manifest digest. That was verified for `linux/amd64`, all six images, with two uncached builds of each; `linux/arm64` runs the same steps and is expected to match, but has not been verified yet. Everything a build downloads is pinned (base images by digest, GitHub release assets by checksum, the uv-managed CPython of terraform, golang and latex by the sha256 the pinned uv carries, the Python packages by hash in `requirements-ansible.txt` and `requirements-devcontainer-tools.txt`) except the OS packages that `apt-get full-upgrade` and `apk upgrade` install, which are whatever the Debian and Alpine mirrors serve at the time.
 
 How a build gets there:
 
@@ -36,7 +36,7 @@ How a build gets there:
   - `devcontainer-ansible-podman` deletes the random `/etc/machine-id` and `/var/lib/dbus/machine-id` that the systemd and dbus packages generate;
   - `devcontainer-latex` deletes the fontconfig caches, which record each font directory's mtime;
   - the ansible builders compile with `CFLAGS=-g0`: on arm64 `onigurumacffi` is built from its sdist, and debug info would embed uv's randomly named build directory in the `.so`.
-- Python bytecode written at build time is checked-hash (`python3 -m compileall --invalidation-mode checked-hash`), not uv's timestamp `.pyc`. A timestamp `.pyc` records its source's mtime, so the clamp makes it stale; `vscode` cannot write to `/usr/local/lib`, so every import of a stale module recompiles it in memory. A structure test fails on any stale timestamp `.pyc` under `/usr/local/lib/python3.*`: `tests/container-structure/base.yaml` for the base, and `ansible.yaml` for the ansible image and for `devcontainer-ansible-podman`, which `test-containers.yml` also checks with `ansible-podman.yaml`. pip, the one package the python image brings, is left uncompiled, as uv always left it. The compile runs in parallel, and parallel writes through overlayfs leave some directories with their old mtime and others with the build's, differently each time; the same step therefore touches every directory under the Python tree, and the clamp sets them all to the epoch.
+- Python bytecode written at build time is checked-hash (`python3 -m compileall --invalidation-mode checked-hash`), not uv's timestamp `.pyc`. A timestamp `.pyc` records its source's mtime, so the clamp makes it stale; `vscode` cannot write to `/usr/local/lib`, so every import of a stale module recompiles it in memory. A structure test fails on any stale timestamp `.pyc` under `/usr/local/lib/python3.*`: `tests/container-structure/base.yaml` for the base, and `ansible.yaml` for the ansible image and for `devcontainer-ansible-podman`, which `test-containers.yml` also checks with `ansible-podman.yaml`. Terraform, golang and latex compile their whole `/opt/devcontainer-tools` tree the same way, standard library included (uv installs it uncompiled), and `terraform.yaml`, `golang.yaml` and `latex.yaml` run the same check there. pip, the one package the python image brings, is left uncompiled, as uv always left it. The compile runs in parallel, and parallel writes through overlayfs leave some directories with their old mtime and others with the build's, differently each time; the same step therefore touches every directory under the Python tree, and the clamp sets them all to the epoch.
 
 What is not reproducible:
 
@@ -68,7 +68,7 @@ docker build devcontainers/ansible \
   --build-arg BASE_IMAGE=python:3.12-slim-bookworm \
   -t ghcr.io/<org>/devcontainer-ansible:local
 
-# Terraform stack (ships without Python, relies on uvx pre-commit)
+# Terraform stack (pre-commit and yamllint in /opt/devcontainer-tools, pinned from uv.lock)
 docker build \
   --file devcontainers/terraform/Dockerfile \
   -t ghcr.io/<org>/devcontainer-terraform:local \

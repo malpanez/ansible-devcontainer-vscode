@@ -39,8 +39,8 @@ This project aims to provide **TOP 0.1%** DevContainer environments for Infrastr
 3. **Install Pre-commit Hooks**
    ```bash
    make setup
-   # or manually:
-   uvx pre-commit install --install-hooks
+   # or manually (pre-commit ships in the devcontainer, pinned from uv.lock):
+   pre-commit install --install-hooks
    ```
 
 ## 📝 Development Workflow

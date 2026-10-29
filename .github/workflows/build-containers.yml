@@ -34,6 +34,8 @@ on:
       - '!devcontainers/**/devcontainer*.json'
       # Installed by both ansible Dockerfiles; a lock bump is an image change
       - 'requirements-ansible.txt'
+      # Installed by base, terraform, golang and latex (pre-commit, yamllint)
+      - 'requirements-devcontainer-tools.txt'
       - '.github/workflows/build-containers.yml'
   # No `pull_request: [closed]` trigger. It had the same paths filter as the
   # push trigger above, so every promotion merged by a user or a PAT started
@@ -492,7 +494,9 @@ jobs:
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
-          context: devcontainers/base
+          # The repository root, as every other build of base uses: the
+          # Dockerfile bind-mounts requirements-devcontainer-tools.txt.
+          context: .
           file: devcontainers/base/Dockerfile
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base

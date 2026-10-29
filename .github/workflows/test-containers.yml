@@ -6,6 +6,7 @@ on:
     paths:
       - 'devcontainers/**'
       - 'requirements-ansible.txt'
+      - 'requirements-devcontainer-tools.txt'
       - 'tests/container-structure/**'
       - '.github/workflows/test-containers.yml'
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - 'devcontainers/**'
       - 'requirements-ansible.txt'
+      - 'requirements-devcontainer-tools.txt'
       - 'tests/container-structure/**'
   workflow_dispatch:
 
@@ -47,6 +49,8 @@ jobs:
           filters: |
             golang:
               - 'devcontainers/golang/**'
+              # pre-commit and yamllint come from this uv.lock export
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/golang.yaml'
             ansible:
               - 'devcontainers/ansible/**'
@@ -56,12 +60,15 @@ jobs:
               - 'tests/container-structure/ansible.yaml'
             terraform:
               - 'devcontainers/terraform/**'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/terraform.yaml'
             latex:
               - 'devcontainers/latex/**'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/latex.yaml'
             base:
               - 'devcontainers/base/**'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/base.yaml'
             # Tested with ansible.yaml too: see "Resolve the stack's files".
             ansible-podman:

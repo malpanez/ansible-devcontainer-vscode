@@ -67,7 +67,7 @@ Each stack copies two variants into `.devcontainer/`. `devcontainer.json` opens 
 
 - VS Code pulls the published GHCR image that `.devcontainer/devcontainer.json` pins to a release version tag and digest (terraform unless you switched stacks). The Dockerfile is not built; the Dev Containers extension only adds thin layers on top (the UID mapping on Linux, and features such as docker-in-docker). When the registry is unreachable, open the “(local build)” configuration (section 3) to build the image from the checkout instead.
 - The image already ships the stack's tooling (for the Ansible stack, ansible, ansible-lint and the rest of `requirements-ansible.txt`); nothing is installed system-wide at startup.
-- The post-create hook runs `ensure-precommit`: it copies the stack's pre-commit template into the workspace when it has none, installs pre-commit for the `vscode` user with `uv tool install` on the stacks whose image does not ship it (terraform, golang, latex), and installs the git hook.
+- The post-create hook runs `ensure-precommit`: it copies the stack's pre-commit template into the workspace when it has none and installs the git hook with the image's pre-commit. Every image ships pre-commit and yamllint at the versions `uv.lock` pins; nothing is downloaded at startup, and an image without pre-commit makes the hook fail instead of installing an unpinned one.
 - For the Ansible stack the `postCreateCommand` installs collections via `ansible-galaxy collection install -r requirements.yml`.
 - Workspace playbooks/roles are available under `/workspace`.
 

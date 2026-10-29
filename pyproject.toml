@@ -50,6 +50,15 @@ aws = [
   "boto3>=1.43.47",
   "botocore>=1.43.47",
 ]
+# The tools every non-Ansible image bakes in (devcontainer-base, terraform,
+# golang, latex), installed hash-verified from
+# requirements-devcontainer-tools.txt. Exported on its own so those images
+# never pull the Ansible stack. The ansible images get the same versions
+# from requirements-ansible.txt: one lock, one resolution.
+devcontainer-tools = [
+  "pre-commit>=3.6.0",
+  "yamllint>=1.35.0",
+]
 
 [tool.uv]
 package = false
