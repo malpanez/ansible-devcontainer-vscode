@@ -12,7 +12,7 @@ Runs `devcontainer build` for each stack (`ansible`, `golang`, `latex`, `terrafo
 
 The helper also normalises BuildKit cache mounts (APT, pip) so repeated runs do not corrupt the Dockerfiles—helpful if a previous manual edit introduced invalid mount syntax.
 
-Python tooling (ansible-lint, Checkov) now installs during the devcontainer `postCreateCommand` via `sudo uv pip install --system ...`. When reproducing issues outside VS Code, run those commands manually inside the container after it starts.
+The stack templates open the published image (`devcontainer.json`), pinned to a release version tag and its digest, so they run what that release shipped, not the Dockerfile in your checkout; to reproduce a problem in the Dockerfile itself, bring up the build variant from the repository root with `devcontainer up --workspace-folder . --config devcontainers/<stack>/local-build/devcontainer.json`. The tooling (ansible-lint included) is baked into the image; the only thing the `postCreateCommand` adds is `ensure-precommit`, and for the Ansible stack the collections in `requirements.yml`. When reproducing issues outside VS Code, run `ensure-precommit` inside the container after it starts.
 
 ## 2. Launch an interactive debug session
 

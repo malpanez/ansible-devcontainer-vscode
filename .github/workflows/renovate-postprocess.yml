@@ -82,8 +82,18 @@ jobs:
           echo "Changed files:"; echo "${changed}"
           # A devcontainer/tool bump: recompute the checksum-less hashes and
           # resync the active .devcontainer against its (bumped) template.
+          # An image digest bump in a template needs the resync too: Renovate
+          # leaves .devcontainer/ alone, and Devcontainer State fails until
+          # the copy and its recorded signature match the template again.
+          resync=false
           if echo "${changed}" | grep -qE '^devcontainers/.*/Dockerfile'; then
             python3 scripts/refresh-tool-pins.py --sync-hashes
+            resync=true
+          fi
+          if echo "${changed}" | grep -qE '^devcontainers/[^/]+/(local-build/)?devcontainer[^/]*\.json$'; then
+            resync=true
+          fi
+          if [ "${resync}" = true ]; then
             stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
             bash scripts/use-devcontainer.sh "${stack}"
           fi

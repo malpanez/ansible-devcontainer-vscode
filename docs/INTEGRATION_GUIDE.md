@@ -159,13 +159,27 @@ Use the terraform container - it includes both toolsets.
 
 ## Configuration Examples
 
+Both examples pin the image to a release version tag plus that tag's index
+digest (`<image>:vX.Y.Z@sha256:…`), as the templates in this repository do, so
+the container opens on exactly the image that release shipped. Pin a version
+tag, not `latest`: the nightly rebuild moves `latest` (and `main`) every day,
+and the registry cleanup deletes the digest it leaves untagged two weeks later,
+so a `latest@sha256:…` pin stops pulling. Version tags are never rebuilt, moved
+or deleted. To follow new releases in your project, let Renovate's
+`devcontainer` manager update `.devcontainer/devcontainer.json`; it moves the
+tag and the digest together. In this repository Renovate bumps the templates,
+`examples/` and the pins on this page after each release. To look a digest up
+yourself, run
+`docker buildx imagetools inspect ghcr.io/malpanez/devcontainer-<stack>:vX.Y.Z`
+and take its `Digest:` line.
+
 ### Example 1: Ansible Collection (Recommended Configuration)
 
 **.devcontainer/devcontainer.json**:
 ```json
 {
   "name": "Ansible Development",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v1.4.0@sha256:3522da537d49cc863f3d66b634b90dfa5920b21ef9bb2ccf3b3b0301f6ba6ba8",
   "remoteUser": "vscode",
 
   "customizations": {
@@ -252,13 +266,7 @@ gh pr create
 ```json
 {
   "name": "Terraform AWS Security Module",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:latest",
-
-  "features": {
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/aws-cli:1": {}
-  },
+  "image": "ghcr.io/malpanez/devcontainer-terraform:v1.4.0@sha256:077a7105c24e2c4f9bcb3591a061afe989adc78e92f7e8b61dfab41b981fb948",
 
   "customizations": {
     "vscode": {

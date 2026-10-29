@@ -46,6 +46,7 @@ jobs:
       golang: ${{ steps.golang-check.outputs.enabled }}
       terraform: ${{ steps.filter.outputs.terraform }}
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
+      template_images: ${{ steps.filter.outputs.template-images }}
       scripts: ${{ steps.filter.outputs.scripts }}
       hadolint: ${{ steps.filter.outputs.hadolint }}
       python: ${{ steps.filter.outputs.python }}
@@ -108,6 +109,14 @@ jobs:
               # lock bump changes the image as much as a Dockerfile edit and
               # must be built and scanned the same way.
               - 'requirements-ansible.txt'
+            # The files that name the images the templates and examples open
+            # from, checked by Devcontainer State. A filter of its own, not
+            # more paths under devcontainer: examples/ is no image input, and
+            # that filter also starts the image builds.
+            template-images:
+              - 'devcontainers/**/devcontainer*.json'
+              - '.devcontainer/**/devcontainer*.json'
+              - 'examples/*/.devcontainer/*.json'
             scripts:
               - 'scripts/**'
             # The files that pin hadolint and the guard that compares them,
@@ -338,7 +347,10 @@ jobs:
     name: Devcontainer State
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.devcontainer == 'true' || needs.changes.outputs.scripts == 'true'
+    if: >-
+      needs.changes.outputs.devcontainer == 'true'
+      || needs.changes.outputs.template_images == 'true'
+      || needs.changes.outputs.scripts == 'true'
     timeout-minutes: 10
     permissions:
       contents: read
@@ -360,6 +372,13 @@ jobs:
 
       - name: Run devcontainer doctor
         run: bash scripts/doctor-devcontainer.sh
+
+      # Every template and example opens from a GHCR image pinned by digest.
+      # A digest GHCR no longer serves, or one that pins a single platform
+      # instead of the multi-arch index, breaks every dev container that
+      # opens from it, and nothing else here pulls those images.
+      - name: Verify template images resolve in GHCR
+        run: python3 scripts/check-devcontainer-images.py
 
 
   devcontainer-build:
@@ -545,48 +564,56 @@ jobs:
           npm ci --ignore-scripts --prefix scripts/devcontainers-cli
           echo "${GITHUB_WORKSPACE}/scripts/devcontainers-cli/node_modules/.bin" >> "$GITHUB_PATH"
 
+      # devcontainer.json opens the published image, so bringing it up here
+      # would test GHCR rather than this pull request.
+      # local-build/devcontainer.json is the same file built from the stack's
+      # Dockerfile; scripts/check-devcontainer-images.py keeps the two
+      # identical apart from name, image and build, so its lifecycle commands
+      # are the image variant's too.
       - name: Verify devcontainer config
         env:
           STACK: ${{ matrix.stack }}
         run: |
-          if [ -f "devcontainers/${STACK}/devcontainer.json" ]; then
-            echo "Checking devcontainers/${STACK}/devcontainer.json"
-            cat "devcontainers/${STACK}/devcontainer.json" | jq .
-          else
-            echo "::warning::No devcontainer.json found for ${STACK}"
-          fi
+          for config in devcontainer.json local-build/devcontainer.json; do
+            if [ ! -f "devcontainers/${STACK}/${config}" ]; then
+              echo "::error::devcontainers/${STACK}/${config} is missing"
+              exit 1
+            fi
+            echo "Checking devcontainers/${STACK}/${config}"
+            jq . "devcontainers/${STACK}/${config}"
+          done
 
       - name: Test devcontainer up
         env:
           STACK: ${{ matrix.stack }}
         run: |
-          if [ -f "devcontainers/${STACK}/devcontainer.json" ]; then
-            cd "devcontainers/${STACK}"
-            DEVCONTAINER_ARGS=(--workspace-folder . --config devcontainer.json)
-            # The CLI builds through a generated Dockerfile-with-features whose
-            # own '# syntax=docker/dockerfile:1.27' directive forces an
-            # unauthenticated docker.io pull on every run. Anonymous Docker Hub
-            # pulls are rate-limited per source IP and runners share a NAT pool,
-            # so this resolves outside our control and fails in bursts: on
-            # 2026-09-14 it reset main's CI with 'connection reset by peer'
-            # against auth.docker.io while the identical tree had passed on
-            # develop two hours earlier, and a bare re-run went green. Retry
-            # rather than pin: the directive lives in a Dockerfile the CLI
-            # generates at build time, so pinning ours does not affect it.
-            for attempt in 1 2 3; do
-              if devcontainer up "${DEVCONTAINER_ARGS[@]}"; then
-                break
-              fi
-              if [ "${attempt}" -eq 3 ]; then
-                echo "::error::devcontainer up failed after 3 attempts"
-                exit 1
-              fi
-              echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
-              sleep "$((attempt * 20))"
-            done
-            devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${STACK} container is running'"
-            # no 'devcontainer stop' subcommand exists; the runner cleans up
-          fi
+          # From the repository root: the build variant's context is
+          # ${localWorkspaceFolder}, which must be the root that the
+          # Dockerfile COPYs from.
+          DEVCONTAINER_ARGS=(--workspace-folder . --config "devcontainers/${STACK}/local-build/devcontainer.json")
+          # The CLI builds through a generated Dockerfile-with-features whose
+          # own '# syntax=docker/dockerfile:1.27' directive forces an
+          # unauthenticated docker.io pull on every run. Anonymous Docker Hub
+          # pulls are rate-limited per source IP and runners share a NAT pool,
+          # so this resolves outside our control and fails in bursts: on
+          # 2026-09-14 it reset main's CI with 'connection reset by peer'
+          # against auth.docker.io while the identical tree had passed on
+          # develop two hours earlier, and a bare re-run went green. Retry
+          # rather than pin: the directive lives in a Dockerfile the CLI
+          # generates at build time, so pinning ours does not affect it.
+          for attempt in 1 2 3; do
+            if devcontainer up "${DEVCONTAINER_ARGS[@]}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::devcontainer up failed after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
+            sleep "$((attempt * 20))"
+          done
+          devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${STACK} container is running'"
+          # no 'devcontainer stop' subcommand exists; the runner cleans up
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})

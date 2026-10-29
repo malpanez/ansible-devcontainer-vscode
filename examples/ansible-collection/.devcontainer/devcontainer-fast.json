@@ -1,6 +1,6 @@
 {
   "name": "Ansible Collection Development (Fast - No Build)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v1.4.0@sha256:3522da537d49cc863f3d66b634b90dfa5920b21ef9bb2ccf3b3b0301f6ba6ba8",
 
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"

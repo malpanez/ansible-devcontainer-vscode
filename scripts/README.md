@@ -43,7 +43,11 @@ Switches between devcontainer stacks (Ansible, Terraform, Golang, LaTeX).
 
 **Features:**
 
-- Copies selected stack template to `.devcontainer/`
+- Copies selected stack template to `.devcontainer/`, in two variants:
+  `devcontainer.json` opens the stack's published GHCR image, pinned to a
+  release version tag and its digest (Renovate bumps it after each release);
+  `local-build/devcontainer.json` ("… (local build)") builds the stack's
+  Dockerfile from the checkout, with the repository root as context
 - Creates metadata file for tracking
 - Optional cleanup with `--prune` flag
 - Supports both Docker and Podman
@@ -80,7 +84,8 @@ Switches between devcontainer stacks (Ansible, Terraform, Golang, LaTeX).
 
 1. Reopen VS Code (`code .`)
 2. Select "Dev Containers: Reopen in Container"
-3. VS Code will rebuild with the new stack
+3. Pick the plain stack name to pull the published image, or "… (local build)"
+   to build the Dockerfile
 
 ---
 

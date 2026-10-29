@@ -1,9 +1,6 @@
 {
   "name": "Terraform Dev Container",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "../.."
-  },
+  "image": "ghcr.io/malpanez/devcontainer-terraform:v1.4.0@sha256:077a7105c24e2c4f9bcb3591a061afe989adc78e92f7e8b61dfab41b981fb948",
   "customizations": {
     "vscode": {
       "extensions": [

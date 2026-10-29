@@ -21,6 +21,22 @@
   ],
   "prConcurrentLimit": 30,
   "prHourlyLimit": 0,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
+  "devcontainer": {
+    "description": "The stack templates and the examples open from a published image pinned to a release version tag plus that tag's index digest (<image>:vX.Y.Z@sha256:...); this manager moves the tag and the digest together. Renovate's default patterns only cover .devcontainer/devcontainer.json, which is generated from devcontainers/<stack>/ and disabled below; the companion workflow regenerates it.",
+    "managerFilePatterns": [
+      "/^devcontainers/[^/]+/(local-build/)?devcontainer[^/]*\\.json$/",
+      "/^examples/[^/]+/\\.devcontainer/[^/]+\\.json$/"
+    ]
+  },
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": [
@@ -69,6 +85,27 @@
         "s3transfer"
       ],
       "groupName": "aws-sdk-python"
+    },
+    {
+      "description": "One PR per release for the published images that the templates, the examples and the docs pin. A release adds the same version tag to every image, so the group moves every template together; without it each image gets its own PR and the stacks sit on different releases until the last one merges.",
+      "matchManagers": [
+        "devcontainer",
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/malpanez/devcontainer-*"
+      ],
+      "groupName": "devcontainer template images"
+    },
+    {
+      "description": "examples/ was ignored by config:recommended (ignorePaths above restates that preset without it) so that Renovate can move the image pins (version tag and digest) of the examples. Nothing else in examples/ is a dependency of this repository.",
+      "matchFileNames": [
+        "examples/**"
+      ],
+      "matchManagers": [
+        "!devcontainer"
+      ],
+      "enabled": false
     },
     {
       "description": "Generated files: Renovate must not edit them. requirements.txt and requirements-ansible.txt come from uv.lock via `uv export`; .devcontainer/ is a copy of devcontainers/<stack>/ produced by scripts/use-devcontainer.sh. Editing generated files desynchronised the exports from the lock (2026-08-16, where it made a HIGH cryptography fix look applied while the lock stayed vulnerable) and duplicates every devcontainer PR: #411 patched .devcontainer while #412 patched the terraform template it is generated from. Renovate manages the sources; the companion regenerates the copies.",
@@ -217,6 +254,17 @@
       ],
       "datasourceTemplate": "pypi",
       "depNameTemplate": "pre-commit"
+    },
+    {
+      "customType": "regex",
+      "description": "Version tag and digest of the published images that the documentation's dev container examples pin (<image>:vX.Y.Z@sha256:...), so that an example copied from the docs starts on the current release, as the templates do.",
+      "managerFilePatterns": [
+        "/^docs/.+\\.md$/"
+      ],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/malpanez/devcontainer-[a-z0-9-]+):(?<currentValue>[A-Za-z0-9_][A-Za-z0-9_.-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "vulnerabilityAlerts": {

@@ -22,7 +22,9 @@ Stacks available under devcontainers/:
   - latex
   - terraform
 
-Copies the selected template into .devcontainer/.
+Copies the selected template into .devcontainer/: devcontainer.json opens the
+stack's published image (pinned to a release version tag and its digest),
+local-build/devcontainer.json builds the stack's Dockerfile from this checkout.
 EOF
   return 0
 }
