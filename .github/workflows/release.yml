@@ -316,7 +316,36 @@ jobs:
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
+          # The index: grype resolves it to the runner's platform (amd64).
           image: ${{ matrix.image }}@${{ matrix.digest }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "true"
+          output-format: table
+
+      # The released index is immutable, so the arm64 manifest it holds is
+      # what the version tag will carry: it is scanned by its own digest.
+      # Not required: an image may be amd64-only (latex). Runs even when the
+      # amd64 scan failed, so one run reports the findings of both platforms.
+      - name: Resolve the arm64 manifest of ${{ matrix.name }}
+        id: arm64
+        if: always()
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ matrix.digest }}
+          PLATFORM: linux/arm64
+          REQUIRED: "false"
+        run: bash scripts/resolve-platform-manifest.sh
+
+      # registry: reads that manifest itself from GHCR, independent of the
+      # runner's Docker (see build-containers.yml).
+      - name: Scan ${{ matrix.name }} (arm64) with the gate's policy
+        if: always() && steps.arm64.outputs.ref != ''
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          image: registry:${{ steps.arm64.outputs.ref }}
           severity-cutoff: high
           only-fixed: true
           fail-build: "true"

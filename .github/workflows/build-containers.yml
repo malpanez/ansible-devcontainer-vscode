@@ -124,6 +124,14 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
 
+      # Each Dockerfile labels its own description; metadata-action's
+      # repository-wide one would replace it.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Determine target platforms
         env:
           STACK: ${{ steps.stack.outputs.stack }}
@@ -164,7 +172,7 @@ jobs:
           file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           # Uncached unless triggered by push: see build-base.
@@ -180,6 +188,7 @@ jobs:
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
+          # The index: grype resolves it to the runner's platform (amd64).
           image: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}@${{ steps.build.outputs.digest }}
           severity-cutoff: high
           only-fixed: true
@@ -213,43 +222,97 @@ jobs:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
           category: grype-${{ steps.stack.outputs.stack }}
 
-      # Scan gate: see base-freshness. Every step after it runs only when it
-      # passed.
+      # arm64 is scanned by its own manifest digest: see build-base.
+      - name: Resolve the arm64 manifest
+        id: arm64
+        if: always() && steps.build.outcome == 'success' && contains(env.PLATFORMS, 'linux/arm64')
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM: linux/arm64
+          REQUIRED: "true"
+        run: bash scripts/resolve-platform-manifest.sh
+
+      - name: Scan arm64 with Grype
+        id: grype_scan_arm64
+        if: always() && steps.arm64.outputs.ref != ''
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          # registry: see build-base.
+          image: registry:${{ steps.arm64.outputs.ref }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
+      - name: Keep only high/critical arm64 findings in SARIF
+        id: sarif_check_arm64
+        if: always() && steps.grype_scan_arm64.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_scan_arm64.outputs.sarif }}
+          IMAGE: devcontainer-${{ steps.stack.outputs.stack }}
+        run: |
+          set -euo pipefail
+          # Not uploaded when unreadable; the gate reads it again and fails closed.
+          if [ -f "${SARIF_FILE}" ] \
+            && jq '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" > "${SARIF_FILE}.filtered"; then
+            mv "${SARIF_FILE}.filtered" "${SARIF_FILE}"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No readable arm64 SARIF for ${IMAGE}"
+          fi
+
+      - name: Upload Grype SARIF (arm64)
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        if: always() && steps.sarif_check_arm64.outputs.exists == 'true'
+        with:
+          sarif_file: ${{ steps.grype_scan_arm64.outputs.sarif }}
+          category: grype-${{ steps.stack.outputs.stack }}-arm64
+
+      # Scan gate: see base-freshness. An empty count means a platform in
+      # PLATFORMS could not be judged.
+      - name: Count fixable findings
+        id: findings
+        if: always() && steps.build.outcome == 'success'
+        env:
+          IMAGE: devcontainer-${{ steps.stack.outputs.stack }}
+          PLATFORMS: ${{ env.PLATFORMS }}
+          SARIF_AMD64: ${{ steps.grype_scan.outputs.sarif }}
+          SARIF_ARM64: ${{ steps.grype_scan_arm64.outputs.sarif }}
+        run: bash scripts/count-fixable-findings.sh
+
+      # Every step after it runs only when it passed.
       - name: Fail when the image has fixable findings
         if: always() && steps.build.outcome == 'success'
         env:
-          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+          COUNT: ${{ steps.findings.outputs.count }}
           IMAGE: devcontainer-${{ steps.stack.outputs.stack }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ -z "${SARIF_FILE}" ] || [ ! -f "${SARIF_FILE}" ]; then
-            echo "::error::No Grype SARIF for ${IMAGE}: an image the scan could not judge is not tagged." \
-              "Check the Grype scan step."
-            exit 1
-          fi
-          COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"
-          echo "Fixable high/critical findings in ${IMAGE}: ${COUNT}"
-          if [ "${COUNT}" -eq 0 ]; then
-            exit 0
-          fi
-          mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
-          printf '%s\n' "${RULE_IDS[@]}"
-          {
-            echo "### ${IMAGE}: ${COUNT} fixable high/critical finding(s), not tagged"
-            echo
-            printf -- '- %s\n' "${RULE_IDS[@]}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          case "${COUNT}" in
+            0)
+              exit 0
+              ;;
+            '' | *[!0-9]*)
+              echo "::error::No usable Grype SARIF for ${IMAGE} on at least one platform: an image the" \
+                "scan could not judge is not tagged. Check the Grype scan and 'Count fixable findings' steps."
+              exit 1
+              ;;
+          esac
           if [ "${EVENT_NAME}" = "push" ]; then
-            echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s), listed above, and was" \
-              "not tagged: its tags stay on the last image that passed. This build reused the registry" \
-              "cache, which can be up to a day old; the next scheduled build rebuilds uncached."
+            echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s) on at least one platform," \
+              "listed above, and was not tagged: its tags stay on the last image that passed. This build" \
+              "reused the registry cache, which can be up to a day old; the next scheduled build rebuilds" \
+              "uncached."
           else
             echo "::error::${IMAGE} was freshly built (uncached) and still has ${COUNT} fixable" \
-              "high/critical finding(s), listed above, so it was not tagged: its tags stay on the last" \
-              "image that passed. Rebuilding will not clear them: bump the pinned component (or widen" \
-              "the Dockerfile's upgrade step) that ships the vulnerable package, or record a justified" \
-              "exception in .grype.yaml."
+              "high/critical finding(s) on at least one platform, listed above, so it was not tagged: its" \
+              "tags stay on the last image that passed. Rebuilding will not clear them: bump the pinned" \
+              "component (or widen the Dockerfile's upgrade step) that ships the vulnerable package, or" \
+              "record a justified exception in .grype.yaml."
           fi
           exit 1
 
@@ -325,6 +388,9 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
       # Consumed by base-freshness.
       fixable_findings: ${{ steps.findings.outputs.count }}
+    env:
+      # One list for the build and the scan gate, which judges each of them.
+      PLATFORMS: linux/amd64,linux/arm64
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -368,6 +434,13 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      # See build-single.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Resolve registry cache
         id: rcache
         env:
@@ -403,7 +476,7 @@ jobs:
           file: devcontainers/base/Dockerfile
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           # Scheduled and manually dispatched builds run uncached. The
@@ -415,7 +488,7 @@ jobs:
           # refreshes :buildcache-publish and push builds reuse that night's
           # layers.
           no-cache: ${{ github.event_name != 'push' }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
 
@@ -427,6 +500,7 @@ jobs:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
           # By digest: nothing is tagged until this scan has passed.
+          # The index: grype resolves it to the runner's platform (amd64).
           image: ghcr.io/${{ github.repository_owner }}/devcontainer-base@${{ steps.build.outputs.digest }}
           severity-cutoff: high
           only-fixed: true
@@ -459,35 +533,72 @@ jobs:
           sarif_file: ${{ steps.grype_base.outputs.sarif }}
           category: grype-base
 
-      # An empty count means the scan could not judge the image: it is not
-      # tagged, and base-freshness fails the run.
+      # Given an index, grype scans only the runner's platform, so arm64
+      # would be attested, signed and tagged unscanned. It gets its own scan,
+      # by the digest of its manifest in the pushed index. continue-on-error
+      # like the scan: a failure here leaves arm64 unjudged, which keeps the
+      # base untagged and fails base-freshness, while build-all still runs.
+      - name: Resolve the arm64 manifest
+        id: arm64
+        if: always() && steps.build.outcome == 'success' && contains(env.PLATFORMS, 'linux/arm64')
+        continue-on-error: true
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM: linux/arm64
+          REQUIRED: "true"
+        run: bash scripts/resolve-platform-manifest.sh
+
+      - name: Scan base image (arm64) with Grype
+        id: grype_base_arm64
+        if: always() && steps.arm64.outputs.ref != ''
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          # registry: reads the gated manifest itself from GHCR. Through the
+          # daemon grype pulls and `docker save`s it, which reports a rewritten
+          # manifest digest and depends on the runner's Docker.
+          image: registry:${{ steps.arm64.outputs.ref }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
+      - name: Keep only high/critical arm64 findings in SARIF
+        id: sarif_check_arm64
+        if: always() && steps.grype_base_arm64.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_base_arm64.outputs.sarif }}
+        run: |
+          set -euo pipefail
+          # Not uploaded when unreadable; the gate reads it again and fails closed.
+          if [ -f "${SARIF_FILE}" ] \
+            && jq '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" > "${SARIF_FILE}.filtered"; then
+            mv "${SARIF_FILE}.filtered" "${SARIF_FILE}"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No readable arm64 SARIF for base image"
+          fi
+
+      - name: Upload Grype SARIF for base (arm64)
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        if: always() && steps.sarif_check_arm64.outputs.exists == 'true'
+        with:
+          sarif_file: ${{ steps.grype_base_arm64.outputs.sarif }}
+          category: grype-base-arm64
+
+      # An empty count means the scan could not judge the image on some
+      # platform in PLATFORMS: it is not tagged, and base-freshness fails the
+      # run.
       - name: Count fixable findings
         id: findings
         if: always()
         env:
-          SARIF_FILE: ${{ steps.grype_base.outputs.sarif }}
-        run: |
-          set -euo pipefail
-          COUNT=""
-          if [ -n "${SARIF_FILE}" ] && [ -f "${SARIF_FILE}" ]; then
-            if ! COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"; then
-              COUNT=""
-              echo "::warning::Unreadable SARIF for devcontainer-base; it will not be tagged"
-            fi
-          else
-            echo "::warning::No SARIF for devcontainer-base; it will not be tagged"
-          fi
-          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
-          echo "Fixable high/critical findings in devcontainer-base: ${COUNT:-unknown}"
-          if [ -n "${COUNT}" ] && [ "${COUNT}" -gt 0 ]; then
-            mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
-            printf '%s\n' "${RULE_IDS[@]}"
-            {
-              echo "### devcontainer-base: ${COUNT} fixable high/critical finding(s), not tagged"
-              echo
-              printf -- '- %s\n' "${RULE_IDS[@]}"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          IMAGE: devcontainer-base
+          SARIF_AMD64: ${{ steps.grype_base.outputs.sarif }}
+          SARIF_ARM64: ${{ steps.grype_base_arm64.outputs.sarif }}
+        run: bash scripts/count-fixable-findings.sh
 
       # A rejected digest is neither attested nor signed: a signature and a
       # provenance attestation from this workflow mean the image passed.
@@ -555,12 +666,15 @@ jobs:
 
   # Scan gate, here for the base and as a step before tagging in build-all and
   # build-single, on every event: an image with fixable high/critical findings
-  # is never tagged. After an uncached (scheduled or dispatched) build such a
-  # finding is one the Dockerfile's upgrade step did not clear, so it needs a
-  # human. A push build reuses cache up to ~24h old, so its finding may be
-  # cleared by the next scheduled build on its own. A separate job because
-  # build-all needs build-base: failing build-base itself would stop every
-  # stack from being built and judged on its own.
+  # on any platform it is published for is never tagged. Each platform is
+  # scanned on its own, and scripts/count-fixable-findings.sh leaves the count
+  # empty, which also blocks tagging, when one of them could not be judged.
+  # After an uncached (scheduled or dispatched) build such a finding is one
+  # the Dockerfile's upgrade step did not clear, so it needs a human. A push
+  # build reuses cache up to ~24h old, so its finding may be cleared by the
+  # next scheduled build on its own. A separate job because build-all needs
+  # build-base: failing build-base itself would stop every stack from being
+  # built and judged on its own.
   base-freshness:
     name: Base image has no fixable findings
     needs: build-base
@@ -682,6 +796,13 @@ jobs:
             type=sha
             type=ref,event=branch
 
+      # See build-single.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
       - name: Resolve registry cache
         id: rcache
         env:
@@ -712,7 +833,7 @@ jobs:
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.labels.outputs.labels }}
           # The published image must sit on the base built in THIS run,
           # otherwise it ships the digest pinned in the Dockerfile, which is
           # by construction at least one rebuild behind (base is rebuilt daily
@@ -737,6 +858,7 @@ jobs:
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
+          # The index: grype resolves it to the runner's platform (amd64).
           image: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}@${{ steps.build.outputs.digest }}
           severity-cutoff: high
           only-fixed: true
@@ -770,43 +892,97 @@ jobs:
           sarif_file: ${{ steps.grype_scan.outputs.sarif }}
           category: grype-${{ matrix.stack }}${{ matrix.variant }}
 
-      # Scan gate: see base-freshness. Every step after it runs only when it
-      # passed.
+      # arm64 is scanned by its own manifest digest: see build-base.
+      - name: Resolve the arm64 manifest
+        id: arm64
+        if: always() && steps.build.outcome == 'success' && contains(matrix.platforms, 'linux/arm64')
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM: linux/arm64
+          REQUIRED: "true"
+        run: bash scripts/resolve-platform-manifest.sh
+
+      - name: Scan ${{ matrix.stack }}${{ matrix.variant }} (arm64) with Grype
+        id: grype_scan_arm64
+        if: always() && steps.arm64.outputs.ref != ''
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          # registry: see build-base.
+          image: registry:${{ steps.arm64.outputs.ref }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
+      - name: Keep only high/critical arm64 findings in SARIF
+        id: sarif_check_arm64
+        if: always() && steps.grype_scan_arm64.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_scan_arm64.outputs.sarif }}
+          IMAGE: devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+        run: |
+          set -euo pipefail
+          # Not uploaded when unreadable; the gate reads it again and fails closed.
+          if [ -f "${SARIF_FILE}" ] \
+            && jq '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" > "${SARIF_FILE}.filtered"; then
+            mv "${SARIF_FILE}.filtered" "${SARIF_FILE}"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No readable arm64 SARIF for ${IMAGE}"
+          fi
+
+      - name: Upload Grype SARIF for ${{ matrix.stack }}${{ matrix.variant }} (arm64)
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        if: always() && steps.sarif_check_arm64.outputs.exists == 'true'
+        with:
+          sarif_file: ${{ steps.grype_scan_arm64.outputs.sarif }}
+          category: grype-${{ matrix.stack }}${{ matrix.variant }}-arm64
+
+      # Scan gate: see base-freshness. An empty count means a platform in
+      # PLATFORMS could not be judged.
+      - name: Count fixable findings
+        id: findings
+        if: always() && steps.build.outcome == 'success'
+        env:
+          IMAGE: devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          PLATFORMS: ${{ matrix.platforms }}
+          SARIF_AMD64: ${{ steps.grype_scan.outputs.sarif }}
+          SARIF_ARM64: ${{ steps.grype_scan_arm64.outputs.sarif }}
+        run: bash scripts/count-fixable-findings.sh
+
+      # Every step after it runs only when it passed.
       - name: Fail when the image has fixable findings
         if: always() && steps.build.outcome == 'success'
         env:
-          SARIF_FILE: ${{ steps.grype_scan.outputs.sarif }}
+          COUNT: ${{ steps.findings.outputs.count }}
           IMAGE: devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ -z "${SARIF_FILE}" ] || [ ! -f "${SARIF_FILE}" ]; then
-            echo "::error::No Grype SARIF for ${IMAGE}: an image the scan could not judge is not tagged." \
-              "Check the Grype scan step."
-            exit 1
-          fi
-          COUNT="$(jq '[.runs[].results[]] | length' "${SARIF_FILE}")"
-          echo "Fixable high/critical findings in ${IMAGE}: ${COUNT}"
-          if [ "${COUNT}" -eq 0 ]; then
-            exit 0
-          fi
-          mapfile -t RULE_IDS < <(jq -r '[.runs[].results[].ruleId] | unique | .[]' "${SARIF_FILE}")
-          printf '%s\n' "${RULE_IDS[@]}"
-          {
-            echo "### ${IMAGE}: ${COUNT} fixable high/critical finding(s), not tagged"
-            echo
-            printf -- '- %s\n' "${RULE_IDS[@]}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          case "${COUNT}" in
+            0)
+              exit 0
+              ;;
+            '' | *[!0-9]*)
+              echo "::error::No usable Grype SARIF for ${IMAGE} on at least one platform: an image the" \
+                "scan could not judge is not tagged. Check the Grype scan and 'Count fixable findings' steps."
+              exit 1
+              ;;
+          esac
           if [ "${EVENT_NAME}" = "push" ]; then
-            echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s), listed above, and was" \
-              "not tagged: its tags stay on the last image that passed. This build reused the registry" \
-              "cache, which can be up to a day old; the next scheduled build rebuilds uncached."
+            echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s) on at least one platform," \
+              "listed above, and was not tagged: its tags stay on the last image that passed. This build" \
+              "reused the registry cache, which can be up to a day old; the next scheduled build rebuilds" \
+              "uncached."
           else
             echo "::error::${IMAGE} was freshly built (uncached) and still has ${COUNT} fixable" \
-              "high/critical finding(s), listed above, so it was not tagged: its tags stay on the last" \
-              "image that passed. Rebuilding will not clear them: bump the pinned component (or widen" \
-              "the Dockerfile's upgrade step) that ships the vulnerable package, or record a justified" \
-              "exception in .grype.yaml."
+              "high/critical finding(s) on at least one platform, listed above, so it was not tagged: its" \
+              "tags stay on the last image that passed. Rebuilding will not clear them: bump the pinned" \
+              "component (or widen the Dockerfile's upgrade step) that ships the vulnerable package, or" \
+              "record a justified exception in .grype.yaml."
           fi
           exit 1
 
