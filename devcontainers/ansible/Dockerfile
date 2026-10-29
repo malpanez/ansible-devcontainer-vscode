@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.28
 # The builder and the runtime stage both start from the hardened
-# devcontainer-base layer (apt tools, gh, checksum-verified uv,
-# pre-commit, vscode user), so the two stages and the base pulled beside
+# devcontainer-base layer (apt tools, gh, checksum-verified uv, pre-commit
+# and yamllint, vscode user), so the two stages and the base pulled beside
 # them share it. The digest below is NOT what published images
 # are built on: build-containers.yml overrides BASE_IMAGE with the base
 # built in the same run, and release.yml preflight overrides it with a
@@ -51,17 +51,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # them the lock's (certifi, 2026-10-26).
 COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
-# Checked-hash bytecode instead of uv's timestamp .pyc, which the
-# exporter's rewrite-timestamp would leave stale, pip left uncompiled, and
-# every directory touched afterwards: see devcontainers/base for all three.
 # CFLAGS=-g0 because arm64 compiles onigurumacffi here from its sdist, and
 # the -g in Python's own CFLAGS wrote uv's randomly named build directory
 # into the .so's debug info, so the file differed in every build.
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt \
-    && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt
+
+# ansible-core plus the collections pinned with their sha256 in
+# collections.txt, instead of the ansible package's bundle of 92.
+COPY devcontainers/ansible/collections.txt devcontainers/ansible/install-collections.sh /tmp/ansible-collections/
+RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && bash /tmp/ansible-collections/install-collections.sh "${SITE}" /tmp/ansible-collections/collections.txt
+
+# Checked-hash bytecode instead of uv's timestamp .pyc, which the
+# exporter's rewrite-timestamp would leave stale, pip left uncompiled, and
+# every directory touched afterwards: see devcontainers/base for all three.
+# ansible_collections gets none: ansible-core imports collection code
+# through its own loader, which compiles the source in memory and never
+# reads __pycache__, so bytecode there is dead weight (160 MiB of it in
+# v1.4.0, for the 92 bundled collections).
+RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
     && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
-         -x '/site-packages/pip/' "${SITE}" \
+         -x '/site-packages/(pip|ansible_collections)/' "${SITE}" \
     && find "$(dirname "${SITE}")" -type d -exec touch {} +
 
 # Stage 2: runtime image without any build toolchain
@@ -100,19 +111,26 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
          /var/log/apt/history.log /var/log/apt/term.log \
          /var/cache/ldconfig/aux-cache
 
-# Base already ships site-packages (pre-commit and its deps, at whatever
-# versions base resolved). COPY only adds files, so every package the lock
-# moves would keep the base's old dist-info beside the new one and scanners
-# would report both versions (pre-commit 4.6.2 next to 4.7.0, 2026-10-28).
-# The builder's tree copied below is a superset: it started from this base.
-RUN find /usr/local/lib -mindepth 2 -maxdepth 2 -type d -name site-packages \
-      -exec rm -rf {} +
-
-# Copy the whole lib tree (not a version-pinned site-packages path): the
-# builder shares this stage's base, so its Python minor always matches —
-# hardcoding it only breaks while the pinned base lags a version bump.
-COPY --link --from=python-builder /usr/local/lib /usr/local/lib
-COPY --link --from=python-builder /usr/local/bin /usr/local/bin
+# Bring /usr/local/lib and /usr/local/bin to the builder's state, writing
+# only what differs from this stage's base. The builder started from the
+# same base, so the Python stdlib, uv and the site-packages base already
+# ships are byte-identical and stay in the base's layers: base installs
+# pre-commit, yamllint and their dependencies from
+# requirements-devcontainer-tools.txt, the same uv.lock as
+# requirements-ansible.txt, so the builder's install leaves them alone.
+# Copying both trees whole, as this stage used to, stored all of that a
+# second time.
+# --delete removes what the builder removed. That happens only when this
+# base and the lock disagree, such as a pinned BASE_IMAGE that trails a lock
+# bump: uv replaces the package and the base's old dist-info would
+# otherwise stay beside the new one, both reported by scanners (pre-commit
+# 4.6.2 next to 4.7.0, 2026-10-28). --checksum and no -t: a file is
+# rewritten only when its content differs. Syncing an mtime alone would
+# copy the whole file up into this layer, and the builder rewrote every
+# .pyc of the base.
+RUN --mount=type=bind,from=python-builder,source=/usr/local,target=/mnt/python-builder \
+    rsync -rlpgoD --checksum --delete /mnt/python-builder/lib/ /usr/local/lib/ \
+    && rsync -rlpgoD --checksum --delete /mnt/python-builder/bin/ /usr/local/bin/
 
 # DL3064 fires on the *name* containing USERNAME, not on any secret: the
 # value is the fixed, public account the Dev Containers specification

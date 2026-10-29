@@ -87,6 +87,16 @@
       "groupName": "aws-sdk-python"
     },
     {
+      "description": "The Ansible collections the ansible images bake in (devcontainers/ansible/collections*.txt) move together: every bump rewrites the same file and Renovate Post-Process recomputes the artifact hashes on each PR, so one PR per batch instead of one per collection. Majors still get their own PR (separateMajorMinor).",
+      "matchDatasources": [
+        "galaxy-collection"
+      ],
+      "matchFileNames": [
+        "devcontainers/ansible/**"
+      ],
+      "groupName": "ansible image collections"
+    },
+    {
       "description": "One PR per release for the published images that the templates, the examples and the docs pin. A release adds the same version tag to every image, so the group moves every template together; without it each image gets its own PR and the stacks sit on different releases until the last one merges.",
       "matchManagers": [
         "devcontainer",
@@ -246,6 +256,17 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "tectonic-typesetting/tectonic",
       "extractVersionTemplate": "^tectonic@(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Ansible collections baked into the ansible images, one '<namespace.name> <version> <sha256>' line each (sha256 recomputed by Renovate Post-Process). Not the ansible-galaxy manager: it only reads requirements.yml-style files and marks any entry with a key besides name/version/source/type as unsupported, so a hash cannot sit next to the version there.",
+      "managerFilePatterns": [
+        "/^devcontainers/ansible/collections[^/]*\\.txt$/"
+      ],
+      "matchStrings": [
+        "(?<depName>[a-z0-9_]+\\.[a-z0-9_]+) (?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+\\S*) [a-f0-9]{64}"
+      ],
+      "datasourceTemplate": "galaxy-collection"
     },
     {
       "customType": "regex",

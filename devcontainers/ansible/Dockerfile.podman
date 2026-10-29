@@ -72,17 +72,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # dependency), which this stage used to add on top, unpinned.
 COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
-# Checked-hash bytecode instead of uv's timestamp .pyc, which the
-# exporter's rewrite-timestamp would leave stale, pip left uncompiled, and
-# every directory touched afterwards: see devcontainers/base for all three.
 # CFLAGS=-g0 because arm64 compiles onigurumacffi here from its sdist, and
 # the -g in Python's own CFLAGS wrote uv's randomly named build directory
 # into the .so's debug info, so the file differed in every build.
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt \
-    && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt
+
+# The same pinned collections as the main Dockerfile: see collections.txt.
+COPY devcontainers/ansible/collections.txt devcontainers/ansible/install-collections.sh /tmp/ansible-collections/
+RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && bash /tmp/ansible-collections/install-collections.sh "${SITE}" /tmp/ansible-collections/collections.txt
+
+# Checked-hash bytecode instead of uv's timestamp .pyc, which the
+# exporter's rewrite-timestamp would leave stale, pip left uncompiled, and
+# every directory touched afterwards: see devcontainers/base for all three.
+# None for ansible_collections, which ansible-core never imports through
+# __pycache__: see the main Dockerfile.
+RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
     && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
-         -x '/site-packages/pip/' "${SITE}" \
+         -x '/site-packages/(pip|ansible_collections)/' "${SITE}" \
     && find "$(dirname "${SITE}")" -type d -exec touch {} +
 
 # Stage 3: runtime image with Podman, no build toolchain
@@ -167,10 +175,13 @@ RUN podman --version; \
       echo "ERROR: Podman version < 5.4" >&2; exit 1; \
     fi
 
-# Copy the whole lib tree rather than a version-pinned site-packages path,
-# so a Python minor bump needs no edit here (builder and final share a base).
-COPY --link --from=python-builder /usr/local/lib /usr/local/lib
-COPY --link --from=python-builder /usr/local/bin /usr/local/bin
+# Only what the builder changed on top of uv-base, which this stage shares:
+# copying /usr/local/lib and /usr/local/bin whole stored the Python stdlib,
+# pip and uv a second time. --checksum without -t and --delete as in the
+# main Dockerfile, which explains both.
+RUN --mount=type=bind,from=python-builder,source=/usr/local,target=/mnt/python-builder \
+    rsync -rlpgoD --checksum --delete /mnt/python-builder/lib/ /usr/local/lib/ \
+    && rsync -rlpgoD --checksum --delete /mnt/python-builder/bin/ /usr/local/bin/
 
 # DL3064 fires on the *name* containing USERNAME, not on any secret: the
 # value is the fixed, public account the Dev Containers specification

@@ -47,7 +47,151 @@ commandTests:
   - name: 'Ansible installed'
     command: 'ansible'
     args: ['--version']
-    expectedOutput: ['ansible']
+    expectedOutput: ['ansible \[core 2\.[0-9]+\.[0-9]+']
+
+  # ansible-core alone: the ansible package and its 92 bundled collections
+  # were replaced by the pinned set in devcontainers/ansible/collections.txt.
+  - name: 'ansible-core without the ansible package'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import importlib.metadata as md
+        print("ansible-core", md.version("ansible-core"))
+        try:
+            print("ansible package present:", md.version("ansible"))
+            raise SystemExit(1)
+        except md.PackageNotFoundError:
+            print("ansible package absent")
+    expectedOutput: ['ansible package absent']
+    exitCode: 0
+
+  # Exactly the collections pinned in collections.txt, by name: the build
+  # installs each at its pinned version and sha256. Adding or dropping one
+  # is a deliberate change to that file and to this list. ansible-core's
+  # own internal collection (ansible._protomatter) lives inside the ansible
+  # package and is not counted.
+  - name: 'Exactly the pinned collections'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import json, os, subprocess, sys, sysconfig
+        expected = {
+            "ansible.posix",
+            "community.docker",
+            "community.general",
+            "community.library_inventory_filtering_v1",
+        }
+        listed = json.loads(subprocess.run(
+            ["ansible-galaxy", "collection", "list", "--format", "json"],
+            capture_output=True, text=True, check=True).stdout)
+        found = {name for path, cols in listed.items()
+                 if "/ansible/_internal/" not in path for name in cols}
+        root = os.path.join(sysconfig.get_path("purelib"), "ansible_collections")
+        on_disk = {f"{ns}.{name}" for ns in os.listdir(root)
+                   for name in os.listdir(os.path.join(root, ns))}
+        print("listed:", sorted(found))
+        print("on disk:", sorted(on_disk))
+        sys.exit(0 if found == expected == on_disk else 1)
+    exitCode: 0
+
+  # ansible-core imports collection code through its own loader, which
+  # compiles the source in memory and never reads __pycache__; bytecode
+  # there would only be dead weight (see devcontainers/ansible/Dockerfile).
+  - name: 'No bytecode under ansible_collections'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import os, sys, sysconfig
+        root = os.path.join(sysconfig.get_path("purelib"), "ansible_collections")
+        found = [os.path.join(d, f) for d, _, files in os.walk(root) for f in files if f.endswith(".pyc")]
+        print(f"pyc under ansible_collections: {len(found)}", *found[:10], sep="\n")
+        sys.exit(1 if found else 0)
+    expectedOutput: ['pyc under ansible_collections: 0']
+    exitCode: 0
+
+  # What community.docker imports at runtime (pyproject.toml says where the
+  # list comes from); paramiko also backs ansible-core's paramiko_ssh
+  # connection plugin.
+  - name: 'Collection runtime libraries import'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - 'import docker, paramiko, requests; print("imports ok")'
+    expectedOutput: ['imports ok']
+    exitCode: 0
+
+  # One module from each collection must resolve (syntax-check fails on an
+  # unknown action), and the two that need nothing outside the container
+  # really run on localhost. The docker task is tagged never: it would need
+  # a daemon. No shell variables in here: container-structure-test expands
+  # them itself, against the image's environment, before the shell sees the
+  # script.
+  - name: 'Collections load and run'
+    command: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        rm -rf /tmp/collection-smoke
+        mkdir /tmp/collection-smoke
+        cat > /tmp/collection-smoke/smoke.yml <<'PLAY'
+        ---
+        - name: Collection smoke test
+          hosts: localhost
+          connection: local
+          gather_facts: false
+          vars:
+            smoke_dir: /tmp/collection-smoke
+          tasks:
+            - name: ansible.posix
+              ansible.posix.authorized_key:
+                user: "{{ lookup('ansible.builtin.pipe', 'id -un') }}"
+                key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBFsDH6V1x6TcfcXXc6l2Ylkg0EnzOFJl9Fy7oR5yScZ smoke"
+                path: "{{ smoke_dir }}/authorized_keys"
+                manage_dir: false
+            - name: community.general
+              community.general.ini_file:
+                path: "{{ smoke_dir }}/smoke.ini"
+                section: smoke
+                option: collections
+                value: "{{ {'baked': 'in'} | community.general.dict_kv('state') | to_json }}"
+                mode: "0600"
+            - name: community.docker
+              community.docker.docker_container_info:
+                name: smoke
+              tags: [never]
+        PLAY
+        ansible-playbook --syntax-check /tmp/collection-smoke/smoke.yml
+        ansible-playbook /tmp/collection-smoke/smoke.yml
+        grep -q 'ssh-ed25519' /tmp/collection-smoke/authorized_keys
+        grep -q 'baked' /tmp/collection-smoke/smoke.ini
+    expectedOutput: ['ok=2\s+changed=2\s+unreachable=0\s+failed=0']
+    exitCode: 0
+
+  - name: 'ansible-lint runs'
+    command: 'ansible-lint'
+    args: ['--version']
+    expectedOutput: ['ansible-lint [0-9]+\.[0-9]+.*ansible-core:2\.']
+    exitCode: 0
+
+  - name: 'ansible-navigator runs'
+    command: 'ansible-navigator'
+    args: ['--version']
+    expectedOutput: ['ansible-navigator [0-9]+\.[0-9]+']
+    exitCode: 0
+
+  - name: 'yamllint runs'
+    command: 'yamllint'
+    args: ['--version']
+    expectedOutput: ['yamllint [0-9]+\.[0-9]+']
+    exitCode: 0
 
   # Pre-commit available
   - name: 'pre-commit available'

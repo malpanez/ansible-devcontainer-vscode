@@ -203,6 +203,15 @@ jobs:
           # uv.lock with hashes.
           pip install --only-binary :all: --require-hashes -r requirements-ansible.txt
 
+      - name: Install the collections requirements.yml lists
+        run: |
+          # requirements-ansible.txt brings ansible-core and no collections,
+          # and .ansible-lint sets offline: true, so ansible-lint installs
+          # none itself: every ansible.posix task would report
+          # syntax-check[unknown-module]. ansible.cfg's collections_path puts
+          # them in ./collections, which .ansible-lint does not lint.
+          ansible-galaxy collection install -r requirements.yml
+
       - name: Ansible Lint Summary
         run: |
           echo "## Ansible Lint Results" >> $GITHUB_STEP_SUMMARY

@@ -75,8 +75,9 @@ commandTests:
     args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
     exitCode: 0
 
-  # Same check as ansible.yaml, for the bytecode base ships itself (its
-  # site-packages never reach the ansible image, which replaces them).
+  # Same check as ansible.yaml, for the bytecode base ships itself. The
+  # ansible image keeps these files as they are and adds only what differs,
+  # so they reach it unchanged.
   - name: 'No stale timestamp bytecode under /usr/local/lib'
     command: 'python3'
     args:

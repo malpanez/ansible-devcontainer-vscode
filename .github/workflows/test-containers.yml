@@ -73,6 +73,9 @@ jobs:
             # Tested with ansible.yaml too: see "Resolve the stack's files".
             ansible-podman:
               - 'devcontainers/ansible/Dockerfile.podman'
+              # Both ansible Dockerfiles install the pinned collections
+              - 'devcontainers/ansible/collections*.txt'
+              - 'devcontainers/ansible/install-collections.sh'
               - 'devcontainers/scripts/**'
               - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
