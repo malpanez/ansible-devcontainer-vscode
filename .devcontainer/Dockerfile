@@ -173,6 +173,10 @@ ARG USER_GID=${USER_UID}
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
+    # terraform init failed with "mkdir /workspaces: permission denied" while
+    # this directory did not exist. Owned by vscode here, it is also the owner
+    # Docker gives the empty terraform-plugin-cache volume mounted on it.
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "${TF_PLUGIN_CACHE_DIR}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
