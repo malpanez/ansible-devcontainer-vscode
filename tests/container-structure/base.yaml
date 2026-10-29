@@ -1,0 +1,93 @@
+---
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  # Python toolchain
+  - name: 'Python binary exists'
+    path: '/usr/local/bin/python3'
+    shouldExist: true
+
+  # uv package manager
+  - name: 'uv binary installed'
+    path: '/usr/local/bin/uv'
+    shouldExist: true
+
+  - name: 'uvx binary installed'
+    path: '/usr/local/bin/uvx'
+    shouldExist: true
+
+  - name: 'Workspace directory'
+    path: '/workspace'
+    shouldExist: true
+
+commandTests:
+  # Python version: any 3.x, as the other tests match names, not versions
+  - name: 'Python 3 available'
+    command: 'python3'
+    args: ['--version']
+    expectedOutput: ['Python 3\.[0-9]+']
+
+  # uv works
+  - name: 'uv functional'
+    command: 'uv'
+    args: ['--version']
+    exitCode: 0
+
+  # Pre-commit available
+  - name: 'pre-commit available'
+    command: 'pre-commit'
+    args: ['--version']
+    expectedOutput: ['pre-commit']
+
+  # Workspace writable
+  - name: 'Workspace writable'
+    command: 'sh'
+    args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
+    exitCode: 0
+
+  # Same check as ansible.yaml, for the bytecode base ships itself (its
+  # site-packages never reach the ansible image, which replaces them).
+  - name: 'No stale timestamp bytecode under /usr/local/lib'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import glob, importlib.util, os, sys
+        stale, total = [], 0
+        for root in glob.glob("/usr/local/lib/python3.*"):
+            for folder, _, files in os.walk(root):
+                for name in files:
+                    pyc = os.path.join(folder, name)
+                    if not name.endswith(".pyc"):
+                        continue
+                    with open(pyc, "rb") as fh:
+                        head = fh.read(16)
+                    if int.from_bytes(head[4:8], "little") != 0:
+                        continue
+                    try:
+                        src = os.stat(importlib.util.source_from_cache(pyc))
+                    except (ValueError, OSError):
+                        continue
+                    total += 1
+                    recorded = (int.from_bytes(head[8:12], "little"), int.from_bytes(head[12:16], "little"))
+                    if recorded != (int(src.st_mtime) & 0xFFFFFFFF, src.st_size & 0xFFFFFFFF):
+                        stale.append(pyc)
+        print(f"stale timestamp .pyc: {len(stale)} of {total}", *stale[:20], sep="\n")
+        sys.exit(1 if stale else 0)
+    expectedOutput: ['stale timestamp \.pyc: 0 of']
+    exitCode: 0
+
+metadataTest:
+  labels:
+    - key: 'org.opencontainers.image.source'
+      value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
+
+  # Users' own installs keep uv's bytecode; only the build compiles
+  # checked-hash (devcontainers/base/Dockerfile).
+  envVars:
+    - key: 'UV_COMPILE_BYTECODE'
+      value: '1'
+
+  workdir: '/workspace'
+  user: 'vscode'

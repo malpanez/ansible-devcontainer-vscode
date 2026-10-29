@@ -25,7 +25,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # This stage is also the runtime's base, so these reach the image. dpkg,
+    # apt and ldconfig write the wall-clock time into them on every run, and
+    # rewrite-timestamp clamps mtimes, not contents: kept, they made two
+    # builds of one commit differ.
+    && rm -f /var/log/dpkg.log /var/log/alternatives.log \
+         /var/log/apt/history.log /var/log/apt/term.log \
+         /var/cache/ldconfig/aux-cache
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -65,22 +72,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # dependency), which this stage used to add on top, unpinned.
 COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
+# Checked-hash bytecode instead of uv's timestamp .pyc, which the
+# exporter's rewrite-timestamp would leave stale, pip left uncompiled, and
+# every directory touched afterwards: see devcontainers/base for all three.
+# CFLAGS=-g0 because arm64 compiles onigurumacffi here from its sdist, and
+# the -g in Python's own CFLAGS wrote uv's randomly named build directory
+# into the .so's debug info, so the file differed in every build.
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt
+    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt \
+    && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/pip/' "${SITE}" \
+    && find "$(dirname "${SITE}")" -type d -exec touch {} +
 
 # Stage 3: runtime image with Podman, no build toolchain
 FROM uv-base
 
-ARG BUILD_DATE="unknown"
-ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Ansible devcontainer with Podman for Execution Environments" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${VCS_REF}"
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
 ENV WORKSPACE=/workspace \
     DEVCONTAINER_STACK=ansible \
@@ -136,7 +149,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -f /usr/libexec/podman/podman-testing \
     && apt-get autoremove -y --purge \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /var/log/dpkg.log /var/log/alternatives.log \
+         /var/log/apt/history.log /var/log/apt/term.log \
+         /var/cache/ldconfig/aux-cache \
+    # systemd's and dbus's postinst write a random machine ID, which made
+    # every build differ and gave every container of one image the same
+    # ID. The base image ships none; rootless podman runs without one.
+    && rm -f /etc/machine-id /var/lib/dbus/machine-id
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -162,6 +182,8 @@ ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # Empty the shadow last-change day useradd stamps: see devcontainers/base.
+    && sed -i "s/^\(${USERNAME}:[^:]*\):[0-9]*:/\1::/" /etc/shadow \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \

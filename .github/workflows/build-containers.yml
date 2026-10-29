@@ -64,6 +64,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # Commit time, not the clock: see scripts/derive-source-date-epoch.sh.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
 
@@ -123,6 +128,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
+          # The commit time, not metadata-action's clock: same config per commit.
+          labels: org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
 
       # Each Dockerfile labels its own description; metadata-action's
       # repository-wide one would replace it.
@@ -170,9 +177,10 @@ jobs:
         with:
           context: .
           file: devcontainers/${{ steps.stack.outputs.stack }}/Dockerfile
-          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           labels: ${{ steps.labels.outputs.labels }}
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           # Uncached unless triggered by push: see build-base.
@@ -397,6 +405,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # Commit time, not the clock: see scripts/derive-source-date-epoch.sh.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
 
@@ -433,6 +446,8 @@ jobs:
             type=raw,value=${{ steps.pytag.outputs.tag }}
             type=sha
             type=ref,event=branch
+          # See build-single.
+          labels: org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
 
       # See build-single.
       - name: Keep the Dockerfile's description label
@@ -474,9 +489,10 @@ jobs:
         with:
           context: devcontainers/base
           file: devcontainers/base/Dockerfile
-          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           labels: ${{ steps.labels.outputs.labels }}
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}
           # Scheduled and manually dispatched builds run uncached. The
@@ -771,6 +787,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # Commit time, not the clock: see scripts/derive-source-date-epoch.sh.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
 
@@ -795,6 +816,8 @@ jobs:
             type=raw,value=latest
             type=sha
             type=ref,event=branch
+          # See build-single.
+          labels: org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
 
       # See build-single.
       - name: Keep the Dockerfile's description label
@@ -831,7 +854,7 @@ jobs:
         with:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
-          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
           labels: ${{ steps.labels.outputs.labels }}
           # The published image must sit on the base built in THIS run,
@@ -840,8 +863,7 @@ jobs:
           # and on every push to main). The pin still serves local and PR
           # builds and Renovate keeps it fresh.
           build-args: |
-            BUILD_DATE=${{ steps.meta.outputs.created }}
-            VCS_REF=${{ github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
             ${{ matrix.base_from_run && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.build-base.outputs.digest) || '' }}
           cache-from: ${{ steps.rcache.outputs.from }}
           cache-to: ${{ steps.rcache.outputs.to }}

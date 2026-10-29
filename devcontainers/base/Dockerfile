@@ -49,7 +49,13 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # dpkg, apt and ldconfig write the wall-clock time into these files on
+    # every run, and rewrite-timestamp clamps mtimes, not contents: kept,
+    # they alone made two builds of one commit differ.
+    && rm -f /var/log/dpkg.log /var/log/alternatives.log \
+         /var/log/apt/history.log /var/log/apt/term.log \
+         /var/cache/ldconfig/aux-cache
 
 # Install GitHub CLI (gh) to avoid DevContainer features rebuild
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md
@@ -64,7 +70,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
     && apt-get update \
     && apt-get install -y --no-install-recommends gh \
     && apt-get autoremove -y --purge \
-    && apt-get clean
+    && apt-get clean \
+    && rm -f /var/log/dpkg.log /var/log/alternatives.log \
+         /var/log/apt/history.log /var/log/apt/term.log \
+         /var/cache/ldconfig/aux-cache
 
 # Configure non-root workspace user.
 # DL3064 fires on the *name* containing USERNAME, not on any secret: the
@@ -82,6 +91,11 @@ ARG USER_GID=$USER_UID
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # useradd stamps today's day number into the shadow entry's
+    # last-change field, so the image changed with the build date even
+    # when nothing else did. An empty field disables password aging,
+    # which a locked (!) account never uses.
+    && sed -i "s/^\(${USERNAME}:[^:]*\):[0-9]*:/\1::/" /etc/shadow \
     && install -d -m 755 "/home/${USERNAME}/.cache/pre-commit" \
     && install -d -m 700 "/home/${USERNAME}/.ansible/tmp" \
     && install -d -m 755 "/home/${USERNAME}/.ansible/galaxy_cache" \
@@ -106,7 +120,31 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     # pre-commit and its deps publish wheels for amd64 and arm64; the
     # other install sites cannot use it (they pull onigurumacffi, which
     # has no aarch64 wheel).
-    && uv pip install --system --only-binary :all: "pre-commit==${PRE_COMMIT_VERSION}" \
+    #
+    # Bytecode is compiled here in checked-hash mode, not by uv. uv writes
+    # timestamp .pyc files, which record each source's mtime; the
+    # exporter's rewrite-timestamp then clamps that mtime to
+    # SOURCE_DATE_EPOCH and every .pyc goes stale, and since vscode cannot
+    # write to /usr/local/lib, each import recompiles in memory on every
+    # run. A checked-hash .pyc records the source's hash, which survives
+    # the clamp and is the same in every build; -f converts any timestamp
+    # .pyc already present too. The ENV above stays 1 for what users
+    # install later, into directories they own.
+    #
+    # pip (from the python image) is skipped: uv never compiled it, users
+    # install with uv, and its bytecode cost about 6 MiB for nothing.
+    #
+    # The final touch: when parallel workers copy up sibling directories
+    # through overlayfs at once, their parent sometimes ends with the
+    # build's time and sometimes keeps its old mtime, so the clamp moved
+    # it in one build and not the next (a directory under pip, two podman
+    # builds). Touched, every directory ends past SOURCE_DATE_EPOCH and is
+    # clamped alike.
+    && UV_COMPILE_BYTECODE=0 uv pip install --system --only-binary :all: "pre-commit==${PRE_COMMIT_VERSION}" \
+    && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/pip/' "${SITE}" \
+    && find "$(dirname "${SITE}")" -type d -exec touch {} + \
     && mkdir -p /workspace \
     && chown "${USERNAME}:${USERNAME}" /workspace
 ENV PATH="/usr/local/bin:${PATH}"

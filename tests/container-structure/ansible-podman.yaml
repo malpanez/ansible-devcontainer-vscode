@@ -1,0 +1,71 @@
+---
+# devcontainer-ansible-podman is the ansible stack plus Podman, so
+# test-containers.yml runs ansible.yaml against it as well; this file holds
+# only what the Podman layer adds.
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  # Podman and its rootless dependencies
+  - name: 'podman binary'
+    path: '/usr/bin/podman'
+    shouldExist: true
+
+  - name: 'crun runtime'
+    path: '/usr/bin/crun'
+    shouldExist: true
+
+  - name: 'conmon'
+    path: '/usr/bin/conmon'
+    shouldExist: true
+
+  - name: 'fuse-overlayfs'
+    path: '/usr/bin/fuse-overlayfs'
+    shouldExist: true
+
+  - name: 'slirp4netns'
+    path: '/usr/bin/slirp4netns'
+    shouldExist: true
+
+  - name: 'newuidmap'
+    path: '/usr/bin/newuidmap'
+    shouldExist: true
+
+  # Rootless configuration: podman refuses to run when it is not the user's
+  - name: 'Rootless storage.conf owned by vscode'
+    path: '/home/vscode/.config/containers/storage.conf'
+    shouldExist: true
+    uid: 1000
+
+  - name: 'Rootless containers.conf owned by vscode'
+    path: '/home/vscode/.config/containers/containers.conf'
+    shouldExist: true
+    uid: 1000
+
+  - name: 'Podman smoke test script'
+    path: '/usr/local/bin/podman-smoke-test'
+    shouldExist: true
+
+  - name: 'Execution environment template'
+    path: '/usr/local/share/devcontainer-skel/ansible/execution-environment.yml'
+    shouldExist: true
+
+  # Removed on purpose: podman's own test helper, and the random machine
+  # ID that made every build differ (see Dockerfile.podman)
+  - name: 'No podman-testing helper'
+    path: '/usr/libexec/podman/podman-testing'
+    shouldExist: false
+
+  - name: 'No baked-in machine ID'
+    path: '/etc/machine-id'
+    shouldExist: false
+
+  - name: 'No baked-in D-Bus machine ID'
+    path: '/var/lib/dbus/machine-id'
+    shouldExist: false
+
+commandTests:
+  # The Dockerfile requires 5.4 or later; any 5.x and up loads here
+  - name: 'Podman runs'
+    command: 'podman'
+    args: ['--version']
+    expectedOutput: ['podman version ([5-9]|[1-9][0-9])\.']
