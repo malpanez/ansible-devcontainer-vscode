@@ -24,16 +24,10 @@
       ansible.builtin.set_fact:
         requirements_file_contents: "{{ lookup('file', requirements_file_path) }}"
 
-    - name: Parse expected Ansible versions
+    # ansible-core only: the ansible package (and its bundled collections)
+    # is no longer part of the lock or the images.
+    - name: Parse expected ansible-core version
       ansible.builtin.set_fact:
-        expected_ansible_version: >-
-          {{
-            requirements_file_contents
-            | regex_search('(?<![a-z-])ansible==[0-9.]+')
-            | default('')
-            | split('==')
-            | last
-          }}
         expected_ansible_core_version: >-
           {{
             requirements_file_contents
@@ -43,14 +37,12 @@
             | last
           }}
 
-    - name: Assert expected Ansible versions resolved
+    - name: Assert expected ansible-core version resolved
       ansible.builtin.assert:
         that:
-          - expected_ansible_version is not none
-          - expected_ansible_version | length > 0
           - expected_ansible_core_version is not none
           - expected_ansible_core_version | length > 0
-        fail_msg: "Unable to resolve pinned Ansible versions from requirements-ansible.txt"
+        fail_msg: "Unable to resolve the pinned ansible-core version from requirements-ansible.txt"
 
     - name: Assert Ansible version detected
       ansible.builtin.assert:
@@ -82,23 +74,6 @@
           - detected_ansible_core_version | length > 0
         fail_msg: "Unable to determine ansible-core runtime version."
 
-    - name: Check Python Ansible package version
-      ansible.builtin.command:
-        argv:
-          - "{{ ansible_playbook_python }}"
-          - "-c"
-          - "from importlib.metadata import version; print(version('ansible'))"
-      register: ansible_python_version
-      changed_when: false
-      check_mode: false
-
-    - name: Assert detected Python Ansible version
-      ansible.builtin.assert:
-        that:
-          - ansible_python_version.stdout is not none
-          - ansible_python_version.stdout | trim | length > 0
-        fail_msg: "Unable to determine ansible Python package version."
-
     - name: Check ansible-lint is installed
       ansible.builtin.command: ansible-lint --version
       register: lint_version
@@ -119,17 +94,14 @@
           - lint_binary_path.stdout | length > 0
         fail_msg: "ansible-lint missing or unexpected output."
 
-    - name: Assert Ansible versions match pinned requirements
+    - name: Assert ansible-core matches pinned requirements
       ansible.builtin.assert:
         that:
-          - ansible_python_version.stdout | trim == expected_ansible_version
           - detected_ansible_core_version == expected_ansible_core_version
         fail_msg: >-
-          Ansible versions do not match pinned requirements.
-          ansible=={{ ansible_python_version.stdout | trim }},
-          ansible-core=={{ detected_ansible_core_version }};
-          expected ansible=={{ expected_ansible_version }},
-          ansible-core=={{ expected_ansible_core_version }}.
+          ansible-core does not match pinned requirements:
+          ansible-core=={{ detected_ansible_core_version }},
+          expected ansible-core=={{ expected_ansible_core_version }}.
 
     - name: Check uv is installed
       ansible.builtin.command: uv --version
@@ -164,8 +136,15 @@
           - pytest_version.stdout | regex_search('^pytest\\s+[0-9]+\\.[0-9]+\\.[0-9]+') is not none
         fail_msg: "pytest missing or unexpected version output."
 
+    # From the repository root, so its ansible.cfg (collections_path =
+    # ./collections:...) applies as it does to `ansible-galaxy collection
+    # install -r requirements.yml`. Tasks otherwise run in playbooks/, where
+    # only the default paths are searched: the check passed there only while
+    # the ansible package bundled every collection in site-packages.
     - name: Verify Ansible collections
-      ansible.builtin.command: ansible-galaxy collection list
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection list
+        chdir: "{{ playbook_dir }}/.."
       register: collections_list
       changed_when: false
       check_mode: false

@@ -142,10 +142,12 @@
     "ANSIBLE_NAVIGATOR_CONTAINER_ENGINE": "podman"
   },
   "remoteUser": "vscode",
+  // The project's requirements.yml, as the other ansible templates install
+  // it (the image bakes in only a few collections), then the Podman check.
   "postCreateCommand": [
     "/bin/bash",
     "-lc",
-    "podman-smoke-test"
+    "(test -f requirements.yml && ansible-galaxy collection install -r requirements.yml || echo 'No requirements.yml found, skipping collection install') && podman-smoke-test"
   ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

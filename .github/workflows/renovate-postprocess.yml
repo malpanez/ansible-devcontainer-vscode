@@ -5,8 +5,9 @@ name: Renovate Post-Process
 # postUpgradeTasks cannot regenerate everything this repo derives from a
 # dependency bump. This companion runs on Renovate PRs in a full runner
 # and, when a change needs it, recomputes the age/tectonic/aws-cli hashes
-# (no upstream checksum manifest), regenerates the requirements exports
-# from uv.lock, and resyncs the active .devcontainer against its template.
+# (no upstream checksum manifest) and the pinned Ansible collections'
+# artifact hashes, regenerates the requirements exports from uv.lock, and
+# resyncs the active .devcontainer against its template.
 # It pushes the result back with BOT_TOKEN so CI re-runs and Renovate's
 # auto-merge waits for the corrected branch. Every step is idempotent, so
 # the push it triggers re-runs this job to a clean no-op (no loop).
@@ -96,6 +97,12 @@ jobs:
           if [ "${resync}" = true ]; then
             stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
             bash scripts/use-devcontainer.sh "${stack}"
+          fi
+          # A collection bump: Renovate moved a version in the pinned list
+          # but cannot recompute its artifact's sha256, and the image build
+          # rejects the stale one.
+          if echo "${changed}" | grep -qE '^devcontainers/ansible/collections[^/]*\.txt$'; then
+            python3 scripts/refresh-collection-pins.py --sync-hashes
           fi
           # A Python dependency change: regenerate the requirements exports.
           if echo "${changed}" | grep -qE '^(uv\.lock|pyproject\.toml)$'; then
