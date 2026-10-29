@@ -156,7 +156,11 @@ jobs:
           PYTAG="$(bash scripts/derive-python-tag.sh)"
           SHA_TAG="sha-${TAG_SHA:0:7}"
           # The push paths of build-containers.yml: what makes it rebuild.
-          IMAGE_INPUTS=(devcontainers/ .github/workflows/build-containers.yml)
+          # requirements-ansible.txt was missing, so a lock bump that no build
+          # had published could be released as :main's older image.
+          IMAGE_INPUTS=(devcontainers/ requirements-ansible.txt .github/workflows/build-containers.yml)
+          # Its negated path: the templates only name the published images.
+          IMAGE_INPUTS_EXCLUDED=(':(exclude,glob)devcontainers/**/devcontainer*.json')
           IMAGES=(base ansible ansible-podman terraform golang latex)
 
           RECORDS="[]"
@@ -209,7 +213,7 @@ jobs:
                 FAILED=1
                 continue
               fi
-              if ! git diff --quiet "${REVISION}" "${TAG_SHA}" -- "${IMAGE_INPUTS[@]}"; then
+              if ! git diff --quiet "${REVISION}" "${TAG_SHA}" -- "${IMAGE_INPUTS[@]}" "${IMAGE_INPUTS_EXCLUDED[@]}"; then
                 INPUTS_TEXT="${IMAGE_INPUTS[*]}"
                 echo "::error::${IMAGE} has no ${SHA_TAG}, and its main tag was built from ${REVISION}, but" \
                   "${INPUTS_TEXT// / or } changed between that commit and ${TAG_SHA}: the images of this" \

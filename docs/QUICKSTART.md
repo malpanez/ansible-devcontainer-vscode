@@ -37,7 +37,7 @@ Install Docker Desktop, Docker Engine, or Podman, Visual Studio Code, and the De
 
 ## 3. Choose a Dev Container stack (before the first reopen)
 
-By default the repository launches the **ansible** stack. Available templates include `ansible`, `golang`, `latex`, and `terraform`. To select another stack before the initial build:
+The repository ships with the **terraform** stack active. Available templates include `ansible`, `golang`, `latex`, and `terraform`. To select another stack before the first reopen:
 
 1. In the WSL terminal (repo root):
    ```bash
@@ -50,22 +50,24 @@ By default the repository launches the **ansible** stack. Available templates in
    ansible-playbook playbooks/setup-workspace.yml -e workspace_stack=latex
    ```
 
-If you skip these steps the first container build uses the ansible template. You can revisit this later and rebuild the container to switch stacks.
+If you skip these steps the container opens with the terraform template. You can revisit this later and rebuild the container to switch stacks.
+
+Each stack copies two variants into `.devcontainer/`. `devcontainer.json` opens the published image `ghcr.io/malpanez/devcontainer-<stack>:vX.Y.Z@sha256:…`, pinned to a release version tag plus that tag's digest; version tags are never rebuilt or moved, and Renovate bumps the templates after each release. `local-build/devcontainer.json`, named "… (local build)", builds the stack's Dockerfile from your checkout instead, for working on the image; from a terminal, run `devcontainer up --workspace-folder . --config .devcontainer/local-build/devcontainer.json` at the repository root.
 
 ## 4. Reopen the folder in the Dev Container
 
-1. In VS Code click **“Reopen in Container”** when prompted. If the toast does not appear, use `Ctrl+Shift+P` → **“Dev Containers: Reopen in Container”**.
+1. In VS Code click **“Reopen in Container”** when prompted. If the toast does not appear, use `Ctrl+Shift+P` → **“Dev Containers: Reopen in Container”**. If it asks which configuration to open, pick the plain stack name (for example “Terraform Dev Container”), not the “(local build)” one.
 2. Ensure your container engine is running:
    - Docker Desktop: the whale icon should be active and the Ubuntu distro enabled under WSL Integration.
    - Podman Desktop: start Podman Desktop (or `podman machine start`) so the Docker-compatible socket is available.
-3. The Dev Container build runs inside WSL and may take several minutes on first run. Subsequent rebuilds are faster thanks to cached layers.
-4. When the build finishes the status bar shows `Dev Container: <stack>`; you are now inside the container.
+3. The first open pulls the stack's image inside WSL (64–215 MiB compressed for amd64, depending on the stack); later opens reuse it.
+4. When the container is up the status bar shows `Dev Container: <stack>`; you are now inside the container.
 
-## 5. What happens during the build
+## 5. What happens when the container opens
 
-- VS Code pulls the prebuilt GHCR image for the selected stack (Ansible by default). When the registry is unreachable the helper scripts rebuild the image locally, including the shared Python base `devcontainer-base:main`.
-- The image already includes system packages and `uv`; only stack-specific tooling needs to install at runtime.
-- On first launch the post-create hook runs `sudo uv pip install --system ...` inside the container to fetch Python tooling (Ansible lint stack, Checkov); subsequent restarts reuse the cached volume.
+- VS Code pulls the published GHCR image that `.devcontainer/devcontainer.json` pins to a release version tag and digest (terraform unless you switched stacks). The Dockerfile is not built; the Dev Containers extension only adds thin layers on top (the UID mapping on Linux, and features such as docker-in-docker). When the registry is unreachable, open the “(local build)” configuration (section 3) to build the image from the checkout instead.
+- The image already ships the stack's tooling (for the Ansible stack, ansible, ansible-lint and the rest of `requirements-ansible.txt`); nothing is installed system-wide at startup.
+- The post-create hook runs `ensure-precommit`: it copies the stack's pre-commit template into the workspace when it has none, installs pre-commit for the `vscode` user with `uv tool install` on the stacks whose image does not ship it (terraform, golang, latex), and installs the git hook.
 - For the Ansible stack the `postCreateCommand` installs collections via `ansible-galaxy collection install -r requirements.yml`.
 - Workspace playbooks/roles are available under `/workspace`.
 

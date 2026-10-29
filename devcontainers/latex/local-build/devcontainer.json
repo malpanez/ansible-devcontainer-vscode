@@ -1,0 +1,79 @@
+{
+  "name": "LaTeX Dev Container (local build)",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "${localWorkspaceFolder}"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "James-Yu.latex-workshop",
+        "streetsidesoftware.code-spell-checker",
+        "GitHub.vscode-pull-request-github"
+      ],
+      "settings": {
+        "latex-workshop.latex.recipes": [
+          {
+            "name": "Tectonic",
+            "tools": ["tectonic"]
+          }
+        ],
+        "latex-workshop.latex.tools": [
+          {
+            "name": "tectonic",
+            "command": "tectonic",
+            "args": [
+              "-X", "compile",
+              "%DOC%.tex",
+              "--synctex",
+              "--keep-logs"
+            ]
+          }
+        ],
+        "latex-workshop.latex.outDir": "out",
+        "latex-workshop.latex.autoBuild.run": "onSave",
+        "latex-workshop.synctex.path": "synctex",
+        "latex-workshop.view.pdf.viewer": "tab",
+        "editor.renderWhitespace": "boundary",
+        "cSpell.language": "en,es",
+        "cSpell.enabledLanguageIds": ["latex", "markdown"],
+        "files.exclude": {
+          "**/*.aux": true,
+          "**/*.log": true,
+          "**/*.out": true,
+          "**/*.synctex.gz": true
+        },
+        "files.watcherExclude": {
+          "**/.git/objects/**": true,
+          "**/out/**": true,
+          "**/*.aux": true,
+          "**/*.log": true
+        },
+        "git.enableSmartCommit": true,
+        "git.autofetch": true
+      }
+    }
+  },
+  "mounts": [
+    "source=tectonic-cache,target=/home/vscode/.cache/Tectonic,type=volume",
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    "source=pre-commit-cache,target=/home/vscode/.cache/pre-commit,type=volume"
+  ],
+  "remoteEnv": {
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit",
+    "TECTONIC_CACHE_DIR": "/home/vscode/.cache/Tectonic"
+  },
+  "onCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+  "remoteUser": "vscode",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

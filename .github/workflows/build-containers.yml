@@ -27,6 +27,11 @@ on:
     branches: [main]
     paths:
       - 'devcontainers/**'
+      # The dev container templates (and their local-build/ variants) only name
+      # the published images; no Dockerfile reads them. A template bump, which
+      # Renovate opens after each release, must not rebuild and republish all
+      # six images. release.yml's IMAGE_INPUTS mirrors this list.
+      - '!devcontainers/**/devcontainer*.json'
       # Installed by both ansible Dockerfiles; a lock bump is an image change
       - 'requirements-ansible.txt'
       - '.github/workflows/build-containers.yml'

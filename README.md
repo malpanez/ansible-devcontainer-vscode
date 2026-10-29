@@ -68,15 +68,30 @@ Launch in your browser with one click:
 git clone https://github.com/malpanez/ansible-devcontainer-vscode.git
 cd ansible-devcontainer-vscode
 
-# Pick the stack you need (defaults to Ansible if you skip this step)
+# Pick the stack you need (the repository ships with terraform active)
 ./scripts/use-devcontainer.sh terraform   # or ansible | golang | latex
 # Or use: make switch-terraform
 
 code .
 
 # When prompted, choose "Dev Containers: Reopen in Container"
-# VS Code pulls the published GHCR image for the chosen stack.
+# VS Code pulls the stack's published GHCR image instead of building the Dockerfile.
 ```
+
+Each stack comes in two variants, both copied into `.devcontainer/`:
+
+- `devcontainer.json` opens the published image
+  `ghcr.io/malpanez/devcontainer-<stack>:vX.Y.Z@sha256:…`, pinned to a release
+  version tag plus that tag's index digest. Version tags are never rebuilt,
+  moved or deleted, so the pin keeps pulling the image the release shipped;
+  Renovate bumps the templates to each new release. Codespaces opens this one.
+- `local-build/devcontainer.json` ("… (local build)") builds the stack's
+  `Dockerfile` from this checkout, for working on the image itself. Its build
+  context is `${localWorkspaceFolder}`, so the workspace folder must be the
+  repository root: `devcontainer up --workspace-folder . --config .devcontainer/local-build/devcontainer.json`.
+
+When **Reopen in Container** asks which configuration to open, pick the plain
+stack name for the published image.
 
 > **New Windows laptop?** Run [`scripts/bootstrap-windows.ps1`](scripts/bootstrap-windows.ps1) from an elevated PowerShell prompt (see [`docs/BOOTSTRAP_WINDOWS.md`](docs/BOOTSTRAP_WINDOWS.md)) to enable WSL, configure proxies, and install Docker Desktop / VS Code automatically.
 

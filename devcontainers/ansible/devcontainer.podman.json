@@ -1,9 +1,6 @@
 {
   "name": "Ansible Dev Container (Podman + Execution Environments)",
-  "build": {
-    "dockerfile": "Dockerfile.podman",
-    "context": "../.."
-  },
+  "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v1.4.0@sha256:874ec470f533b3149d53b9158686b8b7ab9fd00037f7928818107d68d076cc81",
   "runArgs": [
     "--init",
     // Rootless Podman configuration
