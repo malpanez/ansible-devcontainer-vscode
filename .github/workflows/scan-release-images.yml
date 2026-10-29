@@ -1,0 +1,373 @@
+---
+name: Scan Release Images
+
+# A version tag (vX.Y.Z, py<NN>-vX.Y.Z for the base) is written once by
+# release.yml and then never rebuilt or rescanned; build-containers.yml's
+# nightly gate judges only the rolling tags of main. On 2026-10-28 v1.3.29
+# still carried fixable criticals (golang brotli-libs CVE-2026-111497, among
+# others) that no scan anywhere had reported. The dev container templates pin
+# the newest release by digest, so that release is what users open: this
+# workflow scans it every night with the gate's policy and goes red when an
+# advisory published after the release makes it fail.
+
+on:
+  schedule:
+    # Clear of build-containers (03:00 daily) and cleanup-ghcr (02:00 on
+    # Sundays). Scheduled runs of this repository start 4-7 hours late, and
+    # the gap holds for those actual start times too.
+    - cron: '23 12 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release to scan, e.g. v1.3.30 (empty: the newest release)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+# Serialized, never cancelled: two runs uploading to the same code-scanning
+# categories at once would interleave their results.
+concurrency:
+  group: scan-release-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read  # read the releases and the tagged base Dockerfile
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      latest: ${{ steps.release.outputs.latest }}
+      pytag: ${{ steps.pytag.outputs.pytag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # GitHub releases, not git tags: release.yml creates the release only
+      # after every image carries its version tag, so a tag pushed without a
+      # finished release is never picked.
+      - name: Pick the release to scan
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'
+          LATEST="$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName --jq .tagName)"
+          TAG="${REQUESTED_TAG:-${LATEST}}"
+          if ! [[ "${TAG}" =~ ${TAG_PATTERN} ]]; then
+            echo "::error::'${TAG}' is not a release tag (v<major>.<minor>.<patch>[-suffix])."
+            exit 1
+          fi
+          if [ "${TAG}" != "${LATEST}" ] \
+            && ! gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json tagName >/dev/null; then
+            echo "::error::${TAG} is not a published release of ${GITHUB_REPOSITORY}."
+            exit 1
+          fi
+          echo "Scanning ${TAG} (newest release: ${LATEST})."
+          {
+            echo "tag=${TAG}"
+            echo "latest=${LATEST}"
+          } >> "${GITHUB_OUTPUT}"
+
+      # release.yml derives the base's stream tag from the tagged commit's
+      # Dockerfile. Deriving it from this checkout instead would look for a
+      # tag that was never published once Python is bumped after a release.
+      - name: Derive the base's Python tag of the release
+        id: pytag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          DOCKERFILE="${RUNNER_TEMP}/base.Dockerfile"
+          gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/${GITHUB_REPOSITORY}/contents/devcontainers/base/Dockerfile?ref=refs/tags/${TAG}" \
+            > "${DOCKERFILE}"
+          PYTAG="$(bash scripts/derive-python-tag.sh "${DOCKERFILE}")"
+          echo "devcontainer-base of ${TAG} is tagged ${PYTAG}-${TAG}."
+          echo "pytag=${PYTAG}" >> "${GITHUB_OUTPUT}"
+
+  scan:
+    name: Scan ${{ matrix.name }}
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read  # checkout for .grype.yaml and the scan scripts
+      packages: read  # resolve and pull the released image
+      security-events: write  # upload the SARIFs to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        # The images release.yml tags, with the platforms build-containers.yml
+        # builds each of them for. Every listed platform is required, as in
+        # build-containers' gate: an index that lost its arm64 manifest fails
+        # instead of passing on amd64 alone. An image added there must be
+        # added here, or its releases are never rescanned.
+        include:
+          - name: base
+            platforms: linux/amd64,linux/arm64
+          - name: ansible
+            platforms: linux/amd64,linux/arm64
+          - name: ansible-podman
+            platforms: linux/amd64,linux/arm64
+          - name: terraform
+            platforms: linux/amd64,linux/arm64
+          - name: golang
+            platforms: linux/amd64,linux/arm64
+          - name: latex
+            platforms: linux/amd64
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pinned to a digest once, so the summary names exactly what was
+      # scanned. A failure here stops the job before any scan: scan-action
+      # given an empty image scans the checkout and reports success.
+      - name: Resolve the released index of ${{ matrix.name }}
+        id: index
+        env:
+          NAME: ${{ matrix.name }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          PYTAG: ${{ needs.resolve.outputs.pytag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAG}" ] || [ -z "${PYTAG}" ]; then
+            echo "::error::The resolve job handed over no release tag ('${TAG}') or Python tag ('${PYTAG}')."
+            exit 1
+          fi
+          VERSION_TAG="${TAG}"
+          if [ "${NAME}" = "base" ]; then
+            VERSION_TAG="${PYTAG}-${TAG}"
+          fi
+          REF="${IMAGE}:${VERSION_TAG}"
+          echo "ref=${REF}" >> "${GITHUB_OUTPUT}"
+          if ! DIGEST="$(docker buildx imagetools inspect "${REF}" --format '{{json .Manifest}}' \
+            | jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))')"; then
+            echo "::error::Could not resolve ${REF} to a digest (error above). release.yml tags all six" \
+              "images of a release, so this one is missing or unreadable."
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
+          echo "${REF} -> ${DIGEST}"
+
+      # The gate's policy (build-containers.yml): .grype.yaml, fixable
+      # high/critical findings count. The verdict is the count below, so a
+      # scan that breaks leaves the image unjudged instead of passing.
+      - name: Scan ${{ matrix.name }} with Grype
+        id: grype_amd64
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          # The index: grype resolves it to the runner's platform (amd64).
+          image: ${{ env.IMAGE }}@${{ steps.index.outputs.digest }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
+
+      - name: Keep only high/critical findings in SARIF
+        id: sarif_amd64
+        if: always() && steps.grype_amd64.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_amd64.outputs.sarif }}
+        run: |
+          set -euo pipefail
+          # Not uploaded when unreadable; the count reads it again and fails closed.
+          if [ -f "${SARIF_FILE}" ] \
+            && jq -e '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" \
+              > "${SARIF_FILE}.filtered"; then
+            mv "${SARIF_FILE}.filtered" "${SARIF_FILE}"
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::No readable amd64 SARIF for ${IMAGE}"
+          fi
+
+      # Own categories: build-containers uploads main's rolling tags as
+      # grype-<image>, and a shared category would let each workflow close
+      # the other's alerts. Only the newest release is uploaded, so a
+      # dispatch for an older one cannot replace its alerts.
+      - name: Upload Grype SARIF for ${{ matrix.name }}
+        if: >-
+          always() && steps.sarif_amd64.outputs.exists == 'true'
+          && needs.resolve.outputs.tag == needs.resolve.outputs.latest
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        with:
+          sarif_file: ${{ steps.grype_amd64.outputs.sarif }}
+          category: grype-release-${{ matrix.name }}
+
+      # Given an index, grype scans only the runner's platform: arm64 is
+      # scanned by its own manifest digest, and REQUIRED fails the job when
+      # the release lacks a platform the image is built for.
+      - name: Resolve the arm64 manifest of ${{ matrix.name }}
+        id: arm64
+        if: always() && steps.index.outcome == 'success' && contains(matrix.platforms, 'linux/arm64')
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+          PLATFORM: linux/arm64
+          REQUIRED: "true"
+        run: bash scripts/resolve-platform-manifest.sh
+
+      - name: Scan ${{ matrix.name }} (arm64) with Grype
+        id: grype_arm64
+        if: always() && steps.arm64.outputs.ref != ''
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
+        continue-on-error: true
+        env:
+          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
+        with:
+          # registry: reads that manifest itself from GHCR; through the
+          # daemon grype would `docker save` it under a rewritten digest.
+          image: registry:${{ steps.arm64.outputs.ref }}
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: "false"
+
+      - name: Keep only high/critical arm64 findings in SARIF
+        id: sarif_arm64
+        if: always() && steps.grype_arm64.outputs.sarif != ''
+        env:
+          SARIF_FILE: ${{ steps.grype_arm64.outputs.sarif }}
+        run: |
+          set -euo pipefail
+          # Not uploaded when unreadable; the count reads it again and fails closed.
+          if [ -f "${SARIF_FILE}" ] \
+            && jq -e '.runs[0].results |= map(select(.level == "error"))' "${SARIF_FILE}" \
+              > "${SARIF_FILE}.filtered"; then
+            mv "${SARIF_FILE}.filtered" "${SARIF_FILE}"
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::No readable arm64 SARIF for ${IMAGE}"
+          fi
+
+      - name: Upload Grype SARIF for ${{ matrix.name }} (arm64)
+        if: >-
+          always() && steps.sarif_arm64.outputs.exists == 'true'
+          && needs.resolve.outputs.tag == needs.resolve.outputs.latest
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        with:
+          sarif_file: ${{ steps.grype_arm64.outputs.sarif }}
+          category: grype-release-${{ matrix.name }}-arm64
+
+      # The gate's verdict: an empty count means a platform in PLATFORMS
+      # could not be judged. The script's own summary says the image was
+      # "not tagged", which is build-containers' outcome, not this one's; the
+      # next step writes the summary instead.
+      - name: Count fixable findings
+        id: findings
+        if: always() && steps.index.outcome == 'success'
+        env:
+          IMAGE: ${{ steps.index.outputs.ref }}
+          PLATFORMS: ${{ matrix.platforms }}
+          SARIF_AMD64: ${{ steps.grype_amd64.outputs.sarif }}
+          SARIF_ARM64: ${{ steps.grype_arm64.outputs.sarif }}
+        run: GITHUB_STEP_SUMMARY=/dev/null bash scripts/count-fixable-findings.sh
+
+      # Runs whatever failed above, so every image of the release gets a
+      # verdict. The release keeps a finding until a newer release replaces
+      # it: a version tag is never rebuilt or moved.
+      - name: Report ${{ matrix.name }} and fail on fixable findings
+        if: always()
+        env:
+          NAME: devcontainer-${{ matrix.name }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          LATEST: ${{ needs.resolve.outputs.latest }}
+          REF: ${{ steps.index.outputs.ref }}
+          DIGEST: ${{ steps.index.outputs.digest }}
+          ARM64_REF: ${{ steps.arm64.outputs.ref }}
+          PLATFORMS: ${{ matrix.platforms }}
+          COUNT: ${{ steps.findings.outputs.count }}
+          SARIF_AMD64: ${{ steps.grype_amd64.outputs.sarif }}
+          SARIF_ARM64: ${{ steps.grype_arm64.outputs.sarif }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DIGEST}" ]; then
+            VERDICT="not resolved"
+            ERROR="${REF:-${NAME} of ${TAG}} could not be resolved to a digest, so it was not scanned; see"
+            ERROR="${ERROR} the step that resolves the released index."
+          else
+            case "${COUNT}" in
+              0)
+                VERDICT="no fixable high/critical findings"
+                ERROR=""
+                ;;
+              '' | *[!0-9]*)
+                VERDICT="not judged"
+                ERROR="No usable Grype SARIF for ${REF} on at least one platform, so it could not be judged."
+                ERROR="${ERROR} Check the Grype scan and 'Count fixable findings' steps, then re-run."
+                ;;
+              *)
+                VERDICT="${COUNT} fixable high/critical finding(s)"
+                ERROR="${REF} has ${COUNT} fixable high/critical finding(s) on at least one platform, listed"
+                ERROR="${ERROR} in the job summary and the 'Count fixable findings' step. A version tag is"
+                ERROR="${ERROR} never rebuilt or moved, so ${TAG} keeps them for everyone who pins it."
+                ERROR="${ERROR} Cut a patch release: when main's images pass"
+                ERROR="${ERROR} build-containers' scan gate, releasing main ships the fix; otherwise bump the"
+                ERROR="${ERROR} pinned component (or widen the Dockerfile's upgrade step) that ships the"
+                ERROR="${ERROR} vulnerable package first. Or record a justified exception in .grype.yaml."
+                ;;
+            esac
+          fi
+
+          {
+            echo "### ${NAME} ${TAG}: ${VERDICT}"
+            echo
+            echo "- Reference: \`${REF:-unknown}\`"
+            echo "- Index digest: \`${DIGEST:-unknown}\`"
+            if [ -n "${ARM64_REF}" ]; then
+              echo "- linux/arm64 manifest: \`${ARM64_REF#*@}\`"
+            fi
+            echo "- Platforms: ${PLATFORMS}"
+            echo "- Fixable high/critical findings: ${COUNT:-unknown}"
+            for ENTRY in "linux/amd64=${SARIF_AMD64}" "linux/arm64=${SARIF_ARM64}"; do
+              TARGET="${ENTRY%%=*}"
+              SARIF="${ENTRY#*=}"
+              if [ -z "${SARIF}" ] || [ ! -f "${SARIF}" ]; then
+                continue
+              fi
+              if RULES="$(jq -er '[.runs[].results[] | select(.level == "error") | .ruleId] | unique
+                | select(length > 0) | join(", ")' "${SARIF}" 2>/dev/null)"; then
+                echo "- ${TARGET}: ${RULES}"
+              fi
+            done
+            if [ "${TAG}" != "${LATEST}" ]; then
+              echo
+              echo "Not uploaded to code scanning: ${TAG} is not the newest release (${LATEST}), whose" \
+                "findings the grype-release-* categories hold."
+            fi
+            if [ -n "${ERROR}" ]; then
+              echo
+              echo "${ERROR}"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [ -n "${ERROR}" ]; then
+            echo "::error::${ERROR}"
+            exit 1
+          fi
+          echo "${REF} (${DIGEST}) has no fixable high/critical findings on ${PLATFORMS}."
