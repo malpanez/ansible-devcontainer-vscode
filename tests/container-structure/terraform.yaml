@@ -93,6 +93,12 @@ commandTests:
     args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
     exitCode: 0
 
+  # terraform init writes providers here; it did not exist and init failed
+  - name: 'Plugin cache writable'
+    command: 'sh'
+    args: ['-c', 'touch "${TF_PLUGIN_CACHE_DIR}/.test" && rm "${TF_PLUGIN_CACHE_DIR}/.test"']
+    exitCode: 0
+
 metadataTest:
   labels:
     - key: 'org.opencontainers.image.source'
