@@ -51,8 +51,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # them the lock's (certifi, 2026-10-26).
 COPY requirements-ansible.txt /tmp/requirements-ansible.txt
 
+# Checked-hash bytecode instead of uv's timestamp .pyc, which the
+# exporter's rewrite-timestamp would leave stale, pip left uncompiled, and
+# every directory touched afterwards: see devcontainers/base for all three.
+# CFLAGS=-g0 because arm64 compiles onigurumacffi here from its sdist, and
+# the -g in Python's own CFLAGS wrote uv's randomly named build directory
+# into the .so's debug info, so the file differed in every build.
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
-    uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt
+    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes -r /tmp/requirements-ansible.txt \
+    && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/pip/' "${SITE}" \
+    && find "$(dirname "${SITE}")" -type d -exec touch {} +
 
 # Stage 2: runtime image without any build toolchain
 # hadolint ignore=DL3006
@@ -63,16 +73,12 @@ FROM ${BASE_IMAGE}
 # Numeric uid so the id resolves without /etc/passwd (DL3066).
 USER 0
 
-ARG BUILD_DATE="unknown"
-ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Ansible devcontainer with uv-managed Python toolchain and hardened defaults" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${VCS_REF}"
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     WORKSPACE=/workspace \
@@ -88,7 +94,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Wall-clock timestamps in the contents: see devcontainers/base.
+    && rm -f /var/log/dpkg.log /var/log/alternatives.log \
+         /var/log/apt/history.log /var/log/apt/term.log \
+         /var/cache/ldconfig/aux-cache
 
 # Base already ships site-packages (pre-commit and its deps, at whatever
 # versions base resolved). COPY only adds files, so every package the lock

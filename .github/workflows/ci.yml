@@ -407,6 +407,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # As build-containers.yml publishes: see scripts/derive-source-date-epoch.sh.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
 
@@ -450,6 +455,7 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
 
       # Each Dockerfile labels its own description; metadata-action's
       # repository-wide one would replace it.
@@ -459,11 +465,6 @@ jobs:
           LABELS: ${{ steps.meta.outputs.labels }}
         run: bash scripts/strip-description-label.sh
 
-      - name: Prepare build metadata
-        id: buildmeta
-        run: |
-          echo "created=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
-
       - name: Build ${{ matrix.stack }}${{ matrix.variant }} image
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
@@ -471,12 +472,14 @@ jobs:
           context: .
           file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
           push: false
-          load: true
+          # The load `load: true` did, plus the timestamp rewrite the
+          # published images get, so what this job smoke-tests and scans is
+          # built the way build-containers.yml publishes it.
+          outputs: type=docker,rewrite-timestamp=true
           tags: devcontainer-${{ matrix.stack }}${{ matrix.variant }}:ci
           labels: ${{ steps.labels.outputs.labels }}
           build-args: |
-            BUILD_DATE=${{ steps.buildmeta.outputs.created }}
-            VCS_REF=${{ github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
           cache-from: |
             ${{ steps.cache.outputs.cache_from }}
           cache-to: |

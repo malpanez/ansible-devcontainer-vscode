@@ -34,7 +34,7 @@ jobs:
       # `any_changed`: gating on that left every push and pull request with
       # no structure test at all. A dispatch diffs only the last commit (or
       # the branch against main), usually nothing, so it tests every stack.
-      stacks: ${{ github.event_name == 'workflow_dispatch' && '["golang","ansible","terraform","latex"]' || steps.filter.outputs.changes }}
+      stacks: ${{ github.event_name == 'workflow_dispatch' && '["base","golang","ansible","ansible-podman","terraform","latex"]' || steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -60,6 +60,16 @@ jobs:
             latex:
               - 'devcontainers/latex/**'
               - 'tests/container-structure/latex.yaml'
+            base:
+              - 'devcontainers/base/**'
+              - 'tests/container-structure/base.yaml'
+            # Tested with ansible.yaml too: see "Resolve the stack's files".
+            ansible-podman:
+              - 'devcontainers/ansible/Dockerfile.podman'
+              - 'devcontainers/scripts/**'
+              - 'requirements-ansible.txt'
+              - 'tests/container-structure/ansible.yaml'
+              - 'tests/container-structure/ansible-podman.yaml'
 
   test-containers:
     name: Test ${{ matrix.stack }} Container
@@ -80,6 +90,37 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+
+      # As build-containers.yml publishes: see scripts/derive-source-date-epoch.sh.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
+      # Every stack is devcontainers/<stack>/Dockerfile tested with
+      # <stack>.yaml, except ansible-podman: the ansible stack plus Podman,
+      # built from Dockerfile.podman. ansible.yaml holds for it unchanged
+      # (user, workdir, ansible, the bytecode check), so it runs that file
+      # and ansible-podman.yaml for the Podman layer, instead of a copy.
+      - name: Resolve the stack's files
+        id: files
+        env:
+          STACK: ${{ matrix.stack }}
+        run: |
+          set -euo pipefail
+          case "${STACK}" in
+            ansible-podman)
+              DOCKERFILE=devcontainers/ansible/Dockerfile.podman
+              CONFIGS="ansible ansible-podman"
+              ;;
+            *)
+              DOCKERFILE="devcontainers/${STACK}/Dockerfile"
+              CONFIGS="${STACK}"
+              ;;
+          esac
+          {
+            echo "dockerfile=${DOCKERFILE}"
+            echo "configs=${CONFIGS}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
@@ -110,10 +151,15 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
-          file: devcontainers/${{ matrix.stack }}/Dockerfile
+          file: ${{ steps.files.outputs.dockerfile }}
           push: false
-          load: true
+          # Loaded like `load: true`, but with the commit-time epoch and the
+          # timestamp rewrite the published images get: the stale-bytecode
+          # test in tests/container-structure can only fail on an image
+          # whose mtimes were rewritten.
+          outputs: type=docker,rewrite-timestamp=true
           tags: test-${{ matrix.stack }}:latest
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
           cache-from: ${{ steps.rcache.outputs.from }}
 
       - name: Install container-structure-test
@@ -138,10 +184,17 @@ jobs:
       - name: Run structure tests for ${{ matrix.stack }}
         env:
           STACK: ${{ matrix.stack }}
+          STACK_TESTS: ${{ steps.files.outputs.configs }}
         run: |
+          set -euo pipefail
+          read -r -a TEST_FILES <<< "${STACK_TESTS}"
+          ARGS=()
+          for TEST_FILE in "${TEST_FILES[@]}"; do
+            ARGS+=(--config "tests/container-structure/${TEST_FILE}.yaml")
+          done
           container-structure-test test \
             --image "test-${STACK}:latest" \
-            --config "tests/container-structure/${STACK}.yaml" \
+            "${ARGS[@]}" \
             --output junit \
             --test-report "test-results-${STACK}.xml"
 

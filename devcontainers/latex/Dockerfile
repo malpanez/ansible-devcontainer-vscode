@@ -5,16 +5,12 @@ FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2
 
 ARG TECTONIC_VERSION
 ARG TARGETARCH
-ARG BUILD_DATE="unknown"
-ARG VCS_REF="unknown"
 ARG IMAGE_VENDOR="malpanez"
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Lightweight LaTeX devcontainer powered by Tectonic and uv pre-commit tooling" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.revision="${VCS_REF}"
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     UV_INSTALL_DIR=/usr/local/bin \
@@ -44,7 +40,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # dpkg, apt and ldconfig write the wall-clock time into these files on
+    # every run, and rewrite-timestamp clamps mtimes, not contents: kept,
+    # they alone made two builds of one commit differ.
+    && rm -f /var/log/dpkg.log /var/log/alternatives.log \
+         /var/log/apt/history.log /var/log/apt/term.log \
+         /var/cache/ldconfig/aux-cache \
+    # fontconfig's postinst caches each font directory with its mtime, so
+    # the cache differed in every build, and once rewrite-timestamp clamps
+    # those mtimes it no longer matches: fontconfig ignored it and built a
+    # per-user cache anyway (about 10 ms for these fonts, once per home).
+    && rm -f /var/cache/fontconfig/*.cache-*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # Tectonic publishes no checksum manifest; hashes pinned per release.
@@ -99,6 +106,11 @@ ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # useradd stamps today's day number into the shadow entry's
+    # last-change field, so the image changed with the build date even
+    # when nothing else did. An empty field disables password aging,
+    # which a locked (!) account never uses.
+    && sed -i "s/^\(${USERNAME}:[^:]*\):[0-9]*:/\1::/" /etc/shadow \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
