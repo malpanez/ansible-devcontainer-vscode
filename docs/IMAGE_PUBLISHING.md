@@ -102,3 +102,14 @@ To reproduce the Ansible stack outside of the Dev Container run:
 ```bash
 ansible-playbook playbooks/setup-workspace.yml -K
 ```
+
+## Nightly scan of the newest release
+
+A version tag is never rebuilt or moved, and `release.yml` scans an image only on the day it is released, so an advisory published later would otherwise never be reported against it; on 2026-10-28 v1.3.29 still carried fixable criticals that no scan had reported. `.github/workflows/scan-release-images.yml` rescans the newest GitHub release every night (`23 12 * * *`, from `main` like every schedule); dispatch it with `tag` to scan another release.
+
+- Each of the six images is resolved to the index digest of its version tag and scanned by that digest. The base's tag is `py<major><minor>-<tag>`, with the stream derived by `scripts/derive-python-tag.sh` from the base Dockerfile of the tagged commit, as `release.yml` did.
+- amd64 is scanned through the index, arm64 by its own manifest (`scripts/resolve-platform-manifest.sh`). arm64 is required wherever `build-containers.yml` builds it, which is every image except `devcontainer-latex`, so a release index without it fails.
+- The policy is the gate's: `.grype.yaml` of the commit the workflow runs on, fixable high/critical findings. `scripts/count-fixable-findings.sh` gives the verdict, and a platform that could not be judged fails the image.
+- Each image's job summary names the tag, the digest and the count. Findings are uploaded to code scanning as `grype-release-<image>` and `grype-release-<image>-arm64`, apart from the `grype-<image>` categories of `build-containers.yml`, which cover `main`. Only the newest release is uploaded; a dispatch for an older one reports in its job summary only.
+
+A red run means everyone who pins that release gets a fixable high or critical vulnerability. Cut a patch release: when `main`'s images pass the build-containers scan gate, releasing `main` ships the fix; otherwise bump the pinned component (or widen the Dockerfile's upgrade step) that ships the vulnerable package first. Or record a justified exception in `.grype.yaml`.
