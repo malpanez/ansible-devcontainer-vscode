@@ -124,6 +124,9 @@ jobs:
               - 'requirements.txt'
               - 'tests/**'
               - 'devcontainers/base/Dockerfile'
+              # tests/ covers the shell scripts too (the scan gate's among
+              # them), so a change to a script alone must run its tests.
+              - 'scripts/**'
 
       - name: Check Go module exists
         id: golang-check
