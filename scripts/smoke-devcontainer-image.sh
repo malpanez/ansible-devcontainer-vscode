@@ -16,7 +16,8 @@ usage() {
 Usage: scripts/smoke-devcontainer-image.sh --stack <name> [options]
 
 Options:
-  --stack <name>           Required. One of: base, ansible, terraform, golang, latex.
+  --stack <name>           Required. One of: base, ansible, ansible-aws, terraform,
+                           terraform-aws, golang, latex.
   --image <tag>            Tag/name to assign to the locally built image (default: devcontainer-<stack>:ci).
   --build                  Build the image before running the smoke test (default: reuse existing tag).
   --base-image <ref>       Base image reference passed via BASE_IMAGE build arg for Python stacks
@@ -85,9 +86,10 @@ ensure_args() {
 }
 
 ensure_base_image() {
-  if [[ "${STACK}" != "ansible" && "${STACK}" != "terraform" ]]; then
-    return 0
-  fi
+  case "${STACK}" in
+    ansible | ansible-aws | terraform) ;;
+    *) return 0 ;;
+  esac
 
   if [[ "${BASE_IMAGE_ARG}" != "${BASE_IMAGE_DEFAULT}" ]]; then
     return 0
@@ -115,9 +117,17 @@ build_image() {
       dockerfile="${REPO_ROOT}/devcontainers/ansible/Dockerfile"
       extra_args+=("--build-arg" "BASE_IMAGE=${BASE_IMAGE_ARG}")
       ;;
+    ansible-aws)
+      dockerfile="${REPO_ROOT}/devcontainers/ansible/Dockerfile"
+      extra_args+=("--build-arg" "BASE_IMAGE=${BASE_IMAGE_ARG}" "--target" "ansible-aws")
+      ;;
     terraform)
       dockerfile="${REPO_ROOT}/devcontainers/terraform/Dockerfile"
       extra_args+=("--build-arg" "BASE_IMAGE=${BASE_IMAGE_ARG}")
+      ;;
+    terraform-aws)
+      dockerfile="${REPO_ROOT}/devcontainers/terraform/Dockerfile"
+      extra_args+=("--target" "terraform-aws")
       ;;
     golang)
       dockerfile="${REPO_ROOT}/devcontainers/golang/Dockerfile"
@@ -150,13 +160,27 @@ run_smoke() {
       docker run --rm --user root \
         --mount type=bind,src="${REPO_ROOT}/requirements-ansible.txt",target=/tmp/requirements-ansible.txt,readonly \
         "${IMAGE_TAG}" \
-        bash -lc "uv pip install --system --requirement /tmp/requirements-ansible.txt && ansible --version && ansible-lint --version && uv --version"
+        bash -lc "uv pip install --system --requirement /tmp/requirements-ansible.txt && ansible --version && ansible-lint --version && uv --version && ! command -v aws"
+      ;;
+    ansible-aws)
+      # The ansible checks with the aws group's export as well, then what
+      # the -aws stage adds: the AWS CLI, the SDK and amazon.aws.
+      docker run --rm --user root \
+        --mount type=bind,src="${REPO_ROOT}/requirements-ansible.txt",target=/tmp/requirements-ansible.txt,readonly \
+        --mount type=bind,src="${REPO_ROOT}/requirements-aws.txt",target=/tmp/requirements-aws.txt,readonly \
+        "${IMAGE_TAG}" \
+        bash -lc "uv pip install --system --requirement /tmp/requirements-ansible.txt --requirement /tmp/requirements-aws.txt && ansible --version && ansible-lint --version && uv --version && aws --version && python3 -c 'import boto3, botocore' && ansible-doc -t module amazon.aws.ec2_instance >/dev/null"
       ;;
     terraform)
       # checkov left the image long ago (CHECKOV_CONSTRAINT is unset);
-      # verify the toolchain the image actually ships.
+      # verify the toolchain the image actually ships. The AWS CLI moved to
+      # terraform-aws in v2.0.0.
       docker run --rm "${IMAGE_TAG}" \
-        bash -lc "terraform version && terragrunt --version && tflint --version && sops --version && age --version && aws --version && uv --version"
+        bash -lc "terraform version && terragrunt --version && tflint --version && sops --version && age --version && uv --version && ! command -v aws"
+      ;;
+    terraform-aws)
+      docker run --rm "${IMAGE_TAG}" \
+        bash -lc "terraform version && terragrunt --version && tflint --version && sops --version && age --version && uv --version && aws --version"
       ;;
     golang)
       # Non-login shell: alpine's /etc/profile resets PATH and drops

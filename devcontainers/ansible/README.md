@@ -4,8 +4,9 @@ A production-ready Ansible development container with hardened defaults, multipl
 
 ## Features
 
-- **Python 3.12** with `uv` package manager for fast, reproducible installs
-- **Ansible** with ansible-lint, molecule, and testing tools pre-installed
+- **Python 3.14** with `uv` package manager for fast, reproducible installs
+- **ansible-core** with ansible-lint, ansible-navigator and a small set of
+  pinned collections (see [Ansible collections](#ansible-collections))
 - **Pre-commit hooks** automatically configured
 - **VS Code extensions** for Ansible, Python, YAML, and Docker
 - **Hardened security defaults** (no sudo rules, docker socket only by opt-in)
@@ -165,14 +166,77 @@ podman images
   one source build (onigurumacffi on arm64) happens in a builder stage
 
 ### Python Packages (via uv)
-The image ships the runtime toolchain: `ansible` + `ansible-core`,
-`ansible-lint`, `ansible-navigator`, `yamllint`, `pre-commit` (see
-`requirements-ansible.txt` for the full pinned list).
+The image ships the runtime toolchain: `ansible-core`, `ansible-lint`,
+`ansible-navigator`, `yamllint`, `pre-commit`, and the Python libraries
+`community.docker` imports (`docker`, `requests`, `paramiko`). See
+`requirements-ansible.txt` for the full pinned list.
+
+Not the `ansible` package: since v2.0.0 the image no longer carries its 92
+bundled collections, only the ones listed below.
 
 Development/test tooling (molecule, pytest family, black/ruff/mypy,
 ipython) lives in the `dev` dependency group — run `uv sync` in a
 workspace with a pyproject to get it, or `uv sync --group aws` for
 boto3/botocore.
+
+### Ansible collections
+
+| Collection | Why it is here |
+|------------|----------------|
+| `ansible.posix` | POSIX modules (`synchronize`, `mount`, `sysctl`, `authorized_key`, ...) |
+| `community.general` | The general-purpose community modules and filters |
+| `community.docker` | Docker modules, the Docker connection and inventory plugins |
+| `community.library_inventory_filtering_v1` | Dependency of `community.docker` and `community.general` |
+
+The exact versions are in [`collections.txt`](collections.txt), each with
+the sha256 of its Galaxy artifact. The build downloads every artifact,
+checks it against that hash and installs them all offline, so a bumped
+version without its hash fails the build. Renovate bumps the versions and
+the Renovate Post-Process workflow recomputes the hashes
+(`scripts/refresh-collection-pins.py`).
+
+They live in `/usr/local/lib/python3.*/site-packages/ansible_collections`,
+where the `ansible` package used to put its bundle, so ansible-core finds
+them whatever `collections_path` your `ansible.cfg` sets. Collections you
+install yourself go to `~/.ansible/collections` (a named volume in these
+profiles) and take precedence, so a project can pin a different version of
+any of them.
+
+Anything else, install it per project. Every profile does it on creation
+from the workspace's `requirements.yml`:
+
+```yaml
+# requirements.yml
+collections:
+  - name: community.crypto
+  - name: amazon.aws
+```
+
+or by hand: `ansible-galaxy collection install community.crypto`, or
+`ansible-galaxy collection install -r requirements.yml` to pick up a change
+without rebuilding.
+
+Their Python requirements are separate: a collection such as `amazon.aws`
+needs `boto3`. `/usr/local` belongs to root, so install it for the `vscode`
+user with `python3 -m pip install --user boto3` (uv has no `--user` mode),
+or into a project virtual environment.
+
+### AWS: `devcontainer-ansible-aws`
+
+For AWS work there is a variant with everything above plus:
+
+- `amazon.aws`, pinned with its sha256 in
+  [`collections-aws.txt`](collections-aws.txt) and installed like the
+  collections above;
+- `boto3` and `botocore`, at the versions and hashes of
+  `requirements-aws.txt` (the lock's `aws` group);
+- AWS CLI v2, pinned in `devcontainers/scripts/install-aws-cli.sh`.
+
+It is the `ansible-aws` stage of this directory's `Dockerfile`
+(`docker build --target ansible-aws -f devcontainers/ansible/Dockerfile .`),
+published from v2.0.0 on as `ghcr.io/malpanez/devcontainer-ansible-aws`. No
+template opens it yet: templates pin a released version, so they follow
+that release. Until then, set a profile's `image` to it yourself.
 
 ### VS Code Extensions
 - `redhat.ansible` - Ansible language support
@@ -268,12 +332,17 @@ docker inspect python:3.12-slim-bookworm | jq -r '.[0].RepoDigests[0]'
 
 ### Locked Dependencies
 
-All Python dependencies are locked with hashes in `requirements-ansible.txt`:
+All Python dependencies are locked with hashes in `requirements-ansible.txt`,
+exported from `uv.lock`:
 
 ```txt
-ansible==9.13.0 \
-    --hash=sha256:b389a97d1e85c2b2ad6ace9e94f410111f69cc5aa3845c930c873b34c0ddd6e2
+ansible-core==2.21.5 \
+    --hash=sha256:08886f9f3e23d129aa98a01271c4a47833516e1cb7c737a246788cb474f41222 \
+    --hash=sha256:65bb3148c58ebb843cd5074004c805f404f152114d98476dd823324616c9c6cb
 ```
+
+The collections are pinned the same way, by version and sha256, in
+`collections.txt`.
 
 ## Project Structure
 
@@ -281,6 +350,8 @@ ansible==9.13.0 \
 devcontainers/ansible/
 ├── Dockerfile                     # Multi-arch Ansible image
 ├── Dockerfile.podman              # Podman + Execution Environments image
+├── collections.txt                # Collections baked into both images (version + sha256)
+├── install-collections.sh         # Verifies and installs collections.txt at build time
 ├── devcontainer.json              # Default profile (no docker socket)
 ├── devcontainer.docker-socket.json # Host Docker daemon profile (opt-in)
 ├── devcontainer.dind.json         # Docker-in-Docker profile
@@ -295,6 +366,19 @@ devcontainers/ansible/
 **Symptom:** `postCreateCommand` fails with "requirements.yml not found"
 
 **Solution:** This is expected if your repository doesn't have Ansible collections. The command is designed to be idempotent and will skip collection installation gracefully.
+
+### `couldn't resolve module/action` for a collection
+
+**Symptom:** a playbook or ansible-lint fails with `couldn't resolve
+module/action 'amazon.aws.ec2_instance'` (or any collection outside the
+table in [Ansible collections](#ansible-collections)).
+
+**Solution:** the image ships only those collections. Add the missing one to
+your project's `requirements.yml` and run
+`ansible-galaxy collection install -r requirements.yml`, or install it
+directly with `ansible-galaxy collection install amazon.aws`. For
+`amazon.aws`, `devcontainer-ansible-aws` ships it with `boto3` (see
+[AWS](#aws-devcontainer-ansible-aws)).
 
 ### Docker Command Not Found (dind profile)
 

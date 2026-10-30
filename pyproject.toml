@@ -7,18 +7,28 @@ requires-python = ">=3.12"
 # Runtime toolchain shipped in the devcontainer images. Development and
 # test tooling lives in [dependency-groups]; 'uv sync' installs dev by
 # default in a workspace, the images stay lean.
+#
+# ansible-core, not the ansible package: the images bake in only the
+# collections pinned in devcontainers/ansible/collections.txt, not the 92
+# the package bundles. The last three entries are what community.docker
+# imports at runtime; its meta/ee-requirements.txt lists them with urllib3
+# (above) and PyYAML (from ansible-core). paramiko also backs ansible-core's
+# paramiko_ssh connection plugin. The other collections declare no Python
+# requirements.
 dependencies = [
-  "ansible>=14.1.0,<15.0.0",
+  "ansible-core>=2.21.5,<2.22.0",
   "ansible-lint>=25.0.0",
   "ansible-navigator>=3.5.0",
   "yamllint>=1.35.0",
   "jmespath>=1.0.1",
-  "netaddr>=1.2.1",
   "dnspython>=2.6.0",
   "passlib>=1.7.4",
   "pre-commit>=3.6.0",
   "detect-secrets>=1.4.0",
   "urllib3>=2.7.0",
+  "docker>=7.1.0",
+  "paramiko>=3.5.0",
+  "requests>=2.32.4",
 ]
 
 [dependency-groups]
@@ -49,6 +59,15 @@ ci-quality = [
 aws = [
   "boto3>=1.43.47",
   "botocore>=1.43.47",
+]
+# The tools every non-Ansible image bakes in (devcontainer-base, terraform,
+# golang, latex), installed hash-verified from
+# requirements-devcontainer-tools.txt. Exported on its own so those images
+# never pull the Ansible stack. The ansible images get the same versions
+# from requirements-ansible.txt: one lock, one resolution.
+devcontainer-tools = [
+  "pre-commit>=3.6.0",
+  "yamllint>=1.35.0",
 ]
 
 [tool.uv]

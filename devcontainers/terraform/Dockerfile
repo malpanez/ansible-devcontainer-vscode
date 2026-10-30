@@ -11,7 +11,7 @@ ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.5
+ARG UV_VERSION=0.13.6
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS fetch
 ARG TARGETARCH
@@ -68,7 +68,9 @@ RUN set -eux; \
     cd /; \
     rm -rf /tmp/dl
 
-FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+# devcontainer-terraform. Not the last stage: the empty one at the end of
+# this file, which repeats it, is.
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS terraform
 
 ARG IMAGE_VENDOR="malpanez"
 
@@ -138,31 +140,62 @@ RUN set -eux; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
     rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}"
 
-# Install AWS CLI v2 to avoid DevContainer features rebuild
-# https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-ARG TARGETARCH
-# renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.38.5
-# AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
-# per release; recompute them when bumping AWS_CLI_VERSION.
-RUN set -eux; \
-    case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64"; AWS_SHA256="5def7d1b7e55d892f9a381bb2cb2081a685712464be0d36d5d706af0ac48d0d3" ;; \
-      arm64) AWS_ARCH="aarch64"; AWS_SHA256="07711a936e9d271045ab937d2c2c5390c25f419e4ba9e25adb9e996031e3f6be" ;; \
-      *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
-    esac; \
-    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \
-    && echo "${AWS_SHA256}  /tmp/awscliv2.zip" | sha256sum -c - \
-    && unzip -q /tmp/awscliv2.zip -d /tmp \
-    && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli \
-    && rm -rf /tmp/awscliv2.zip /tmp/aws
-
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terragrunt /usr/local/bin/terragrunt
 COPY --from=fetch --link --chmod=0755 /tmp/bin/tflint /usr/local/bin/tflint
 COPY --from=fetch --link --chmod=0755 /tmp/bin/sops /usr/local/bin/sops
 COPY --from=fetch --link --chmod=0755 /tmp/bin/age /usr/local/bin/age
 COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-keygen
+
+# pre-commit and yamllint at the versions and hashes uv.lock records
+# (requirements-devcontainer-tools.txt, the export of its devcontainer-tools
+# group), in a venv of their own under /opt/devcontainer-tools: owned by
+# root, read-only to vscode, and apart from anything users install. Only the
+# two entry points are linked onto PATH. ensure-precommit, which every
+# template runs on create, uses this copy and installs nothing. The export is
+# bind-mounted, so it never lands in a layer.
+#
+# The interpreter is the CPython version devcontainer-base runs, installed by
+# the pinned uv, which carries the sha256 of every Python build it can
+# install and refuses a download that does not match. Debian's python3 is no
+# option: bookworm ships 3.11, below the lock's requires-python (>=3.12), so
+# the export has no wheel it could verify.
+#
+# Then it is trimmed of what nothing here loads: libpython3.14.so* (the
+# python executable is linked statically) and Tcl/Tk with tkinter, idlelib
+# and turtle (no display in a dev container). pip and ensurepip stay.
+#
+# --only-binary :all: works because every package in the export publishes
+# wheels for both architectures (musllinux too). Bytecode as in
+# devcontainers/base: checked-hash, -f, every directory touched afterwards.
+# Here it covers the interpreter's standard library as well, which uv
+# installs uncompiled: vscode cannot write under /opt, so every run
+# recompiled it in memory and `pre-commit --version` took twice as long.
+# chmod: uv creates its .lock files world-writable (0666).
+# renovate: datasource=docker depName=python versioning=docker
+ARG TOOLS_PYTHON_VERSION=3.14.10
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
+    UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \
+      uv python install --no-bin "${TOOLS_PYTHON_VERSION}" \
+    && UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \
+      uv venv --managed-python --no-python-downloads --python "${TOOLS_PYTHON_VERSION}" \
+        /opt/devcontainer-tools/venv \
+    && CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --python /opt/devcontainer-tools/venv/bin/python \
+         --require-hashes --only-binary :all: -r /tmp/requirements-devcontainer-tools.txt \
+    && PY_PREFIX="$(/opt/devcontainer-tools/venv/bin/python -c 'import sys; print(sys.base_prefix)')" \
+    && PY_STDLIB="$(/opt/devcontainer-tools/venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
+    && rm -rf "${PY_PREFIX}"/lib/libpython3*.so* \
+         "${PY_PREFIX}"/lib/libtcl* "${PY_PREFIX}"/lib/libtk* "${PY_PREFIX}"/lib/tcl* "${PY_PREFIX}"/lib/tk* \
+         "${PY_PREFIX}"/lib/itcl* "${PY_PREFIX}"/lib/tdbc* "${PY_PREFIX}"/lib/thread* "${PY_PREFIX}"/bin/idle3* \
+         "${PY_STDLIB}"/lib-dynload/_tkinter.* "${PY_STDLIB}"/tkinter "${PY_STDLIB}"/idlelib \
+         "${PY_STDLIB}"/turtledemo "${PY_STDLIB}"/turtle.py \
+    && ln -s /opt/devcontainer-tools/venv/bin/pre-commit /usr/local/bin/pre-commit \
+    && ln -s /opt/devcontainer-tools/venv/bin/yamllint /usr/local/bin/yamllint \
+    && /opt/devcontainer-tools/venv/bin/python -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/pip/' /opt/devcontainer-tools \
+    && chmod -R go-w /opt/devcontainer-tools \
+    && find /opt/devcontainer-tools -type d -exec touch {} +
 
 # DL3064 fires on the *name* containing USERNAME, not on any secret: the
 # value is the fixed, public account the Dev Containers specification
@@ -207,3 +240,33 @@ RUN git config --global init.defaultBranch main
 WORKDIR ${WORKSPACE}
 
 CMD ["/bin/bash"]
+
+# devcontainer-terraform-aws: the image above plus AWS CLI v2, built with
+# --target terraform-aws. The plain image no longer carries the CLI.
+FROM terraform AS terraform-aws
+
+LABEL org.opencontainers.image.description="Terraform devcontainer with Terragrunt, TFLint, SOPS, age, AWS CLI v2 and uv-powered pre-commit"
+
+# The stage above ends as vscode; the install writes to /usr/local. Numeric
+# uid so the id resolves without /etc/passwd (DL3066).
+USER 0
+
+# The version and the per-architecture hashes are in the script, which
+# devcontainer-ansible-aws runs too. Bind-mounted, so it never lands in a
+# layer.
+RUN --mount=type=bind,source=devcontainers/scripts/install-aws-cli.sh,target=/tmp/install-aws-cli.sh \
+    bash /tmp/install-aws-cli.sh
+
+# DL3064: see the terraform stage.
+# hadolint ignore=DL3064
+ARG USERNAME=vscode
+USER ${USERNAME}
+
+# The plain image again, as the LAST stage: a Dockerfile's default target is
+# its last stage, and every build without --target must keep producing
+# devcontainer-terraform (ci.yml, test-containers.yml, sbom-verification.yml,
+# benchmark.yml, the local-build/ dev containers, and .devcontainer/, which
+# is a copy of this file). Nothing goes below this line;
+# tests/container-structure/no-aws.yaml fails if the AWS CLI reaches the
+# default target.
+FROM terraform

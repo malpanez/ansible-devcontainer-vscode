@@ -251,9 +251,9 @@ sudo usermod -aG docker $USER
 
 ### "pre-commit not found"
 
-Inside the devcontainer, install pre-commit:
+Every devcontainer image ships pre-commit, pinned from `uv.lock`. If it is missing, the image is broken: pull it again or rebuild it. Install the hooks with:
 ```bash
-uvx pre-commit install --install-hooks
+pre-commit install --install-hooks
 ```
 
 ### "Permission denied" errors with cache directories

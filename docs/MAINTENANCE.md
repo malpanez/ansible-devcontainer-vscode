@@ -29,7 +29,9 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   - Python packages (pyproject.toml + uv.lock)
   - GitHub Actions (SHA-pinned) and Docker base-image digests
   - The `ARG`-pinned CLI tools (terraform, terragrunt, tflint, sops, age,
-    tectonic, aws-cli, uv) via regex custom managers
+    tectonic, uv) and aws-cli (pinned in
+    `devcontainers/scripts/install-aws-cli.sh`, which both `-aws` images
+    run) via regex custom managers
   - Ansible Galaxy collections and Terraform providers
 - A companion workflow (`renovate-postprocess.yml`) runs on each Renovate
   PR in a full runner and, when needed, recomputes the age/tectonic/
@@ -48,16 +50,18 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
 #### Rules That Are Easy To Break
 
 - **`uv.lock` is the source of truth.** `requirements.txt`,
-  `requirements-ansible.txt` and `requirements-ci-quality.txt` are
-  *generated* from it by `uv export`, so Renovate is disabled for all
-  three. It used to bump them
+  `requirements-ansible.txt`, `requirements-aws.txt`,
+  `requirements-ci-quality.txt` and `requirements-devcontainer-tools.txt`
+  are *generated* from it by `uv export`, so Renovate is disabled for all
+  of them. It used to bump them
   directly, which left them ahead of the lock and, on 2026-08-16, let a
   HIGH `cryptography` advisory look patched while the lock still resolved
   the vulnerable version — the next regeneration would have reverted it.
   When something looks updated, check the lock too:
   `grep -A1 'name = "<pkg>"' uv.lock`.
 - **The ansible images install `requirements-ansible.txt`, not
-  `pyproject.toml`** (`uv pip install --system --require-hashes -r`), so
+  `pyproject.toml`** (`uv pip install --system --require-hashes -r`;
+  `devcontainer-ansible-aws` adds `requirements-aws.txt`, the `aws` group), so
   their Python versions move only through the lock — Renovate lock file
   maintenance or a security PR — while the nightly uncached rebuild
   refreshes OS packages only. Resolving `pyproject.toml` at build time let
@@ -183,9 +187,7 @@ git push
 
 #### Setup
 ```bash
-# Install pre-commit (already in devcontainer)
-uv pip install --system pre-commit
-
+# pre-commit ships in every devcontainer image, pinned from uv.lock
 # Install hooks
 pre-commit install
 
@@ -535,7 +537,7 @@ in `Promote develop to main`, no Renovate PRs on Monday
 3. Test with latest base image:
    ```bash
    docker pull python:3.12.12-slim-bookworm
-   docker build devcontainers/base
+   docker build -f devcontainers/base/Dockerfile .
    ```
 4. Check tool download URLs still valid
 

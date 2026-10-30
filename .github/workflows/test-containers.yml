@@ -6,6 +6,8 @@ on:
     paths:
       - 'devcontainers/**'
       - 'requirements-ansible.txt'
+      - 'requirements-aws.txt'
+      - 'requirements-devcontainer-tools.txt'
       - 'tests/container-structure/**'
       - '.github/workflows/test-containers.yml'
   push:
@@ -13,6 +15,8 @@ on:
     paths:
       - 'devcontainers/**'
       - 'requirements-ansible.txt'
+      - 'requirements-aws.txt'
+      - 'requirements-devcontainer-tools.txt'
       - 'tests/container-structure/**'
   workflow_dispatch:
 
@@ -34,7 +38,7 @@ jobs:
       # `any_changed`: gating on that left every push and pull request with
       # no structure test at all. A dispatch diffs only the last commit (or
       # the branch against main), usually nothing, so it tests every stack.
-      stacks: ${{ github.event_name == 'workflow_dispatch' && '["base","golang","ansible","ansible-podman","terraform","latex"]' || steps.filter.outputs.changes }}
+      stacks: ${{ github.event_name == 'workflow_dispatch' && '["base","golang","ansible","ansible-podman","ansible-aws","terraform","terraform-aws","latex"]' || steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -47,6 +51,8 @@ jobs:
           filters: |
             golang:
               - 'devcontainers/golang/**'
+              # pre-commit and yamllint come from this uv.lock export
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/golang.yaml'
             ansible:
               - 'devcontainers/ansible/**'
@@ -54,22 +60,46 @@ jobs:
               # The ansible Dockerfiles install this uv.lock export
               - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
+              - 'tests/container-structure/no-aws.yaml'
             terraform:
               - 'devcontainers/terraform/**'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/terraform.yaml'
+              - 'tests/container-structure/no-aws.yaml'
             latex:
               - 'devcontainers/latex/**'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/latex.yaml'
             base:
               - 'devcontainers/base/**'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/base.yaml'
             # Tested with ansible.yaml too: see "Resolve the stack's files".
             ansible-podman:
               - 'devcontainers/ansible/Dockerfile.podman'
+              # Both ansible Dockerfiles install the pinned collections
+              - 'devcontainers/ansible/collections*.txt'
+              - 'devcontainers/ansible/install-collections.sh'
               - 'devcontainers/scripts/**'
               - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
               - 'tests/container-structure/ansible-podman.yaml'
+            # The -aws stages of the terraform and ansible Dockerfiles, tested
+            # with their stack's file too: see "Resolve the stack's files".
+            terraform-aws:
+              - 'devcontainers/terraform/**'
+              - 'devcontainers/scripts/**'
+              - 'requirements-devcontainer-tools.txt'
+              - 'tests/container-structure/terraform.yaml'
+              - 'tests/container-structure/terraform-aws.yaml'
+            ansible-aws:
+              - 'devcontainers/ansible/**'
+              - 'devcontainers/base/**'
+              - 'devcontainers/scripts/**'
+              - 'requirements-ansible.txt'
+              - 'requirements-aws.txt'
+              - 'tests/container-structure/ansible.yaml'
+              - 'tests/container-structure/ansible-aws.yaml'
 
   test-containers:
     name: Test ${{ matrix.stack }} Container
@@ -97,20 +127,34 @@ jobs:
         run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
 
       # Every stack is devcontainers/<stack>/Dockerfile tested with
-      # <stack>.yaml, except ansible-podman: the ansible stack plus Podman,
-      # built from Dockerfile.podman. ansible.yaml holds for it unchanged
-      # (user, workdir, ansible, the bytecode check), so it runs that file
-      # and ansible-podman.yaml for the Podman layer, instead of a copy.
+      # <stack>.yaml, except the variants, which are a stack plus one layer:
+      # ansible-podman, built from Dockerfile.podman, and the -aws images,
+      # built from the stack's Dockerfile with --target <stack>-aws. The
+      # stack's file holds for them unchanged (user, workdir, tools, the
+      # bytecode check), so they run it and <variant>.yaml for the layer,
+      # instead of a copy. terraform and ansible, built without a target
+      # (their Dockerfile's last stage), also run no-aws.yaml: it fails if
+      # that last stage ever became an -aws image.
       - name: Resolve the stack's files
         id: files
         env:
           STACK: ${{ matrix.stack }}
         run: |
           set -euo pipefail
+          TARGET=""
           case "${STACK}" in
             ansible-podman)
               DOCKERFILE=devcontainers/ansible/Dockerfile.podman
               CONFIGS="ansible ansible-podman"
+              ;;
+            terraform-aws|ansible-aws)
+              DOCKERFILE="devcontainers/${STACK%-aws}/Dockerfile"
+              TARGET="${STACK}"
+              CONFIGS="${STACK%-aws} ${STACK}"
+              ;;
+            terraform|ansible)
+              DOCKERFILE="devcontainers/${STACK}/Dockerfile"
+              CONFIGS="${STACK} no-aws"
               ;;
             *)
               DOCKERFILE="devcontainers/${STACK}/Dockerfile"
@@ -119,6 +163,7 @@ jobs:
           esac
           {
             echo "dockerfile=${DOCKERFILE}"
+            echo "target=${TARGET}"
             echo "configs=${CONFIGS}"
           } >> "$GITHUB_OUTPUT"
 
@@ -152,6 +197,7 @@ jobs:
         with:
           context: .
           file: ${{ steps.files.outputs.dockerfile }}
+          target: ${{ steps.files.outputs.target }}
           push: false
           # Loaded like `load: true`, but with the commit-time epoch and the
           # timestamp rewrite the published images get: the stale-bytecode

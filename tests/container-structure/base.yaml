@@ -20,6 +20,12 @@ fileExistenceTests:
     path: '/workspace'
     shouldExist: true
 
+  # Debian's yamllint (1.29.0, with Debian's python3.11) is gone; yamllint
+  # comes from uv.lock like pre-commit.
+  - name: 'No Debian yamllint'
+    path: '/usr/bin/yamllint'
+    shouldExist: false
+
 commandTests:
   # Python version: any 3.x, as the other tests match names, not versions
   - name: 'Python 3 available'
@@ -27,17 +33,41 @@ commandTests:
     args: ['--version']
     expectedOutput: ['Python 3\.[0-9]+']
 
+  # /usr/bin/python3 is a link to this Python (devcontainers/base/Dockerfile),
+  # so ansible_python_interpreter: /usr/bin/python3 survives Debian's python3
+  # going away. Same interpreter and prefix, not just some Python 3.
+  - name: '/usr/bin/python3 is the base Python'
+    command: '/usr/bin/python3'
+    args: ['-I', '-c', 'import os, sys; print("Python", sys.version.split()[0], os.path.realpath(sys.executable), sys.prefix)']
+    expectedOutput: ['Python 3\.[0-9]+\.[0-9]+ /usr/local/bin/python3\.[0-9]+ /usr/local']
+
   # uv works
   - name: 'uv functional'
     command: 'uv'
     args: ['--version']
     exitCode: 0
 
-  # Pre-commit available
+  # pre-commit and yamllint: the devcontainer-tools group of uv.lock. Major
+  # only; the lock owns the exact versions.
   - name: 'pre-commit available'
     command: 'pre-commit'
     args: ['--version']
-    expectedOutput: ['pre-commit']
+    expectedOutput: ['pre-commit [0-9]+\.[0-9]+']
+
+  - name: 'yamllint available'
+    command: 'yamllint'
+    args: ['--version']
+    expectedOutput: ['yamllint [0-9]+\.[0-9]+']
+
+  # One copy of each, in the system site-packages: Debian's yamllint used to
+  # ship beside it.
+  - name: 'pre-commit and yamllint installed once'
+    command: 'sh'
+    args:
+      - '-c'
+      - 'find / -xdev \( -name "pre_commit-*-info" -o -name "yamllint-*-info" \) 2>/dev/null | sort'
+    expectedOutput:
+      - '\A/usr/local/lib/python3\.[0-9]+/site-packages/pre_commit-[0-9.]+\.dist-info\n/usr/local/lib/python3\.[0-9]+/site-packages/yamllint-[0-9.]+\.dist-info\n\z'
 
   # Workspace writable
   - name: 'Workspace writable'
@@ -45,8 +75,9 @@ commandTests:
     args: ['-c', 'touch /workspace/.test && rm /workspace/.test']
     exitCode: 0
 
-  # Same check as ansible.yaml, for the bytecode base ships itself (its
-  # site-packages never reach the ansible image, which replaces them).
+  # Same check as ansible.yaml, for the bytecode base ships itself. The
+  # ansible image keeps these files as they are and adds only what differs,
+  # so they reach it unchanged.
   - name: 'No stale timestamp bytecode under /usr/local/lib'
     command: 'python3'
     args:

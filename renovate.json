@@ -71,9 +71,10 @@
       "groupName": "github-actions"
     },
     {
-      "description": "Group the terraform-stack CLI tools",
+      "description": "Group the terraform-stack CLI tools, with the AWS CLI: it moved from the terraform Dockerfile to devcontainers/scripts/install-aws-cli.sh, the one pin devcontainer-terraform-aws and devcontainer-ansible-aws share, and stays in this group so its bumps keep arriving batched as before.",
       "matchFileNames": [
-        "devcontainers/terraform/Dockerfile"
+        "devcontainers/terraform/Dockerfile",
+        "devcontainers/scripts/install-aws-cli.sh"
       ],
       "groupName": "terraform-stack tools"
     },
@@ -85,6 +86,16 @@
         "s3transfer"
       ],
       "groupName": "aws-sdk-python"
+    },
+    {
+      "description": "The Ansible collections the ansible images bake in (devcontainers/ansible/collections*.txt) move together: every bump rewrites the same file and Renovate Post-Process recomputes the artifact hashes on each PR, so one PR per batch instead of one per collection. Majors still get their own PR (separateMajorMinor).",
+      "matchDatasources": [
+        "galaxy-collection"
+      ],
+      "matchFileNames": [
+        "devcontainers/ansible/**"
+      ],
+      "groupName": "ansible image collections"
     },
     {
       "description": "One PR per release for the published images that the templates, the examples and the docs pin. A release adds the same version tag to every image, so the group moves every template together; without it each image gets its own PR and the stacks sit on different releases until the last one merges.",
@@ -108,11 +119,13 @@
       "enabled": false
     },
     {
-      "description": "Generated files: Renovate must not edit them. requirements.txt and requirements-ansible.txt come from uv.lock via `uv export`; .devcontainer/ is a copy of devcontainers/<stack>/ produced by scripts/use-devcontainer.sh. Editing generated files desynchronised the exports from the lock (2026-08-16, where it made a HIGH cryptography fix look applied while the lock stayed vulnerable) and duplicates every devcontainer PR: #411 patched .devcontainer while #412 patched the terraform template it is generated from. Renovate manages the sources; the companion regenerates the copies.",
+      "description": "Generated files: Renovate must not edit them. requirements.txt and the requirements-*.txt exports come from uv.lock via `uv export`; .devcontainer/ is a copy of devcontainers/<stack>/ produced by scripts/use-devcontainer.sh. Editing generated files desynchronised the exports from the lock (2026-08-16, where it made a HIGH cryptography fix look applied while the lock stayed vulnerable) and duplicates every devcontainer PR: #411 patched .devcontainer while #412 patched the terraform template it is generated from. Renovate manages the sources; the companion regenerates the copies.",
       "matchFileNames": [
         "requirements.txt",
         "requirements-ansible.txt",
+        "requirements-aws.txt",
         "requirements-ci-quality.txt",
+        "requirements-devcontainer-tools.txt",
         ".devcontainer/**"
       ],
       "enabled": false
@@ -130,6 +143,19 @@
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "astral-sh/uv"
+    },
+    {
+      "customType": "regex",
+      "description": "The CPython that uv installs for the pinned pre-commit and yamllint in the images not built on python:* (terraform, golang, latex), kept at the base image's version: same datasource and depName as the python:* FROM lines. A bump stays red until the pinned uv knows that Python build; bump uv first.",
+      "managerFilePatterns": [
+        "/^devcontainers/(terraform|golang|latex)/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG TOOLS_PYTHON_VERSION=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "python",
+      "versioningTemplate": "docker"
     },
     {
       "customType": "regex",
@@ -210,12 +236,12 @@
     },
     {
       "customType": "regex",
-      "description": "aws-cli (git tags, hash recomputed by a postUpgradeTask)",
+      "description": "aws-cli (git tags; both hashes recomputed by Renovate Post-Process). Pinned once, in the install script the terraform-aws and ansible-aws stages share.",
       "managerFilePatterns": [
-        "/devcontainers/terraform/Dockerfile/"
+        "/^devcontainers/scripts/install-aws-cli\\.sh$/"
       ],
       "matchStrings": [
-        "ARG AWS_CLI_VERSION=(?<currentValue>[0-9.]+)"
+        "AWS_CLI_VERSION=(?<currentValue>[0-9.]+)"
       ],
       "datasourceTemplate": "github-tags",
       "depNameTemplate": "aws/aws-cli"
@@ -235,6 +261,17 @@
     },
     {
       "customType": "regex",
+      "description": "Ansible collections baked into the ansible images, one '<namespace.name> <version> <sha256>' line each (sha256 recomputed by Renovate Post-Process). Not the ansible-galaxy manager: it only reads requirements.yml-style files and marks any entry with a key besides name/version/source/type as unsupported, so a hash cannot sit next to the version there.",
+      "managerFilePatterns": [
+        "/^devcontainers/ansible/collections[^/]*\\.txt$/"
+      ],
+      "matchStrings": [
+        "(?<depName>[a-z0-9_]+\\.[a-z0-9_]+) (?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+\\S*) [a-f0-9]{64}"
+      ],
+      "datasourceTemplate": "galaxy-collection"
+    },
+    {
+      "customType": "regex",
       "description": "Versions pinned as *_VERSION env vars in workflows, tagged with a '# renovate:' annotation. Without this, pinning a tool version would freeze it forever \u2014 exactly how main ended up building from a base digest GHCR had already pruned (2026-07-24).",
       "managerFilePatterns": [
         "/^\\.github/workflows/.+\\.ya?ml$/"
@@ -242,18 +279,6 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+[A-Z_]+_VERSION:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?(?:\\s+[A-Z_]+_DIGEST:\\s*[\"']?(?<currentDigest>sha256:[a-f0-9]{64}))?"
       ]
-    },
-    {
-      "customType": "regex",
-      "description": "pre-commit pinned as an ARG in the base image",
-      "managerFilePatterns": [
-        "/devcontainers/base/Dockerfile/"
-      ],
-      "matchStrings": [
-        "ARG PRE_COMMIT_VERSION=(?<currentValue>[0-9.]+)"
-      ],
-      "datasourceTemplate": "pypi",
-      "depNameTemplate": "pre-commit"
     },
     {
       "customType": "regex",

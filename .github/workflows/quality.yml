@@ -22,7 +22,7 @@ permissions:
 
 env:
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.13.5"
+  UV_VERSION: "0.13.6"
 
 jobs:
   changes:
@@ -202,6 +202,15 @@ jobs:
           # develop on 2026-08-10. requirements-ansible.txt is exported from
           # uv.lock with hashes.
           pip install --only-binary :all: --require-hashes -r requirements-ansible.txt
+
+      - name: Install the collections requirements.yml lists
+        run: |
+          # requirements-ansible.txt brings ansible-core and no collections,
+          # and .ansible-lint sets offline: true, so ansible-lint installs
+          # none itself: every ansible.posix task would report
+          # syntax-check[unknown-module]. ansible.cfg's collections_path puts
+          # them in ./collections, which .ansible-lint does not lint.
+          ansible-galaxy collection install -r requirements.yml
 
       - name: Ansible Lint Summary
         run: |

@@ -8,8 +8,12 @@ if [[ -z "${STACK}" ]]; then
   exit 1
 fi
 
-if ! command -v uv >/dev/null 2>&1; then
-  echo "uv is not available on PATH; unable to bootstrap pre-commit" >&2
+# Every image ships pre-commit at the version uv.lock pins, hash-verified at
+# build time. Missing means the image is broken; installing one here would
+# put an unpinned, unscanned copy in its place, so this fails instead.
+if ! PRE_COMMIT_BIN="$(command -v pre-commit)"; then
+  echo "pre-commit is not on PATH: this ${STACK} image is broken." >&2
+  echo "Every devcontainer image ships it pinned from uv.lock; pull or rebuild the image." >&2
   exit 1
 fi
 
@@ -29,22 +33,15 @@ if [[ ! -f "${CONFIG_PATH}" && -f "${TEMPLATE_PATH}" ]]; then
   echo "Copied ${STACK} pre-commit template into workspace"
 fi
 
-export PATH="${HOME}/.local/bin:${PATH}"
 export PRE_COMMIT_HOME="${PRE_COMMIT_HOME:-${WORKSPACE_DIR}/.cache/pre-commit}"
 mkdir -p "${PRE_COMMIT_HOME}"
-
-# pre-commit ships preinstalled in the images; install user-scoped only
-# as a fallback, loudly, so failures are visible.
-if ! command -v pre-commit >/dev/null 2>&1; then
-  echo "pre-commit not found in image; installing user-scoped via uv"
-  uv tool install pre-commit
-fi
+echo "Using $("${PRE_COMMIT_BIN}" --version) from ${PRE_COMMIT_BIN}"
 
 cd "${WORKSPACE_DIR}"
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo "Workspace is not a git repository; skipping pre-commit hook installation"
   exit 0
 fi
-pre-commit install -f
+"${PRE_COMMIT_BIN}" install -f
 # Deliberately NOT running 'pre-commit autoupdate': container startup
 # must never mutate the user's pinned hook versions.

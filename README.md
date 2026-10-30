@@ -30,7 +30,7 @@ Pull a pre-built infrastructure workspace from GHCR and start writing Terraform 
 - 🧱 **Slim stack-specific images** – each stack is based on the leanest upstream image (Chainguard or slim Debian/Python) with layered cleanup for fast pulls.
 - 📦 **GHCR-ready images** – Dockerfiles are optimised for publishing to `ghcr.io` so teams can pull prebuilt devcontainers instead of rebuilding locally.
 - 🧪 **Quality gates baked in** – pre-commit hooks, `ansible-lint`, `yamllint`, Molecule/pytest harness, and GitHub Actions CI.
-- 🪪 **Template-driven pre-commit** – `ensure-precommit` seeds the right hook config per stack and runs `uvx pre-commit` without bloating the images.
+- 🪪 **Template-driven pre-commit** – every image ships pre-commit and yamllint at the versions `uv.lock` pins, and `ensure-precommit` seeds the right hook config per stack.
 - 🔐 **Security conscious** – runs as non-root, includes Trivy scanning in CI, and keeps secrets out of the repo.
 - 🤖 **AI agent safe by design** – run Claude Code, Copilot, or any AI agent with full permissions inside the container. Worst case: a broken workspace, back to normal with `git reset` in seconds. Your host OS, credentials, and other projects are never at risk.
 - 📣 **Responsible disclosure** – see [`SECURITY.md`](SECURITY.md) for reporting guidelines and supply-chain expectations.
@@ -97,17 +97,15 @@ stack name for the published image.
 
 ## Pre-commit Strategy
 
-Every stack ships with a ready-to-use `.pre-commit-config.yaml`. The image bakes in `/usr/local/bin/ensure-precommit`, a tiny helper that:
+Every stack ships with a ready-to-use `.pre-commit-config.yaml`, and every image ships `pre-commit` and `yamllint` at the exact versions in `uv.lock`, installed hash-verified at build time:
+
+- **Ansible** gets them from `requirements-ansible.txt`, with the rest of its Python stack.
+- **Base, Terraform, Golang and LaTeX** get them from `requirements-devcontainer-tools.txt`, the export of the lock's `devcontainer-tools` group. Base installs into its system Python. Terraform, Golang and LaTeX have no Python of their own, so they carry a root-owned venv at `/opt/devcontainer-tools`, on a uv-managed CPython pinned to the base image's version, with only `pre-commit` and `yamllint` linked into `/usr/local/bin`.
+
+The image also bakes in `/usr/local/bin/ensure-precommit`, which the `postCreateCommand` runs. It:
 
 1. Copies the right template from `/usr/local/share/devcontainer-skel/<stack>/` if the workspace does not provide one.
-2. Runs `uv tool install pre-commit` followed by `uvx pre-commit install -f` and `uvx pre-commit autoupdate`.
-
-This keeps developer experience consistent:
-
-- **Ansible** builds from `python:3.12-slim-bookworm` (switchable to `ghcr.io/chainguard-images/python:latest` via `BASE_IMAGE`) and installs Ansible + hooks with `uv pip install --system`.
-- **Terraform, Golang, and LaTeX** remain Python-free. They install the `uv` launcher only, so `uvx pre-commit` bootstraps Python on-demand without bloating the image.
-- In VS Code, the `postCreateCommand` simply calls `ensure-precommit`, guaranteeing hooks are installed on day one.
-- CI mirrors the workflow with `uvx pre-commit run --all-files`, so the same hook set gates every PR.
+2. Runs `pre-commit install -f` with the image's pre-commit. It never installs pre-commit and never runs `pre-commit autoupdate`; an image without pre-commit is broken, and the script fails and says so.
 
 ## Available Stacks
 
@@ -151,10 +149,13 @@ Tool versions are pinned at their single source of truth — duplicated
 version tables rot:
 
 - **Python packages**: `pyproject.toml` + `uv.lock` (exports:
-  `requirements.txt`, `requirements-ansible.txt`)
-- **CLI tools** (terraform, terragrunt, tflint, sops, age, uv, AWS CLI,
-  tectonic): `ARG *_VERSION` at the top of each `devcontainers/*/Dockerfile`,
-  each download verified against its upstream checksum
+  `requirements.txt`, `requirements-ansible.txt`, `requirements-aws.txt`)
+- **CLI tools** (terraform, terragrunt, tflint, sops, age, uv, tectonic):
+  `ARG *_VERSION` at the top of each `devcontainers/*/Dockerfile`, each
+  download verified against its upstream checksum
+- **AWS CLI** (only in `devcontainer-terraform-aws` and
+  `devcontainer-ansible-aws`): `devcontainers/scripts/install-aws-cli.sh`,
+  with the sha256 of each architecture's download
 - **Base images**: digest-pinned `FROM` lines in the same Dockerfiles
 
 ## Local Workflow
@@ -227,7 +228,7 @@ Override defaults in `roles/*/defaults/main.yml` or pass extra vars (`-e variabl
 - `./scripts/run-smoke-tests.sh` — fast smoke test that also asserts Ansible/ansible-core match the pinned requirements.
 - `./scripts/run-ansible-tests.sh` — runs `ansible-test sanity` against every role (set `ANSIBLE_TEST_PYTHON_VERSION` to change the interpreter).
 - `./scripts/smoke-devcontainer-image.sh` — builds a Dev Container image and runs per-stack smoke checks (compatible with Docker Desktop or Podman).
-- `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `terraform`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
+- `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `ansible-aws`, `terraform`, `terraform-aws`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
 - `molecule test` — spins up Debian with all roles applied and verifies via Testinfra (`molecule/default/tests/test_default.py`).
 - GitHub Actions runs `uvx pre-commit`, targeted playbook/Molecule checks, Go/Terraform tests when relevant, and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
 - See [`docs/`](docs/README.md) for scenario walkthroughs (Terraform Proxmox, LaTeX résumé), corporate network tips, and the Windows bootstrap guide.
@@ -316,7 +317,7 @@ See [`.github/scripts/README.md`](.github/scripts/README.md) for automation deta
 Recent optimizations have significantly improved DevContainer startup times:
 
 - **⚡ Fast Startup**: Containers now start in ~30 seconds (previously 2-5 minutes)
-- **🚀 Direct Pull**: git, github-cli (gh), and AWS CLI v2 are pre-installed in base images, eliminating the need for DevContainer features that trigger rebuilds
+- **🚀 Direct Pull**: git and github-cli (gh) are pre-installed in the images, and AWS CLI v2 in the `-aws` variants, eliminating the need for DevContainer features that trigger rebuilds
 - **🔧 Pre-commit Permissions**: Fixed permission issues with gitleaks/Go cache by setting `PRE_COMMIT_HOME` and ensuring proper cache directory ownership
 
 ### Using DevContainers in Your Projects

@@ -1,0 +1,15 @@
+# Ansible collections baked into devcontainer-ansible and
+# devcontainer-ansible-podman, installed by install-collections.sh.
+# One per line: namespace.name, exact version, sha256 of the Galaxy artifact.
+#
+# Renovate bumps the version (the galaxy-collection custom manager in
+# renovate.json) and Renovate Post-Process rewrites the sha256 with
+# scripts/refresh-collection-pins.py. The build checks every artifact
+# against this file, so a version moved without its hash fails the build.
+#
+# community.library_inventory_filtering_v1 is not used directly: both
+# community.docker and community.general declare it as a dependency.
+ansible.posix 2.2.2 00a58c5d804c9adc99c3c3dc1b9f2246f4bb5f7337941440e0956f0e31c3b82b
+community.docker 5.4.0 098e671822180a4170af061eca281df431e0747c7d66450bc75e9adb727abe19
+community.general 13.5.0 54598287e0ea0504aee2d32c884208ddf26f3ac41e0b4e773ff514af210787c4
+community.library_inventory_filtering_v1 1.1.5 cbb9e86c5b1720df21e940cedcd2f3e1226c38262623e090a883712610733851

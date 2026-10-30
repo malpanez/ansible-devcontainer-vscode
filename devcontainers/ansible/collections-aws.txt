@@ -1,0 +1,10 @@
+# Ansible collections devcontainer-ansible-aws adds to those in
+# collections.txt, installed by install-collections.sh in the same format:
+# namespace.name, exact version, sha256 of the Galaxy artifact. Renovate and
+# Renovate Post-Process keep this file current exactly as they do
+# collections.txt.
+#
+# install-collections.sh installs offline, so every collection dependency
+# must be listed too: amazon.aws declares none. Its Python requirements,
+# boto3 and botocore, come from requirements-aws.txt.
+amazon.aws 12.0.0 521982d74fa6a5268887fc1b9aff5477b89fb8889a1428a05737ff5615f26685

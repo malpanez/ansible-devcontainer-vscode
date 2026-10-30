@@ -5,8 +5,9 @@ name: Renovate Post-Process
 # postUpgradeTasks cannot regenerate everything this repo derives from a
 # dependency bump. This companion runs on Renovate PRs in a full runner
 # and, when a change needs it, recomputes the age/tectonic/aws-cli hashes
-# (no upstream checksum manifest), regenerates the requirements exports
-# from uv.lock, and resyncs the active .devcontainer against its template.
+# (no upstream checksum manifest) and the pinned Ansible collections'
+# artifact hashes, regenerates the requirements exports from uv.lock, and
+# resyncs the active .devcontainer against its template.
 # It pushes the result back with BOT_TOKEN so CI re-runs and Renovate's
 # auto-merge waits for the corrected branch. Every step is idempotent, so
 # the push it triggers re-runs this job to a clean no-op (no loop).
@@ -22,7 +23,7 @@ env:
   # The exports below must be produced by the same uv the images pin, or the
   # generated requirements stop being reproducible (0.11.18 vs 0.12.13, once).
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.13.5"
+  UV_VERSION: "0.13.6"
 
 jobs:
   postprocess:
@@ -86,9 +87,18 @@ jobs:
           # leaves .devcontainer/ alone, and Devcontainer State fails until
           # the copy and its recorded signature match the template again.
           resync=false
+          refresh_pins=false
           if echo "${changed}" | grep -qE '^devcontainers/.*/Dockerfile'; then
-            python3 scripts/refresh-tool-pins.py --sync-hashes
+            refresh_pins=true
             resync=true
+          fi
+          # The AWS CLI is pinned in the script both -aws stages run, not in
+          # a Dockerfile, and .devcontainer/ holds no copy of it.
+          if echo "${changed}" | grep -qxF 'devcontainers/scripts/install-aws-cli.sh'; then
+            refresh_pins=true
+          fi
+          if [ "${refresh_pins}" = true ]; then
+            python3 scripts/refresh-tool-pins.py --sync-hashes
           fi
           if echo "${changed}" | grep -qE '^devcontainers/[^/]+/(local-build/)?devcontainer[^/]*\.json$'; then
             resync=true
@@ -97,11 +107,19 @@ jobs:
             stack=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('.devcontainer/.template-metadata.json').read_text())['stack'])")
             bash scripts/use-devcontainer.sh "${stack}"
           fi
+          # A collection bump: Renovate moved a version in the pinned list
+          # but cannot recompute its artifact's sha256, and the image build
+          # rejects the stale one.
+          if echo "${changed}" | grep -qE '^devcontainers/ansible/collections[^/]*\.txt$'; then
+            python3 scripts/refresh-collection-pins.py --sync-hashes
+          fi
           # A Python dependency change: regenerate the requirements exports.
           if echo "${changed}" | grep -qE '^(uv\.lock|pyproject\.toml)$'; then
             uv export --format requirements-txt --no-hashes --frozen --all-groups -o requirements.txt
             uv export --format requirements-txt --frozen --no-default-groups -o requirements-ansible.txt
+            uv export --format requirements-txt --frozen --only-group aws -o requirements-aws.txt
             uv export --format requirements-txt --frozen --only-group ci-quality -o requirements-ci-quality.txt
+            uv export --format requirements-txt --frozen --only-group devcontainer-tools -o requirements-devcontainer-tools.txt
           fi
 
       - name: Commit and push if anything changed

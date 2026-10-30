@@ -8,10 +8,12 @@ This document provides visual architecture diagrams and explanations for the dev
 graph TD
     A[python:3.14-slim-bookworm] --> B[devcontainer-base]
     B --> C[devcontainer-ansible]
+    C --> L[devcontainer-ansible-aws]
 
     K[python:3.14-slim-trixie] --> D[devcontainer-ansible-podman]
 
     E[debian:bookworm-slim] --> F[devcontainer-terraform]
+    F --> M[devcontainer-terraform-aws]
     E --> G[devcontainer-latex]
 
     H[golang:1.27-alpine] --> I[devcontainer-golang]
@@ -21,6 +23,8 @@ graph TD
     style D fill:#fff4e1
     style F fill:#e8f5e9
     style G fill:#fce4ec
+    style L fill:#fff4e1
+    style M fill:#e8f5e9
     style I fill:#f3e5f5
 ```
 
@@ -44,9 +48,14 @@ graph TD
     `python:3.14-slim-trixie` and installs Podman from Debian, because the
     Debian build is ABI-coherent with the rest of the image. Copying binaries
     from `quay.io/containers/podman` was tried and never worked at runtime.
+  - `devcontainer-ansible-aws`: `devcontainer-ansible` plus `amazon.aws`,
+    `boto3`/`botocore` and AWS CLI v2. It is the `ansible-aws` stage of
+    `devcontainers/ansible/Dockerfile`, built with `--target ansible-aws`.
 
 - **Standalone Stacks**: Independent base images
   - `devcontainer-terraform`: Debian-based with HashiCorp tools
+  - `devcontainer-terraform-aws`: `devcontainer-terraform` plus AWS CLI v2,
+    the `terraform-aws` stage of `devcontainers/terraform/Dockerfile`
   - `devcontainer-golang`: Alpine-based Go development
   - `devcontainer-latex`: Debian-based with Tectonic engine
 
@@ -98,12 +107,13 @@ Benefits:
 
 ```mermaid
 graph TD
-    A[Container Build] -->|Does NOT install| B[pre-commit]
+    L[uv.lock] -->|uv export, hashed| R[requirements-*.txt]
+    R -->|--require-hashes at build| A[Container image]
+    A --> E[pre-commit + yamllint, pinned]
 
     C[Developer opens container] --> D[ensure-precommit.sh]
-    D -->|uv tool install pre-commit| E[pre-commit installed]
     D -->|copies template| F[.pre-commit-config.yaml]
-    D -->|uvx pre-commit install| G[Git hooks active]
+    D -->|image's pre-commit install| G[Git hooks active]
 
     H[CI Pipeline] -->|uvx pre-commit run --all-files| I[Validates PRs]
 
@@ -114,20 +124,19 @@ graph TD
     style I fill:#f3e5f5
 ```
 
-### Lazy Loading Strategy
+### Pinned at build time
 
-Pre-commit is **NOT** baked into container images. Instead:
+Pre-commit and yamllint are baked into every image, at the versions `uv.lock` pins:
 
-1. **Template stored** at `/usr/local/share/devcontainer-skel/<stack>/.pre-commit-config.yaml`
-2. **Script provided** at `/usr/local/bin/ensure-precommit`
-3. **Installed on-demand** via `uv tool install pre-commit`
-4. **Always fresh** - gets latest version when installed
+1. **Installed from the lock**: the ansible images from `requirements-ansible.txt`; base, terraform, golang and latex from `requirements-devcontainer-tools.txt` (the `devcontainer-tools` dependency group). Both are `uv export` output with a hash for every package, installed with `--require-hashes --only-binary :all:`.
+2. **Their own interpreter where the image has none**: terraform, golang and latex install them into a root-owned venv at `/opt/devcontainer-tools`, on a uv-managed CPython pinned to the base image's version (uv verifies its sha256), and link only `pre-commit` and `yamllint` into `/usr/local/bin`.
+3. **Template stored** at `/usr/local/share/devcontainer-skel/<stack>/.pre-commit-config.yaml`
+4. **Script provided** at `/usr/local/bin/ensure-precommit`: copies the template and installs the git hook. It installs nothing; without pre-commit on `PATH` it fails, because the image is broken.
 
 Benefits:
-- Smaller container images (~50MB saved)
-- Always up-to-date pre-commit
-- Fast installs via uv
-- Consistent across all stacks
+- The same pre-commit in every image as in the lock, bumped by Renovate's lock maintenance
+- Scanned with the image, instead of downloaded unpinned on every container create
+- Nothing to download when the container starts
 
 ## CI/CD Pipeline Flow
 
@@ -179,7 +188,9 @@ The `build-containers.yml` workflow builds:
 **build-all job matrix:**
 - `ansible` (main Dockerfile)
 - `ansible` (Dockerfile.podman variant → `ansible-podman`)
+- `ansible` (`ansible-aws` target → `ansible-aws`, on the same-run base)
 - `terraform`
+- `terraform` (`terraform-aws` target → `terraform-aws`)
 - `golang`
 - `latex` (amd64 only)
 
@@ -261,7 +272,7 @@ graph TD
 | Tectonic | 0.15.0 | Minor auto-update via Renovate |
 | Ansible | 9.14.0 | Locked via pyproject.toml + uv.lock |
 | uv | 0.9.13 | Pinned in base image |
-| AWS CLI | v2 (latest) | Auto-update from official installer |
+| AWS CLI | v2, `-aws` images only | Pinned with its sha256 in `devcontainers/scripts/install-aws-cli.sh`, bumped by Renovate |
 | github-cli (gh) | latest | Auto-update from apt repository |
 | Podman | 5.7.0 | From official Podman image |
 
