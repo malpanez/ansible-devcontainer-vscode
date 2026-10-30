@@ -114,6 +114,11 @@ jobs:
               # Same for base, terraform, golang and latex: pre-commit and
               # yamllint come from this export.
               - 'requirements-devcontainer-tools.txt'
+              # The size gate in devcontainer-build: a budget edit, or a
+              # change to how the size is judged, must run that gate against
+              # the images it judges, as a .grype.yaml change runs the scan.
+              - '.github/image-size-budgets.json'
+              - 'scripts/check-image-size.py'
             # The files that name the images the templates and examples open
             # from, checked by Devcontainer State. A filter of its own, not
             # more paths under devcontainer: examples/ is no image input, and
@@ -141,6 +146,9 @@ jobs:
               # tests/ covers the shell scripts too (the scan gate's among
               # them), so a change to a script alone must run its tests.
               - 'scripts/**'
+              # tests/test_check_image_size.py checks this file's shape: one
+              # budget per published image, both limits positive integers.
+              - '.github/image-size-budgets.json'
 
       - name: Check Go module exists
         id: golang-check
@@ -605,6 +613,30 @@ jobs:
           cache-to: |
             ${{ steps.cache.outputs.cache_to }}
           platforms: ${{ matrix.platforms }}
+
+      # Size gate, before the smoke test and the scan, so an oversized image
+      # fails in seconds. It compares `docker image inspect` .Size with the
+      # image's max_uncompressed_mib in .github/image-size-budgets.json and
+      # fails the job when it is over. Uncompressed because that is the one
+      # faithful size here: nothing is pushed, so there is no registry
+      # manifest to read, and the layers this job exports are not compressed
+      # the way build-containers.yml publishes them (zstd), so their size
+      # would not be the download either. On this runner's classic overlay2
+      # store .Size is the sum of the files in the image's layers, which is
+      # what the budgets were measured as. The script also fails closed
+      # (exit 2) when it cannot judge: an image with no budget, a budgets
+      # file it cannot read, a docker error, or a Docker on the containerd
+      # image store, where .Size counts something else. base is not loaded
+      # in this job (see its build above), so its budget is only reported
+      # on publish; ansible and ansible-aws, built on it, carry its growth
+      # into their own gates. Raising a budget is a reviewed edit to that
+      # file.
+      - name: Check ${{ matrix.stack }}${{ matrix.variant }} image size against its budget
+        env:
+          IMAGE_STACK: ${{ matrix.stack }}${{ matrix.variant }}
+        run: |
+          python3 scripts/check-image-size.py local \
+            --image "devcontainer-${IMAGE_STACK}:ci" --name "${IMAGE_STACK}"
 
       - name: Smoke test ${{ matrix.stack }}${{ matrix.variant }} container
         env:

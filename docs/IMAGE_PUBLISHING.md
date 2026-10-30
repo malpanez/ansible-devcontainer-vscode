@@ -119,3 +119,36 @@ A version tag is never rebuilt or moved, and `release.yml` scans an image only o
 - Each image's job summary names the tag, the digest and the count. Findings are uploaded to code scanning as `grype-release-<image>` and `grype-release-<image>-arm64`, apart from the `grype-<image>` categories of `build-containers.yml`, which cover `main`. Only the newest release is uploaded; a dispatch for an older one reports in its job summary only.
 
 A red run means everyone who pins that release gets a fixable high or critical vulnerability. Cut a patch release: when `main`'s images pass the build-containers scan gate, releasing `main` ships the fix; otherwise bump the pinned component (or widen the Dockerfile's upgrade step) that ships the vulnerable package first. Or record a justified exception in `.grype.yaml`.
+
+## Image size budgets
+
+`.github/image-size-budgets.json` gives each of the eight images two limits, in MiB (1024 × 1024 bytes), and a one-line reason; `scripts/check-image-size.py` checks them.
+
+| Where | Limit and what it is compared with | Images | Over budget |
+| ----- | ---------------------------------- | ------ | ----------- |
+| `ci.yml`, job `devcontainer-build`, on every run whose changes reach the images, the budgets file or the script | `max_uncompressed_mib`, against `docker image inspect` `.Size` of the `linux/amd64` image the job built | all but `devcontainer-base` | fails the job (and so `CI Success`), before the smoke test and the scan |
+| `build-containers.yml`, jobs `build-base`, `build-all` and `build-single`, right after the push | `max_compressed_mib`, against config plus layers of the pushed `linux/amd64` manifest in GHCR | all eight | a warning and a row in the job summary; the image is still scanned, signed and tagged |
+
+Why two sizes:
+
+- On a pull request nothing is pushed, so there is no registry manifest to read, and the layers the job exports are not compressed the way the images are published (zstd, level 12), so their size is not the download either. The unpacked size is the one faithful number there, and it is what the change costs on every disk the image lands on.
+- On publish the registry holds the real thing: the compressed bytes `docker pull` downloads, read from the manifest without pulling. `linux/amd64` is the larger platform of every image and `devcontainer-latex`'s only one.
+
+Publishing only reports. Pull requests are where size is gated, and an image that grew without one, from a nightly rebuild's OS updates, must not hold back the security fixes it carries. A warning there is the cue to open a pull request that shrinks the image or raises its budget.
+
+`devcontainer-base` has no pull request gate. `ci.yml` builds it into an OCI layout for the ansible images and never loads it into Docker, and that layout's layers are compressed differently from the published ones (gzip by default, or whatever the registry cache holds; `:buildcache-publish` mixes gzip and zstd layers), so neither of its sizes there would match a budget. Its growth still fails the `ansible` and `ansible-aws` gates, which are built on it in the same job, and publishing reports its compressed size.
+
+The uncompressed sizes depend on Docker's image store. On GitHub's `ubuntu-24.04` runners (Docker 28.0.4, classic `overlay2`) `.Size` is the sum of the files in the image's layers, which is how the budgets were measured. On the containerd image store `.Size` is the compressed content plus the disk usage of the unpacked snapshots, 1.33 to 1.45 times as much for the v2.0.0 images, so the script refuses to judge there instead of failing every image. Check images locally only on a classic store.
+
+The script exits 0 within budget (and always in `registry` mode when only the size is over), 1 over budget in `local` mode, and 2 when it cannot judge: an image with no budget (a new image must get one), a budgets file it cannot read or that is ill-formed, a docker or registry error (registry calls are tried three times first), or the containerd store. The publish steps run it with `continue-on-error`, so a registry hiccup never fails a publish.
+
+To raise a budget, edit `.github/image-size-budgets.json` in a pull request: change the number and its `reason` together, and say in the description what grew and why. The file sits outside `devcontainers/`, so the edit rebuilds and republishes nothing; it runs the pull request gate against the new number, and `tests/test_check_image_size.py` checks that the file still lists exactly the eight images, each with two positive integers, compressed below uncompressed. The first budgets are the v2.0.0 `linux/amd64` sizes plus about 10%, rounded up to 10 MiB.
+
+To check a published image or a local build:
+
+```bash
+python3 scripts/check-image-size.py registry \
+  --ref ghcr.io/malpanez/devcontainer-ansible@sha256:<index digest> --name ansible
+# Classic overlay2 store only:
+python3 scripts/check-image-size.py local --image devcontainer-ansible:ci --name ansible
+```
