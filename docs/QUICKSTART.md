@@ -60,7 +60,7 @@ Each stack copies two variants into `.devcontainer/`. `devcontainer.json` opens 
 2. Ensure your container engine is running:
    - Docker Desktop: the whale icon should be active and the Ubuntu distro enabled under WSL Integration.
    - Podman Desktop: start Podman Desktop (or `podman machine start`) so the Docker-compatible socket is available.
-3. The first open pulls the stack's image inside WSL (64–215 MiB compressed for amd64, depending on the stack); later opens reuse it.
+3. The first open pulls the stack's image inside WSL (92–184 MiB compressed for amd64 depending on the stack, 193–243 MiB for the `-aws` images); later opens reuse it.
 4. When the container is up the status bar shows `Dev Container: <stack>`; you are now inside the container.
 
 ## 5. What happens when the container opens

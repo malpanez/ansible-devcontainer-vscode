@@ -10,7 +10,7 @@ A production-ready Ansible development container with hardened defaults, multipl
 - **Pre-commit hooks** automatically configured
 - **VS Code extensions** for Ansible, Python, YAML, and Docker
 - **Hardened security defaults** (no sudo rules, docker socket only by opt-in)
-- **Multiple runtime profiles** (default, docker-socket, dind, podman)
+- **Multiple runtime profiles** (default, docker-socket, dind, podman, aws)
 - **Podman + Execution Environments** support for modern Ansible workflows
 
 ## Quick Start
@@ -155,13 +155,54 @@ podman images
 
 ---
 
+### 4. aws (AWS CLI, `amazon.aws`, `boto3`)
+
+**File:** `devcontainer.aws.json`
+
+**When to use:**
+- Ansible content that talks to AWS
+
+**Characteristics:**
+- Opens `devcontainer-ansible-aws`; otherwise the same as the default profile
+- **No `~/.aws` mount**: it starts on a machine without one, and the
+  container cannot read or change the host's credentials
+- Forwards `AWS_PROFILE`, `AWS_REGION` and `AWS_DEFAULT_REGION` only if they
+  are set on the host (`"runArgs": ["--env", "AWS_PROFILE", ...]`; a
+  `remoteEnv` entry with `${localEnv:...}` would pass an empty string, which
+  the AWS CLI rejects)
+
+**Logging in** happens inside the container: `aws configure`, or
+`aws sso login --no-browser` and open the printed URL on the host. The login
+is lost when the container is rebuilt.
+
+**Using the host's `~/.aws` instead:** add this entry to `mounts` in your
+copy of the profile:
+
+```json
+"source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly"
+```
+
+With `readonly`, `aws sso login` cannot write its token cache; without it,
+anything in the container can change the host's credentials. Either way the
+container does not start if `~/.aws` does not exist on the host.
+
+**Select in VS Code:**
+```json
+// .devcontainer/devcontainer.json
+{
+  "extends": "../devcontainers/ansible/devcontainer.aws.json"
+}
+```
+
+---
+
 ## What Gets Installed
 
 ### System Packages
 - `git`, `gh` (via apt, not features - simpler and faster)
 - `openssh-client`, `rsync` (for Ansible connectivity)
 - `curl`, `ca-certificates`, `unzip` (for downloads)
-- `jq`, `yamllint`, `vim-tiny` (from the shared devcontainer-base)
+- `jq`, `vim-tiny` (from the shared devcontainer-base); `yamllint` is a Python package, see below
 - No compiler toolchain: Python packages install from wheels, and the
   one source build (onigurumacffi on arm64) happens in a builder stage
 
@@ -234,9 +275,8 @@ For AWS work there is a variant with everything above plus:
 
 It is the `ansible-aws` stage of this directory's `Dockerfile`
 (`docker build --target ansible-aws -f devcontainers/ansible/Dockerfile .`),
-published from v2.0.0 on as `ghcr.io/malpanez/devcontainer-ansible-aws`. No
-template opens it yet: templates pin a released version, so they follow
-that release. Until then, set a profile's `image` to it yourself.
+published from v2.0.0 on as `ghcr.io/malpanez/devcontainer-ansible-aws`.
+The `aws` profile below opens it.
 
 ### VS Code Extensions
 - `redhat.ansible` - Ansible language support
@@ -308,12 +348,10 @@ need custom DNS, add `--dns` entries to `runArgs` in your local
 
 ### Pinned UV Version
 
-The Dockerfile installs a pinned `uv` release as a direct binary
-download (no pipe-to-shell) and verifies its published SHA-256 checksum:
-
-```dockerfile
-ARG UV_VERSION="0.11.26"
-```
+The shared `devcontainers/base/Dockerfile` installs a pinned `uv` release as
+a direct binary download (no pipe-to-shell) and verifies its published
+SHA-256 checksum. The version is the `ARG UV_VERSION` at the top of that
+file, the single source of truth.
 
 ### Base Image Pinning (Optional)
 
@@ -321,13 +359,13 @@ You can pin the base image to a specific digest for full reproducibility:
 
 ```dockerfile
 # In devcontainers/ansible/Dockerfile
-ARG BASE_IMAGE=python:3.12-slim-bookworm@sha256:...
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:...
 ```
 
 To get the current digest:
 ```bash
-docker pull python:3.12-slim-bookworm
-docker inspect python:3.12-slim-bookworm | jq -r '.[0].RepoDigests[0]'
+docker pull ghcr.io/malpanez/devcontainer-base:main
+docker inspect ghcr.io/malpanez/devcontainer-base:main | jq -r '.[0].RepoDigests[0]'
 ```
 
 ### Locked Dependencies
@@ -356,6 +394,7 @@ devcontainers/ansible/
 ├── devcontainer.docker-socket.json # Host Docker daemon profile (opt-in)
 ├── devcontainer.dind.json         # Docker-in-Docker profile
 ├── devcontainer.podman.json       # Podman profile
+├── devcontainer.aws.json          # AWS profile (devcontainer-ansible-aws)
 └── README.md                      # This file
 ```
 

@@ -1,0 +1,81 @@
+{
+  "name": "Ansible Dev Container (AWS)",
+  "image": "ghcr.io/malpanez/devcontainer-ansible-aws:v2.0.0@sha256:e87c97997ee344c64f95523f429a0cdd46f634695a9594f594ff4776118cef22",
+  // This template starts with no AWS credentials. It does not mount the host's
+  // ~/.aws, so it starts on a machine that has none and the container cannot
+  // read or change the host's credentials. Log in inside the container with
+  // "aws configure" or "aws sso login --no-browser"; that login lives in the
+  // container's home and is lost when the container is rebuilt.
+  //
+  // "--env NAME" without a value hands the variable to the container only when
+  // it is set in the environment that runs docker, and leaves it unset
+  // otherwise. A remoteEnv entry with ${localEnv:NAME} would set an empty
+  // string instead, which is not the same as unset.
+  "runArgs": [
+    "--init",
+    "--env",
+    "AWS_PROFILE",
+    "--env",
+    "AWS_REGION",
+    "--env",
+    "AWS_DEFAULT_REGION"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "samuelcolvin.jinjahtml",
+        "ms-azuretools.vscode-docker",
+        "tamasfe.even-better-toml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.ansible.path": "/usr/local/bin/ansible",
+        "ansible.ansible.useFullyQualifiedCollectionNames": true,
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        },
+        "[yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2
+        },
+        "editor.rulers": [
+          120
+        ],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      }
+    }
+  },
+  "mounts": [
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
+  ],
+  "remoteEnv": {
+    "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible.cfg",
+    "ANSIBLE_FORCE_COLOR": "true",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "ANSIBLE_GALAXY_CACHE_DIR": "/home/vscode/.ansible/galaxy_cache",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && (test -f requirements.yml && ansible-galaxy collection install -r requirements.yml || echo 'No requirements.yml found, skipping collection install')"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

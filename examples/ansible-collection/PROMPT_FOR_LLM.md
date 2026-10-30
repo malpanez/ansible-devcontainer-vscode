@@ -7,7 +7,7 @@
 ## 🎯 Objetivo
 
 Configurar un entorno de desarrollo Ansible con devcontainers de malpanez que incluye:
-- ✅ Ansible 9.14.0 + Python 3.12.12 + uv (10-100x más rápido que pip)
+- ✅ ansible-core + Python + uv (versiones en `uv.lock`) (10-100x más rápido que pip)
 - ✅ Pre-commit hooks (ansible-lint, yamllint, gitleaks)
 - ✅ VS Code extensions (Ansible, YAML, Jinja2)
 - ✅ Entorno consistente en todo el equipo
@@ -29,7 +29,7 @@ Necesito configurar un proyecto de Ansible (collection/playbook/role) usando los
 
 1. **DevContainer con la imagen de malpanez**:
    - Imagen: ghcr.io/malpanez/devcontainer-ansible:latest
-   - Incluye: Ansible 9.14.0, Python 3.12.12, uv, ansible-lint, yamllint
+   - Incluye: ansible-core, uv, ansible-lint, yamllint (versiones en `uv.lock`)
    - Features adicionales: git, github-cli (ya están en el template)
 
 2. **Pre-commit hooks que se ejecuten ANTES de cada commit**:

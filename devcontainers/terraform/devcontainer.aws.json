@@ -1,0 +1,61 @@
+{
+  "name": "Terraform Dev Container (AWS)",
+  "image": "ghcr.io/malpanez/devcontainer-terraform-aws:v2.0.0@sha256:35a36c0714583f518540708f3740cd42f2968d94a806eaea2f636e7d0231ef4a",
+  // This template starts with no AWS credentials. It does not mount the host's
+  // ~/.aws, so it starts on a machine that has none and the container cannot
+  // read or change the host's credentials. Log in inside the container with
+  // "aws configure" or "aws sso login --no-browser"; that login lives in the
+  // container's home and is lost when the container is rebuilt.
+  //
+  // "--env NAME" without a value hands the variable to the container only when
+  // it is set in the environment that runs docker, and leaves it unset
+  // otherwise. A remoteEnv entry with ${localEnv:NAME} would set an empty
+  // string instead, which is not the same as unset.
+  "runArgs": [
+    "--env",
+    "AWS_PROFILE",
+    "--env",
+    "AWS_REGION",
+    "--env",
+    "AWS_DEFAULT_REGION"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "hashicorp.terraform",
+        "gruntwork.terragrunt",
+        "tamasfe.even-better-toml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "[terraform]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2
+        },
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "editor.rulers": [120]
+      }
+    }
+  },
+  "mounts": [
+    "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+    "source=terraform-plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=volume"
+  ],
+  "remoteEnv": {
+    "TF_PLUGIN_CACHE_DIR": "/workspaces/.terraform.d/plugin-cache",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "TF_IN_AUTOMATION": "1",
+    "SOPS_AGE_KEY_FILE": "/workspace/.secrets/age.key"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "ensure-precommit"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

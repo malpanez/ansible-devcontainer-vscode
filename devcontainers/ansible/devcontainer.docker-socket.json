@@ -1,6 +1,6 @@
 {
   "name": "Ansible Dev Container (docker-socket)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v1.4.0@sha256:3522da537d49cc863f3d66b634b90dfa5920b21ef9bb2ccf3b3b0301f6ba6ba8",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.0.0@sha256:9c1cccfe57b8cd90523f3dd18c13bda794791cc907b7d31b7f20dfa399489959",
   "runArgs": [
     "--init"
   ],

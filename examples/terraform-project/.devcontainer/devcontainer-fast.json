@@ -1,6 +1,6 @@
 {
   "name": "Terraform Project Development (Fast - No Build)",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:v1.4.0@sha256:077a7105c24e2c4f9bcb3591a061afe989adc78e92f7e8b61dfab41b981fb948",
+  "image": "ghcr.io/malpanez/devcontainer-terraform-aws:v2.0.0@sha256:35a36c0714583f518540708f3740cd42f2968d94a806eaea2f636e7d0231ef4a",
 
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
@@ -32,6 +32,8 @@
     }
   },
 
+  // This example opts in to the host's ~/.aws, so the directory must exist on
+  // the host or the container will not start.
   "mounts": [
     "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly",
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"

@@ -137,8 +137,8 @@ docker run --rm ghcr.io/malpanez/devcontainer-ansible:latest which git
 # Verificar si gh está en la imagen
 docker run --rm ghcr.io/malpanez/devcontainer-ansible:latest which gh
 
-# Verificar si aws está en la imagen (terraform)
-docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest which aws
+# aws solo está en las imágenes -aws
+docker run --rm ghcr.io/malpanez/devcontainer-terraform-aws:latest which aws
 ```
 
 Si el comando retorna una ruta (`/usr/bin/git`), **ya está instalado**.
@@ -251,11 +251,9 @@ Ejemplo: Necesitas Node.js 20 para Ansible + Terraform:
 ### ghcr.io/malpanez/devcontainer-ansible:latest
 
 **Incluye**:
-- Python 3.12.12
-- uv (package manager)
-- Ansible 9.14.0 (ansible-core 2.18.2)
-- ansible-lint, yamllint
-- molecule, ansible-test
+- Python and uv (versions in `uv.lock`)
+- ansible-core (not the `ansible` package), ansible-lint, yamllint, ansible-test
+- `ansible.posix`, `community.general`, `community.docker` (see `devcontainers/ansible/collections.txt`)
 - ✅ **git** (ya instalado)
 - ✅ **github-cli (gh)** (ya instalado)
 - gitleaks
@@ -267,19 +265,15 @@ Ejemplo: Necesitas Node.js 20 para Ansible + Terraform:
 ### ghcr.io/malpanez/devcontainer-terraform:latest
 
 **Incluye**:
-- Terraform 1.14.0
-- Terragrunt 0.93.11
-- TFLint 0.60.0
-- SOPS 3.11.0
-- age 1.2.1
+- Terraform, Terragrunt, TFLint, SOPS, age (versions: `ARG *_VERSION` in `devcontainers/terraform/Dockerfile`)
 - ✅ **git** (ya instalado)
 - ✅ **github-cli (gh)** (ya instalado)
-- ✅ **AWS CLI** (ya instalado)
+- ❌ **AWS CLI**: solo en `devcontainer-terraform-aws` (y `devcontainer-ansible-aws`)
 - gitleaks
 - trivy
 - Pre-commit
 
-**Features que PUEDES ELIMINAR**: git, github-cli, aws-cli (ya están)
+**Features que PUEDES ELIMINAR**: git, github-cli (ya están). aws-cli solo si usas la imagen `-aws`
 
 **Features que SÍ NECESITARÍAS**:
 - Azure CLI (`ghcr.io/devcontainers/features/azure-cli:1`)
