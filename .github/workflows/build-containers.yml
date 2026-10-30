@@ -217,6 +217,15 @@ jobs:
           provenance: true
           sbom: true
 
+      # Size report, never a gate, continue-on-error: see build-base.
+      - name: Report image size against its budget
+        continue-on-error: true
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          NAME: ${{ steps.stack.outputs.stack }}
+        run: python3 scripts/check-image-size.py registry --ref "${IMAGE}@${DIGEST}" --name "${NAME}"
+
       - name: Scan with Grype
         id: grype_scan
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
@@ -537,6 +546,27 @@ jobs:
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
+
+      # Size report, never a gate. It sums config and layers of the
+      # linux/amd64 manifest in the index just pushed, the compressed bytes a
+      # pull downloads, and compares them with max_compressed_mib in
+      # .github/image-size-budgets.json; amd64 is the larger platform of every
+      # image and latex's only one. Over budget writes a warning and its row
+      # in the job summary, and the image is still scanned, signed and
+      # tagged: pull requests are where size is gated (ci.yml, on the
+      # uncompressed size), and an image that grew here without one, from a
+      # nightly rebuild's OS updates, must not hold back the security fixes
+      # it carries. continue-on-error because the script fails closed (exit
+      # 2) on what it cannot judge, a registry that still errors after three
+      # tries, an image with no budget or a budgets file it cannot read:
+      # worth a red step, never a missed publish. base gets no pull request
+      # gate (ci.yml never loads it), so this is its only size check.
+      - name: Report base image size against its budget
+        continue-on-error: true
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: python3 scripts/check-image-size.py registry --ref "${IMAGE}@${DIGEST}" --name base
 
       - name: Scan base image with Grype
         id: grype_base
@@ -920,6 +950,16 @@ jobs:
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
+
+      # Size report, never a gate, continue-on-error: see build-base. Every
+      # leg adds its own table to the run summary.
+      - name: Report ${{ matrix.stack }}${{ matrix.variant }} image size against its budget
+        continue-on-error: true
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          NAME: ${{ matrix.stack }}${{ matrix.variant }}
+        run: python3 scripts/check-image-size.py registry --ref "${IMAGE}@${DIGEST}" --name "${NAME}"
 
       - name: Scan ${{ matrix.stack }}${{ matrix.variant }} with Grype
         id: grype_scan
