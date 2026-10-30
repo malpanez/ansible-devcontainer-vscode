@@ -61,8 +61,8 @@ This template uses **direct pull** (no build) for maximum speed (~30 seconds).
 
 ## Features Enabled
 
-- ✅ Ansible 9.14.0 (ansible-core 2.18.2)
-- ✅ Python 3.12.12 with uv (fast package manager)
+- ✅ ansible-core (versions in `uv.lock`) and the collections in `devcontainers/ansible/collections.txt`
+- ✅ Python with uv (fast package manager)
 - ✅ ansible-lint, yamllint
 - ✅ molecule, ansible-test
 - ✅ Pre-commit hooks (auto-runs before commit)

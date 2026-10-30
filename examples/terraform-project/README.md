@@ -19,7 +19,7 @@ The prompt includes:
 
 This template uses **direct pull** (no build) for maximum speed (~30 seconds).
 
-**Why?** git, github-cli, and aws-cli are already in the base image, so we don't need DevContainer features that would trigger a rebuild (2-5 minutes).
+**Why?** git and github-cli are already in the base image (aws-cli too, in the `-aws` image this example uses), so we don't need DevContainer features that would trigger a rebuild (2-5 minutes).
 
 **If you need additional tools** (Azure CLI, GCP CLI, Docker-in-Docker), see [DEVCONTAINER_FEATURES_EXPLAINED.md](../DEVCONTAINER_FEATURES_EXPLAINED.md) for how to add features.
 
@@ -73,15 +73,12 @@ This template uses **direct pull** (no build) for maximum speed (~30 seconds).
 
 ## Features Enabled
 
-- ✅ Terraform 1.14.0
-- ✅ Terragrunt 0.93.11
-- ✅ TFLint 0.60.0
-- ✅ Trivy (security scanner)
+- ✅ Terraform, Terragrunt, TFLint (versions: `ARG *_VERSION` in `devcontainers/terraform/Dockerfile`)
 - ✅ SOPS + age (secret management)
-- ✅ AWS CLI configured
+- ✅ AWS CLI (the example uses `devcontainer-terraform-aws`)
 - ✅ Pre-commit hooks (auto-runs before commit)
 - ✅ VS Code Terraform extension
-- ✅ AWS/SSH credentials mounted (read-only)
+- ✅ AWS/SSH credentials mounted (read-only); `~/.aws` must exist on the host
 
 ## Pre-commit Checks
 

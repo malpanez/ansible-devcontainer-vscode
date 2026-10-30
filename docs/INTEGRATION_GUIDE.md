@@ -9,8 +9,8 @@
 Our devcontainers are superior to official images:
 
 **✅ Production-Ready Tools**:
-- Latest stable versions (Python 3.13.14, Terraform 1.14.0, Ansible 9.14.0)
-- Pre-configured security tools (SOPS, age, Trivy)
+- Pinned, current tool versions (see `uv.lock`, the `ARG *_VERSION` lines in `devcontainers/*/Dockerfile` and `devcontainers/ansible/collections.txt` for the exact ones)
+- Pre-configured security tools (SOPS, age; Trivy and gitleaks run as pre-commit hooks, not from the image)
 - Optimized for infrastructure work
 
 **✅ Security First**:
@@ -114,11 +114,11 @@ trivy config .
 - Roles development
 
 **Tools included**:
-- Ansible 9.14.0 (ansible-core 2.18.2)
-- ansible-lint, yamllint
-- molecule, ansible-test
-- Python 3.13.14 + uv
+- ansible-core (not the `ansible` package) with ansible-lint, yamllint, ansible-navigator and ansible-test
+- `ansible.posix`, `community.general` and `community.docker` (see `devcontainers/ansible/collections.txt`); install any other collection from your `requirements.yml`
+- Python + uv (versions in `uv.lock`)
 - Pre-commit hooks
+- `devcontainer-ansible-aws` adds `amazon.aws`, boto3 and AWS CLI v2
 
 **VS Code Extensions**:
 - Ansible (redhat.ansible)
@@ -134,12 +134,10 @@ trivy config .
 - Terragrunt projects
 
 **Tools included**:
-- Terraform 1.14.0
-- Terragrunt 0.93.11
-- TFLint 0.60.0
-- Trivy (security scanner)
+- Terraform, Terragrunt and TFLint (versions: `ARG *_VERSION` in `devcontainers/terraform/Dockerfile`)
 - SOPS + age (secret management)
 - Pre-commit hooks
+- No `aws` command: `devcontainer-terraform-aws` adds AWS CLI v2
 
 **VS Code Extensions**:
 - HashiCorp Terraform
@@ -179,7 +177,7 @@ and take its `Digest:` line.
 ```json
 {
   "name": "Ansible Development",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v1.4.0@sha256:3522da537d49cc863f3d66b634b90dfa5920b21ef9bb2ccf3b3b0301f6ba6ba8",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.0.0@sha256:9c1cccfe57b8cd90523f3dd18c13bda794791cc907b7d31b7f20dfa399489959",
   "remoteUser": "vscode",
 
   "customizations": {
@@ -266,7 +264,7 @@ gh pr create
 ```json
 {
   "name": "Terraform AWS Security Module",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:v1.4.0@sha256:077a7105c24e2c4f9bcb3591a061afe989adc78e92f7e8b61dfab41b981fb948",
+  "image": "ghcr.io/malpanez/devcontainer-terraform:v2.0.0@sha256:2149339e017c5cbf5d80aecf796d7945c0ad85bd3fbc900c215b40ff32e6607f",
 
   "customizations": {
     "vscode": {
@@ -282,6 +280,7 @@ gh pr create
     }
   },
 
+  // ~/.aws must exist on the host, or the container will not start.
   "mounts": [
     "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly",
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
@@ -410,6 +409,8 @@ git commit --no-verify -m "emergency fix"
 ```
 
 ### Mount AWS Credentials
+
+Needs an image with the AWS CLI (`devcontainer-terraform-aws` or `devcontainer-ansible-aws`), and `~/.aws` must exist on the host or the container will not start. The `devcontainer.aws.json` templates mount nothing by default and log in inside the container instead.
 
 ```json
 {

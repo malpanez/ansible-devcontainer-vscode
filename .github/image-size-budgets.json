@@ -1,0 +1,45 @@
+{
+  "_doc": "Size budgets of the published images (devcontainer-<name>), in MiB (1024 * 1024 bytes), read by scripts/check-image-size.py. max_uncompressed_mib gates every pull request in ci.yml (devcontainer-build): docker image inspect .Size of the linux/amd64 image on the runner's classic overlay2 store, the sum of the files in its layers; over budget fails the build. max_compressed_mib is reported, never enforced, when build-containers.yml publishes: config plus layers of the linux/amd64 manifest in the registry, what a pull downloads. Raising a budget is a reviewed edit to this file: change the number and its reason in the same pull request and say what grew. See docs/IMAGE_PUBLISHING.md.",
+  "images": {
+    "base": {
+      "max_uncompressed_mib": 360,
+      "max_compressed_mib": 110,
+      "reason": "v2.0.0 amd64 320.4 MiB unpacked, 91.0 MiB zstd, +10% rounded up to 10 MiB. Pull requests never load base (ci.yml builds it into an OCI layout), so only the publish report reads it; its growth fails the ansible and ansible-aws gates, which are built on it."
+    },
+    "ansible": {
+      "max_uncompressed_mib": 470,
+      "max_compressed_mib": 130,
+      "reason": "v2.0.0 amd64 426.3 MiB unpacked, 116.1 MiB zstd, +10% rounded up to 10 MiB."
+    },
+    "ansible-podman": {
+      "max_uncompressed_mib": 580,
+      "max_compressed_mib": 160,
+      "reason": "v2.0.0 amd64 519.0 MiB unpacked, 144.8 MiB zstd, +10% rounded up to 10 MiB."
+    },
+    "ansible-aws": {
+      "max_uncompressed_mib": 790,
+      "max_compressed_mib": 220,
+      "reason": "v2.0.0 amd64 709.2 MiB unpacked, 192.5 MiB zstd, +10% rounded up to 10 MiB."
+    },
+    "terraform": {
+      "max_uncompressed_mib": 730,
+      "max_compressed_mib": 210,
+      "reason": "v2.0.0 amd64 655.3 MiB unpacked, 183.7 MiB zstd, +10% rounded up to 10 MiB."
+    },
+    "terraform-aws": {
+      "max_uncompressed_mib": 1000,
+      "max_compressed_mib": 270,
+      "reason": "v2.0.0 amd64 904.7 MiB unpacked, 243.3 MiB zstd, +10% rounded up to 10 MiB."
+    },
+    "golang": {
+      "max_uncompressed_mib": 410,
+      "max_compressed_mib": 120,
+      "reason": "v2.0.0 amd64 371.2 MiB unpacked, 101.9 MiB zstd, +10% rounded up to 10 MiB."
+    },
+    "latex": {
+      "max_uncompressed_mib": 360,
+      "max_compressed_mib": 110,
+      "reason": "v2.0.0 amd64 (its only platform) 321.3 MiB unpacked, 92.4 MiB zstd, +10% rounded up to 10 MiB."
+    }
+  }
+}
