@@ -89,6 +89,8 @@ A release promotes images, it does not build them. On a version tag, `release.ym
 4. Scans every platform of the digest again (amd64, and arm64 when the image has it) with the gate's policy (`.grype.yaml`, fixable high/critical findings block), since advisories may have been published after the image was gated.
 5. Only when every image passed, adds the version tag to each exact digest (a `docker buildx imagetools create` dry run must reproduce the digest before any tag is written, and every tag is read back). An existing version tag is never moved to another digest.
 
+A breaking or notable release adds `docs/release-notes/<tag>.md`; `release.yml` puts the lead of that file (the lines between its H1 and its first H2) at the top of the release body and links the full file at the tag, so keep the lead free of relative links.
+
 The release notes list the digest of every image and the commit it was built from, and the release carries a [Syft](https://github.com/anchore/syft) SPDX SBOM of each released digest with its keyless cosign bundle (`.sigstore`); the same SBOMs are kept as the `devcontainer-sbom` workflow artifact. Verify a released image with:
 
 ```bash
