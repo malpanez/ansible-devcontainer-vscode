@@ -90,6 +90,14 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   gh api -X DELETE repos/OWNER/REPO/automated-security-fixes   # updates off
   gh api repos/OWNER/REPO/vulnerability-alerts -i | head -1    # 204 = alerts on
   ```
+- **The AWS CLI bundles its own CPython**, which this repository cannot
+  patch, so a new CPython CVE can stop the scan gate of
+  `devcontainer-terraform-aws` and `devcontainer-ansible-aws` even when the
+  image's own Python is fixed: first look for an AWS CLI release that bundles
+  a fixed Python (bump `devcontainers/scripts/install-aws-cli.sh`), and if
+  there is none, the owner decides whether to add a single-CVE ignore in
+  `.grype.yaml` (see the existing `CVE-2026-115557` entry, which is deleted
+  once a fixed Python is bundled), never a blanket one for the library.
 
 #### How to Monitor
 ```bash
