@@ -11,7 +11,7 @@ ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.5
+ARG UV_VERSION=0.13.6
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS fetch
 ARG TARGETARCH
@@ -173,7 +173,7 @@ COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-key
 # recompiled it in memory and `pre-commit --version` took twice as long.
 # chmod: uv creates its .lock files world-writable (0666).
 # renovate: datasource=docker depName=python versioning=docker
-ARG TOOLS_PYTHON_VERSION=3.14.8
+ARG TOOLS_PYTHON_VERSION=3.14.10
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
     UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \
