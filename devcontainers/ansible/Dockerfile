@@ -77,9 +77,38 @@ RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
          -x '/site-packages/(pip|ansible_collections)/' "${SITE}" \
     && find "$(dirname "${SITE}")" -type d -exec touch {} +
 
-# Stage 2: runtime image without any build toolchain
+# Stage 1b: what devcontainer-ansible-aws adds to the Python stack, on top
+# of stage 1, so the ansible-aws stage below syncs only the difference.
+FROM python-builder AS python-builder-aws
+
+# boto3 and botocore with their dependencies: requirements-aws.txt is the
+# hashed export of the lock's aws group, bind-mounted so it never lands in a
+# layer. Every package in it publishes a pure-Python wheel, so
+# --only-binary :all: holds on arm64 too and no setup.py runs. CFLAGS and
+# UV_COMPILE_BYTECODE as in stage 1.
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    --mount=type=bind,source=requirements-aws.txt,target=/tmp/requirements-aws.txt \
+    CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes --only-binary :all: \
+      -r /tmp/requirements-aws.txt
+
+# amazon.aws, pinned with its sha256 in collections-aws.txt. The installer
+# is the one stage 1 copied in.
+RUN --mount=type=bind,source=devcontainers/ansible/collections-aws.txt,target=/tmp/ansible-collections/collections-aws.txt \
+    SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && bash /tmp/ansible-collections/install-collections.sh "${SITE}" /tmp/ansible-collections/collections-aws.txt
+
+# Bytecode exactly as in stage 1. It recompiles stage 1's packages too, to
+# the same bytes, which the --checksum sync below then leaves alone.
+RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/(pip|ansible_collections)/' "${SITE}" \
+    && find "$(dirname "${SITE}")" -type d -exec touch {} +
+
+# Stage 2: runtime image without any build toolchain. devcontainer-ansible,
+# but not the last stage: the empty one at the end of this file, which
+# repeats it, is.
 # hadolint ignore=DL3006
-FROM ${BASE_IMAGE}
+FROM ${BASE_IMAGE} AS ansible
 
 # devcontainer-base ends as vscode; everything below until the USER switch
 # at the end of this stage needs root (apt, install -d, COPY into /usr/local).
@@ -160,3 +189,42 @@ RUN git config --global init.defaultBranch main
 WORKDIR ${WORKSPACE}
 
 CMD ["/bin/bash"]
+
+# devcontainer-ansible-aws: the image above plus amazon.aws, boto3 and
+# botocore (stage 1b) and AWS CLI v2, built with --target ansible-aws.
+# build-containers.yml builds it on the base from the same run, as it does
+# devcontainer-ansible.
+FROM ansible AS ansible-aws
+
+LABEL org.opencontainers.image.description="Ansible devcontainer with amazon.aws, boto3, AWS CLI v2, a uv-managed Python toolchain and hardened defaults"
+
+# The stage above ends as vscode. Numeric uid (DL3066).
+USER 0
+
+# Stage 1b's additions only, as the stage above syncs stage 1's. lib/ with
+# --delete, which the stage above made identical to stage 1's lib/; bin/
+# without it, because the stage above added ensure-precommit there after
+# its own sync. The AWS CLI goes in afterwards: a sync of bin/ with --delete
+# would remove it.
+RUN --mount=type=bind,from=python-builder-aws,source=/usr/local,target=/mnt/python-builder \
+    rsync -rlpgoD --checksum --delete /mnt/python-builder/lib/ /usr/local/lib/ \
+    && rsync -rlpgoD --checksum /mnt/python-builder/bin/ /usr/local/bin/
+
+# The version and the per-architecture hashes are in the script, which
+# devcontainer-terraform-aws runs too. Bind-mounted, so it never lands in a
+# layer.
+RUN --mount=type=bind,source=devcontainers/scripts/install-aws-cli.sh,target=/tmp/install-aws-cli.sh \
+    bash /tmp/install-aws-cli.sh
+
+# DL3064: see the ansible stage.
+# hadolint ignore=DL3064
+ARG USERNAME=vscode
+USER ${USERNAME}
+
+# The plain image again, as the LAST stage: a Dockerfile's default target is
+# its last stage, and every build without --target must keep producing
+# devcontainer-ansible (ci.yml, test-containers.yml, sbom-verification.yml,
+# benchmark.yml, the local-build/ dev containers). Nothing goes below this
+# line; tests/container-structure/no-aws.yaml fails if the AWS CLI reaches
+# the default target.
+FROM ansible

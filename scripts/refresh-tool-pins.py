@@ -4,13 +4,14 @@
 Renovate bumps every pinned version natively (regex custom managers) but
 cannot recompute a download hash. age, tectonic and AWS CLI publish no
 checksum manifest, so their hardcoded SHA-256 is the only integrity check.
-The renovate-postprocess workflow runs this after Renovate bumps one of
-their ARGs:
+age and tectonic are pinned as ARGs in their Dockerfile; AWS CLI in
+devcontainers/scripts/install-aws-cli.sh, which both -aws images run. The
+renovate-postprocess workflow runs this after Renovate bumps one of them:
 
     scripts/refresh-tool-pins.py --sync-hashes
 
-It reads the version already in each Dockerfile and rewrites the matching
-hash. Idempotent; a no-op when the hashes already match.
+It reads the version already in each file and rewrites the matching hash.
+Idempotent; a no-op when the hashes already match.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TF_DOCKERFILE = REPO_ROOT / "devcontainers/terraform/Dockerfile"
 LATEX_DOCKERFILE = REPO_ROOT / "devcontainers/latex/Dockerfile"
+AWS_CLI_SCRIPT = REPO_ROOT / "devcontainers/scripts/install-aws-cli.sh"
 
 
 def http_get(url: str, attempts: int = 4) -> bytes:
@@ -98,16 +100,16 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="aws-cli",
-        version_pattern=(TF_DOCKERFILE, r"ARG AWS_CLI_VERSION=([0-9.]+)"),
+        version_pattern=(AWS_CLI_SCRIPT, r"(?m)^AWS_CLI_VERSION=([0-9.]+)$"),
         hash_patterns=[
             (
-                TF_DOCKERFILE,
-                r'(AWS_ARCH="x86_64"; AWS_SHA256=")([a-f0-9]{64})',
+                AWS_CLI_SCRIPT,
+                r"(?m)^(AWS_CLI_SHA256_X86_64=)([a-f0-9]{64})$",
                 "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-{v}.zip",
             ),
             (
-                TF_DOCKERFILE,
-                r'(AWS_ARCH="aarch64"; AWS_SHA256=")([a-f0-9]{64})',
+                AWS_CLI_SCRIPT,
+                r"(?m)^(AWS_CLI_SHA256_AARCH64=)([a-f0-9]{64})$",
                 "https://awscli.amazonaws.com/awscli-exe-linux-aarch64-{v}.zip",
             ),
         ],

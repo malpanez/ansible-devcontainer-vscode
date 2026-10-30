@@ -149,10 +149,13 @@ Tool versions are pinned at their single source of truth — duplicated
 version tables rot:
 
 - **Python packages**: `pyproject.toml` + `uv.lock` (exports:
-  `requirements.txt`, `requirements-ansible.txt`)
-- **CLI tools** (terraform, terragrunt, tflint, sops, age, uv, AWS CLI,
-  tectonic): `ARG *_VERSION` at the top of each `devcontainers/*/Dockerfile`,
-  each download verified against its upstream checksum
+  `requirements.txt`, `requirements-ansible.txt`, `requirements-aws.txt`)
+- **CLI tools** (terraform, terragrunt, tflint, sops, age, uv, tectonic):
+  `ARG *_VERSION` at the top of each `devcontainers/*/Dockerfile`, each
+  download verified against its upstream checksum
+- **AWS CLI** (only in `devcontainer-terraform-aws` and
+  `devcontainer-ansible-aws`): `devcontainers/scripts/install-aws-cli.sh`,
+  with the sha256 of each architecture's download
 - **Base images**: digest-pinned `FROM` lines in the same Dockerfiles
 
 ## Local Workflow
@@ -225,7 +228,7 @@ Override defaults in `roles/*/defaults/main.yml` or pass extra vars (`-e variabl
 - `./scripts/run-smoke-tests.sh` — fast smoke test that also asserts Ansible/ansible-core match the pinned requirements.
 - `./scripts/run-ansible-tests.sh` — runs `ansible-test sanity` against every role (set `ANSIBLE_TEST_PYTHON_VERSION` to change the interpreter).
 - `./scripts/smoke-devcontainer-image.sh` — builds a Dev Container image and runs per-stack smoke checks (compatible with Docker Desktop or Podman).
-- `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `terraform`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
+- `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `ansible-aws`, `terraform`, `terraform-aws`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
 - `molecule test` — spins up Debian with all roles applied and verifies via Testinfra (`molecule/default/tests/test_default.py`).
 - GitHub Actions runs `uvx pre-commit`, targeted playbook/Molecule checks, Go/Terraform tests when relevant, and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
 - See [`docs/`](docs/README.md) for scenario walkthroughs (Terraform Proxmox, LaTeX résumé), corporate network tips, and the Windows bootstrap guide.
@@ -314,7 +317,7 @@ See [`.github/scripts/README.md`](.github/scripts/README.md) for automation deta
 Recent optimizations have significantly improved DevContainer startup times:
 
 - **⚡ Fast Startup**: Containers now start in ~30 seconds (previously 2-5 minutes)
-- **🚀 Direct Pull**: git, github-cli (gh), and AWS CLI v2 are pre-installed in base images, eliminating the need for DevContainer features that trigger rebuilds
+- **🚀 Direct Pull**: git and github-cli (gh) are pre-installed in the images, and AWS CLI v2 in the `-aws` variants, eliminating the need for DevContainer features that trigger rebuilds
 - **🔧 Pre-commit Permissions**: Fixed permission issues with gitleaks/Go cache by setting `PRE_COMMIT_HOME` and ensuring proper cache directory ownership
 
 ### Using DevContainers in Your Projects

@@ -1,0 +1,27 @@
+---
+# Run with terraform.yaml and ansible.yaml against devcontainer-terraform and
+# devcontainer-ansible, the images built without --target. Their Dockerfiles
+# also hold an -aws stage, and end with the plain image so that it is the
+# default target; this fails if that ever changes, or if the AWS CLI comes
+# back into a plain image (v2.0.0 moved it to the -aws images).
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  - name: 'No AWS CLI on PATH'
+    path: '/usr/local/bin/aws'
+    shouldExist: false
+
+  - name: 'No AWS CLI completer on PATH'
+    path: '/usr/local/bin/aws_completer'
+    shouldExist: false
+
+  - name: 'No AWS CLI install tree'
+    path: '/usr/local/aws-cli'
+    shouldExist: false
+
+commandTests:
+  # Any aws on PATH, wherever it came from.
+  - name: 'No aws command'
+    command: 'bash'
+    args: ['-c', '! command -v aws']
+    exitCode: 0

@@ -221,6 +221,23 @@ needs `boto3`. `/usr/local` belongs to root, so install it for the `vscode`
 user with `python3 -m pip install --user boto3` (uv has no `--user` mode),
 or into a project virtual environment.
 
+### AWS: `devcontainer-ansible-aws`
+
+For AWS work there is a variant with everything above plus:
+
+- `amazon.aws`, pinned with its sha256 in
+  [`collections-aws.txt`](collections-aws.txt) and installed like the
+  collections above;
+- `boto3` and `botocore`, at the versions and hashes of
+  `requirements-aws.txt` (the lock's `aws` group);
+- AWS CLI v2, pinned in `devcontainers/scripts/install-aws-cli.sh`.
+
+It is the `ansible-aws` stage of this directory's `Dockerfile`
+(`docker build --target ansible-aws -f devcontainers/ansible/Dockerfile .`),
+published from v2.0.0 on as `ghcr.io/malpanez/devcontainer-ansible-aws`. No
+template opens it yet: templates pin a released version, so they follow
+that release. Until then, set a profile's `image` to it yourself.
+
 ### VS Code Extensions
 - `redhat.ansible` - Ansible language support
 - `redhat.vscode-yaml` - YAML support
@@ -359,7 +376,9 @@ table in [Ansible collections](#ansible-collections)).
 **Solution:** the image ships only those collections. Add the missing one to
 your project's `requirements.yml` and run
 `ansible-galaxy collection install -r requirements.yml`, or install it
-directly with `ansible-galaxy collection install amazon.aws`.
+directly with `ansible-galaxy collection install amazon.aws`. For
+`amazon.aws`, `devcontainer-ansible-aws` ships it with `boto3` (see
+[AWS](#aws-devcontainer-ansible-aws)).
 
 ### Docker Command Not Found (dind profile)
 

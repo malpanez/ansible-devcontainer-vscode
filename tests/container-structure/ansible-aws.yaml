@@ -1,0 +1,127 @@
+---
+# devcontainer-ansible-aws is the ansible stack plus amazon.aws, boto3,
+# botocore and AWS CLI v2 (the ansible-aws stage of
+# devcontainers/ansible/Dockerfile), so test-containers.yml runs ansible.yaml
+# against it as well: that file's collection check expects amazon.aws exactly
+# when the AWS CLI is installed, and its stale-bytecode check covers the SDK.
+# This file holds only what the AWS layer adds; the AWS CLI checks repeat
+# terraform-aws.yaml's.
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  - name: 'aws on PATH'
+    path: '/usr/local/bin/aws'
+    shouldExist: true
+
+  - name: 'aws_completer on PATH'
+    path: '/usr/local/bin/aws_completer'
+    shouldExist: true
+
+  - name: 'AWS CLI owned by root'
+    path: '/usr/local/aws-cli'
+    shouldExist: true
+    uid: 0
+    gid: 0
+    permissions: 'drwxr-xr-x'
+
+commandTests:
+  # Major only, as in terraform-aws.yaml.
+  - name: 'AWS CLI v2 runs'
+    command: 'aws'
+    args: ['--version']
+    expectedOutput: ['^aws-cli/2\.[0-9]+\.[0-9]+ ']
+    exitCode: 0
+
+  # See terraform-aws.yaml.
+  - name: 'AWS CLI stops at the missing credentials'
+    command: 'aws'
+    args: ['sts', 'get-caller-identity']
+    envVars:
+      - key: 'AWS_EC2_METADATA_DISABLED'
+        value: 'true'
+    expectedError: ['Unable to locate credentials']
+    exitCode: 253
+
+  # One amazon.aws, where the build puts the pinned collections. Major only:
+  # collections-aws.txt owns the exact version and sha256, and Renovate moves
+  # them; a new major is a deliberate change to this line.
+  - name: 'amazon.aws installed once'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import json, os, subprocess, sys, sysconfig
+        listed = json.loads(subprocess.run(
+            ["ansible-galaxy", "collection", "list", "amazon.aws", "--format", "json"],
+            capture_output=True, text=True, check=True).stdout)
+        found = [(path, cols["amazon.aws"]["version"]) for path, cols in listed.items() if "amazon.aws" in cols]
+        for path, version in found:
+            print(f"amazon.aws {version} in {path}")
+        root = os.path.join(sysconfig.get_path("purelib"), "ansible_collections")
+        sys.exit(0 if [path for path, _ in found] == [root] else 1)
+    expectedOutput: ['\Aamazon\.aws 12\.[0-9]+\.[0-9]+ in /usr/local/lib/python3\.[0-9]+/site-packages/ansible_collections\n\z']
+    exitCode: 0
+
+  # What amazon.aws imports at runtime (its requirements.txt), from
+  # requirements-aws.txt.
+  - name: 'AWS SDK imports'
+    command: 'python3'
+    args: ['-I', '-c', 'import boto3, botocore; print("boto3", boto3.__version__, "botocore", botocore.__version__)']
+    expectedOutput: ['boto3 1\.[0-9]+\.[0-9]+ botocore 1\.[0-9]+\.[0-9]+']
+    exitCode: 0
+
+  # ansible.yaml's stale-bytecode check also passes when nothing was
+  # compiled at all. This one fails if the ansible-aws build stopped
+  # compiling the SDK: checked-hash .pyc carry flags 0b11.
+  - name: 'AWS SDK bytecode compiled checked-hash'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import importlib.util, sys
+        import boto3, botocore.session, s3transfer
+        flags = []
+        for module in (boto3, botocore.session, s3transfer):
+            with open(importlib.util.cache_from_source(module.__file__), "rb") as fh:
+                flags.append(int.from_bytes(fh.read(8)[4:8], "little"))
+        print("checked-hash bytecode:", flags == [3, 3, 3])
+        sys.exit(0 if flags == [3, 3, 3] else 1)
+    expectedOutput: ['checked-hash bytecode: True']
+    exitCode: 0
+
+  - name: 'amazon.aws module documentation loads'
+    command: 'ansible-doc'
+    args: ['-t', 'module', 'amazon.aws.ec2_instance']
+    expectedOutput: ['amazon\.aws\.ec2_instance']
+    exitCode: 0
+
+  # A module that needs boto3 gets past the import and stops at the missing
+  # credentials: "Failed to import the required Python library" would mean
+  # the SDK is missing from the interpreter ansible runs modules with. No
+  # shell variables in here: see ansible.yaml.
+  - name: 'amazon.aws stops at the missing credentials'
+    command: 'bash'
+    args:
+      - '-c'
+      - |
+        rm -rf /tmp/aws-smoke
+        mkdir /tmp/aws-smoke
+        cat > /tmp/aws-smoke/smoke.yml <<'PLAY'
+        ---
+        - name: amazon.aws smoke test
+          hosts: localhost
+          connection: local
+          gather_facts: false
+          tasks:
+            - name: Caller identity without credentials
+              amazon.aws.aws_caller_info:
+        PLAY
+        ansible-playbook /tmp/aws-smoke/smoke.yml
+    envVars:
+      - key: 'AWS_EC2_METADATA_DISABLED'
+        value: 'true'
+    expectedOutput: ['Unable to locate credentials', 'failed=1']
+    excludedOutput: ['Failed to import', 'required Python library']
+    exitCode: 2

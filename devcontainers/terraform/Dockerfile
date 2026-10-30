@@ -68,7 +68,9 @@ RUN set -eux; \
     cd /; \
     rm -rf /tmp/dl
 
-FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+# devcontainer-terraform. Not the last stage: the empty one at the end of
+# this file, which repeats it, is.
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS terraform
 
 ARG IMAGE_VENDOR="malpanez"
 
@@ -137,25 +139,6 @@ RUN set -eux; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uv" /usr/local/bin/uv; \
     install -m 755 "/tmp/uv-${UV_ARCH}/uvx" /usr/local/bin/uvx; \
     rm -rf "/tmp/uv-${UV_ARCH}.tar.gz" "/tmp/uv-${UV_ARCH}.tar.gz.sha256" "/tmp/uv-${UV_ARCH}"
-
-# Install AWS CLI v2 to avoid DevContainer features rebuild
-# https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-ARG TARGETARCH
-# renovate: datasource=github-tags depName=aws/aws-cli
-ARG AWS_CLI_VERSION=2.38.5
-# AWS publishes no sha256 manifest (only GPG sigs), so hashes are pinned
-# per release; recompute them when bumping AWS_CLI_VERSION.
-RUN set -eux; \
-    case "$TARGETARCH" in \
-      amd64) AWS_ARCH="x86_64"; AWS_SHA256="5def7d1b7e55d892f9a381bb2cb2081a685712464be0d36d5d706af0ac48d0d3" ;; \
-      arm64) AWS_ARCH="aarch64"; AWS_SHA256="07711a936e9d271045ab937d2c2c5390c25f419e4ba9e25adb9e996031e3f6be" ;; \
-      *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
-    esac; \
-    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWS_CLI_VERSION}.zip" -o /tmp/awscliv2.zip \
-    && echo "${AWS_SHA256}  /tmp/awscliv2.zip" | sha256sum -c - \
-    && unzip -q /tmp/awscliv2.zip -d /tmp \
-    && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli \
-    && rm -rf /tmp/awscliv2.zip /tmp/aws
 
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terragrunt /usr/local/bin/terragrunt
@@ -257,3 +240,33 @@ RUN git config --global init.defaultBranch main
 WORKDIR ${WORKSPACE}
 
 CMD ["/bin/bash"]
+
+# devcontainer-terraform-aws: the image above plus AWS CLI v2, built with
+# --target terraform-aws. The plain image no longer carries the CLI.
+FROM terraform AS terraform-aws
+
+LABEL org.opencontainers.image.description="Terraform devcontainer with Terragrunt, TFLint, SOPS, age, AWS CLI v2 and uv-powered pre-commit"
+
+# The stage above ends as vscode; the install writes to /usr/local. Numeric
+# uid so the id resolves without /etc/passwd (DL3066).
+USER 0
+
+# The version and the per-architecture hashes are in the script, which
+# devcontainer-ansible-aws runs too. Bind-mounted, so it never lands in a
+# layer.
+RUN --mount=type=bind,source=devcontainers/scripts/install-aws-cli.sh,target=/tmp/install-aws-cli.sh \
+    bash /tmp/install-aws-cli.sh
+
+# DL3064: see the terraform stage.
+# hadolint ignore=DL3064
+ARG USERNAME=vscode
+USER ${USERNAME}
+
+# The plain image again, as the LAST stage: a Dockerfile's default target is
+# its last stage, and every build without --target must keep producing
+# devcontainer-terraform (ci.yml, test-containers.yml, sbom-verification.yml,
+# benchmark.yml, the local-build/ dev containers, and .devcontainer/, which
+# is a copy of this file). Nothing goes below this line;
+# tests/container-structure/no-aws.yaml fails if the AWS CLI reaches the
+# default target.
+FROM terraform

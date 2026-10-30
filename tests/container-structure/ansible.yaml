@@ -71,7 +71,11 @@ commandTests:
   # installs each at its pinned version and sha256. Adding or dropping one
   # is a deliberate change to that file and to this list. ansible-core's
   # own internal collection (ansible._protomatter) lives inside the ansible
-  # package and is not counted.
+  # package and is not counted. devcontainer-ansible-aws, the one ansible
+  # image with the AWS CLI, also has those of collections-aws.txt, so they
+  # are expected exactly when the CLI is there (ansible-aws.yaml checks
+  # their version); a plain image that gained either one fails here or in
+  # no-aws.yaml.
   - name: 'Exactly the pinned collections'
     command: 'python3'
     args:
@@ -85,6 +89,8 @@ commandTests:
             "community.general",
             "community.library_inventory_filtering_v1",
         }
+        if os.path.isdir("/usr/local/aws-cli"):
+            expected |= {"amazon.aws"}
         listed = json.loads(subprocess.run(
             ["ansible-galaxy", "collection", "list", "--format", "json"],
             capture_output=True, text=True, check=True).stdout)

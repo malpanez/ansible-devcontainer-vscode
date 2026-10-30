@@ -158,10 +158,10 @@ jobs:
           # The push paths of build-containers.yml: what makes it rebuild.
           # requirements-ansible.txt was missing, so a lock bump that no build
           # had published could be released as :main's older image.
-          IMAGE_INPUTS=(devcontainers/ requirements-ansible.txt requirements-devcontainer-tools.txt .github/workflows/build-containers.yml)
+          IMAGE_INPUTS=(devcontainers/ requirements-ansible.txt requirements-aws.txt requirements-devcontainer-tools.txt .github/workflows/build-containers.yml)
           # Its negated path: the templates only name the published images.
           IMAGE_INPUTS_EXCLUDED=(':(exclude,glob)devcontainers/**/devcontainer*.json')
-          IMAGES=(base ansible ansible-podman terraform golang latex)
+          IMAGES=(base ansible ansible-podman ansible-aws terraform terraform-aws golang latex)
 
           RECORDS="[]"
           FAILED=0
@@ -536,7 +536,8 @@ jobs:
 
       # Smoke the PUBLISHED tag, not a local rebuild: docker run pulls it.
       # The script has no podman stack; ansible-podman gets the ansible
-      # checks, which it ships the same tooling for.
+      # checks, which it ships the same tooling for. The -aws images have
+      # stacks of their own: the plain stack's checks plus the AWS ones.
       - name: Smoke published ${{ matrix.name }}:${{ matrix.version_tag }}
         env:
           NAME: ${{ matrix.name }}
