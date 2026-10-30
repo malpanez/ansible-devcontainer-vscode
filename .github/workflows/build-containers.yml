@@ -869,7 +869,8 @@ jobs:
           # The published image must sit on the base built in THIS run,
           # otherwise it ships the digest pinned in the Dockerfile, which is
           # by construction at least one rebuild behind (base is rebuilt daily
-          # and on every push to main). The pin still serves local and PR
+          # and on every push to main). ci.yml gates pull requests the same
+          # way, on a base built from the PR. The pin still serves local
           # builds and Renovate keeps it fresh.
           build-args: |
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}

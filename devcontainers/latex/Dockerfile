@@ -79,7 +79,7 @@ RUN set -eux; \
     rm -rf /tmp/tectonic.tar.gz "${TMP_DIR}"
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.5
+ARG UV_VERSION=0.13.6
 RUN set -eux; \
     case "$(dpkg --print-architecture)" in \
       amd64) UV_ARCH="x86_64-unknown-linux-musl" ;; \
@@ -122,7 +122,7 @@ RUN set -eux; \
 # recompiled it in memory and `pre-commit --version` took twice as long.
 # chmod: uv creates its .lock files world-writable (0666).
 # renovate: datasource=docker depName=python versioning=docker
-ARG TOOLS_PYTHON_VERSION=3.14.8
+ARG TOOLS_PYTHON_VERSION=3.14.10
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
     UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \

@@ -21,7 +21,7 @@ RUN apk upgrade --no-cache \
 
 ARG IMAGE_VENDOR="malpanez"
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.5
+ARG UV_VERSION=0.13.6
 
 LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devcontainer-vscode" \
       org.opencontainers.image.description="Golang devcontainer with uv-driven pre-commit workflow" \
@@ -85,7 +85,7 @@ RUN set -eux; \
 # recompiled it in memory and `pre-commit --version` took twice as long.
 # chmod: uv creates its .lock files world-writable (0666).
 # renovate: datasource=docker depName=python versioning=docker
-ARG TOOLS_PYTHON_VERSION=3.14.8
+ARG TOOLS_PYTHON_VERSION=3.14.10
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
     UV_PYTHON_INSTALL_DIR=/opt/devcontainer-tools/python \

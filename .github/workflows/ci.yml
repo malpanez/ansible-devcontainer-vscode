@@ -21,7 +21,7 @@ env:
   # derives them from the Dockerfiles that ship them, so CI cannot drift from
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.13.5"
+  UV_VERSION: "0.13.6"
   # Must equal the pins in the Makefile and the pre-commit hook:
   # scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
   # HADOLINT_DIGEST is the index digest of that tag. Docker ignores the tag
@@ -398,10 +398,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # base_from_run marks the entries whose Dockerfile consumes
+          # BASE_IMAGE: this job builds base from the same commit first and
+          # builds them on it, as build-containers.yml's build-all does. Only
+          # devcontainers/ansible/Dockerfile does; the podman variant starts
+          # from python:3.14-slim-trixie and golang, terraform and latex do
+          # not reference it at all, so they must not be handed an unconsumed
+          # build-arg.
           - stack: ansible
             dockerfile: Dockerfile
             variant: ""
             platforms: linux/amd64
+            base_from_run: true
           - stack: terraform
             dockerfile: Dockerfile
             variant: ""
@@ -487,6 +495,60 @@ jobs:
           LABELS: ${{ steps.meta.outputs.labels }}
         run: bash scripts/strip-description-label.sh
 
+      # For the base build below, read-only. build-base is the one writer of
+      # this tag, and a cache export replaces the manifest at its tag, so a
+      # second writer here would overwrite it every run. The package is
+      # public, so reading needs no credentials and fork pull requests use it
+      # too. Probed first: see build-containers.yml's build-all.
+      #
+      # The cache also keeps the stack's own cache useful. rewrite-timestamp
+      # clamps only the mtimes later than SOURCE_DATE_EPOCH, so cached base
+      # layers older than the commit come out byte-identical on every commit
+      # and the stack layers above them still hit. Built fresh, after the
+      # commit, base changes with every commit's epoch and the stack rebuilds
+      # in full.
+      - name: Resolve the base build cache
+        id: base_cache
+        if: matrix.base_from_run
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF}; building base uncached."
+          fi
+
+      # The ansible Dockerfile pins BASE_IMAGE to the devcontainer-base that
+      # build-containers.yml last published, and only main publishes it. On
+      # that pin this job scanned every pull request on the base main
+      # already ships, never on the PR's own devcontainers/base/Dockerfile.
+      # The move to Python 3.14.10 for CVE-2026-115557 (2026-10-30) could
+      # not pass the gate: the image scanned still ran main's 3.14.8, on
+      # every pull request up to the develop -> main promotion that would
+      # publish the fix, and CI Success is required on both branches. Built
+      # from this commit, base is what a merge would publish.
+      #
+      # Nothing is pushed. The base goes to an OCI layout on the runner and
+      # the next step reads it as a named build context. Loading it into
+      # Docker would not work: the docker-container builder does not see the
+      # daemon's images, so FROM would look the name up in a registry. Same
+      # epoch and timestamp rewrite as the stack, as build-base publishes it.
+      - name: Build base for ${{ matrix.stack }}${{ matrix.variant }}
+        if: matrix.base_from_run
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          # The repository root: the Dockerfile bind-mounts
+          # requirements-devcontainer-tools.txt.
+          context: .
+          file: devcontainers/base/Dockerfile
+          outputs: type=oci,dest=${{ runner.temp }}/devcontainer-base,tar=false,rewrite-timestamp=true
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          cache-from: ${{ steps.base_cache.outputs.from }}
+          platforms: ${{ matrix.platforms }}
+
       - name: Build ${{ matrix.stack }}${{ matrix.variant }} image
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
@@ -500,8 +562,17 @@ jobs:
           outputs: type=docker,rewrite-timestamp=true
           tags: devcontainer-${{ matrix.stack }}${{ matrix.variant }}:ci
           labels: ${{ steps.labels.outputs.labels }}
+          # BASE_IMAGE names the build context below, which a FROM resolves
+          # before any registry, so the stack sits on the base built in the
+          # step above. Without the context the name would be looked up as
+          # docker.io/library/devcontainer-base, which does not exist: the
+          # build fails instead of falling back to the pin. An entry without
+          # base_from_run gets neither line.
           build-args: |
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+            ${{ matrix.base_from_run && 'BASE_IMAGE=devcontainer-base' || '' }}
+          build-contexts: |
+            ${{ matrix.base_from_run && format('devcontainer-base=oci-layout://{0}/devcontainer-base', runner.temp) || '' }}
           cache-from: |
             ${{ steps.cache.outputs.cache_from }}
           cache-to: |
