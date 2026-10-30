@@ -2,11 +2,13 @@
 # The builder and the runtime stage both start from the hardened
 # devcontainer-base layer (apt tools, gh, checksum-verified uv, pre-commit
 # and yamllint, vscode user), so the two stages and the base pulled beside
-# them share it. The digest below is NOT what published images
+# them share it. The digest below is NOT what published or gated images
 # are built on: build-containers.yml overrides BASE_IMAGE with the base
-# built in the same run, and release.yml preflight overrides it with a
-# locally built base. The pin is what local and PR builds resolve, and
-# Renovate refreshes it, so it never needs bumping by hand.
+# built in the same run, and ci.yml's Build Devcontainer with a base built
+# from the pull request. The pin is what local builds resolve, and the
+# workflows that build this file without gating it (test-containers,
+# sbom-verification, benchmark). Renovate refreshes it, so it never needs
+# bumping by hand.
 #
 # BASE_IMAGE deliberately carries BOTH the :main tag and the @sha256
 # digest. The digest is what actually resolves (Docker ignores the tag
