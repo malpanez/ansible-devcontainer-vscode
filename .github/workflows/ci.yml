@@ -119,6 +119,11 @@ jobs:
               # the images it judges, as a .grype.yaml change runs the scan.
               - '.github/image-size-budgets.json'
               - 'scripts/check-image-size.py'
+              # This workflow: a change to the build job, its runner or its
+              # gates must run that job. PR #606 (2026-10-30) changed only the
+              # job's runs-on, every build job skipped and CI went green
+              # without running on the new runner.
+              - '.github/workflows/ci.yml'
             # The files that name the images the templates and examples open
             # from, checked by Devcontainer State. A filter of its own, not
             # more paths under devcontainer: examples/ is no image input, and
