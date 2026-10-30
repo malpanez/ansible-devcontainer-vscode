@@ -89,7 +89,8 @@ exit 64
 
 def _load_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("check_image_size", SCRIPT)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -219,13 +220,13 @@ def _calls(docker: Path) -> list[str]:
 
 def _local(budgets: Path, name: str = NAME, image: str = IMAGE) -> int:
     return MODULE.main(
-        ["local", "--image", image, "--name", name, "--budgets", str(budgets)]
+        ["local", f"--image={image}", "--name", name], budgets_path=budgets
     )
 
 
 def _registry(budgets: Path, ref: str, *extra: str, name: str = NAME) -> int:
     return MODULE.main(
-        ["registry", "--ref", ref, "--name", name, "--budgets", str(budgets), *extra]
+        ["registry", f"--ref={ref}", "--name", name, *extra], budgets_path=budgets
     )
 
 
@@ -443,7 +444,7 @@ def test_registry_that_stays_down_exits_2_after_every_attempt(
 
     assert _registry(budgets, ref) == 2
 
-    assert _calls(docker).count(f"buildx imagetools inspect --raw {ref}") == (
+    assert _calls(docker).count(f"buildx imagetools inspect --raw -- {ref}") == (
         MODULE.REGISTRY_ATTEMPTS
     )
     assert "i/o timeout" in capsys.readouterr().err
@@ -454,14 +455,14 @@ def test_registry_transient_failure_is_retried(docker: Path, budgets: Path) -> N
     (docker / f"{_key(ref)}.flaky").touch()
 
     assert _registry(budgets, ref) == 0
-    assert _calls(docker).count(f"buildx imagetools inspect --raw {ref}") == 2
+    assert _calls(docker).count(f"buildx imagetools inspect --raw -- {ref}") == 2
 
 
 def test_registry_missing_reference_is_not_retried(docker: Path, budgets: Path) -> None:
     ref = f"{REPOSITORY}@{_digest(AMD64)}"
 
     assert _registry(budgets, ref) == 2
-    assert _calls(docker) == [f"buildx imagetools inspect --raw {ref}"]
+    assert _calls(docker) == [f"buildx imagetools inspect --raw -- {ref}"]
 
 
 @pytest.mark.parametrize("mode", ["local", "registry"])
@@ -644,9 +645,10 @@ def _cli(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_command_line_exit_codes(docker: Path, budgets: Path) -> None:
-    _local_image(docker, (UNCOMPRESSED_MIB + 1) * MIB)
-    local = ("local", "--image", IMAGE, "--budgets", str(budgets))
+def test_command_line_exit_codes(docker: Path) -> None:
+    ansible = MODULE.load_budgets(REPO_BUDGETS)[NAME]
+    _local_image(docker, (ansible.max_uncompressed_mib + 1) * MIB)
+    local = ("local", "--image", IMAGE)
 
     over = _cli(*local, "--name", NAME)
     unknown = _cli(*local, "--name", "ansible-gcp")
@@ -656,16 +658,100 @@ def test_command_line_exit_codes(docker: Path, budgets: Path) -> None:
     assert "::error::" in over.stderr
 
 
+def test_command_line_has_no_budgets_option(docker: Path, budgets: Path) -> None:
+    result = _cli("local", "--image", IMAGE, "--name", NAME, "--budgets", str(budgets))
+
+    assert result.returncode == 2
+    assert "unrecognized arguments" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "-x",
+        "--help",
+        "-v/devcontainer-ansible:ci",
+        "devcontainer-ansible:ci extra",
+        "devcontainer-ansible:ci;id",
+        "$(id)",
+        "`id`",
+        "a|b",
+        "Devcontainer-Ansible:ci",
+        "devcontainer-ansible@sha256:short",
+        "",
+    ],
+)
+def test_local_image_that_is_not_a_reference_exits_2_before_docker(
+    docker: Path, budgets: Path, image: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _local(budgets, image=image) == 2
+    assert "is not an image reference" in capsys.readouterr().err
+    assert _calls(docker) == []
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        f"-x/devcontainer-ansible@{_digest(AMD64)}",
+        f"--help@{_digest(AMD64)}",
+        f"{REPOSITORY}@{_digest(AMD64)} --raw",
+        f"{REPOSITORY}@{_digest(AMD64)};id",
+        f"{REPOSITORY}\n@{_digest(AMD64)}",
+        f"{REPOSITORY}@{_digest(AMD64)}\n",
+        f"Ghcr.io/example/devcontainer-ansible@{_digest(AMD64)}",
+    ],
+)
+def test_registry_ref_that_is_not_a_reference_exits_2_before_docker(
+    docker: Path, budgets: Path, ref: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _registry(budgets, ref) == 2
+    assert "::error::check-image-size:" in capsys.readouterr().err
+    assert _calls(docker) == []
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        "devcontainer-ansible:ci",
+        "ghcr.io/malpanez/devcontainer-latex:v2.0.0",
+        f"ghcr.io/malpanez/devcontainer-base@sha256:{'ab' * 32}",
+        "localhost:5000/team/devcontainer-ansible:ci",
+    ],
+)
+def test_valid_image_references_are_accepted(image: str) -> None:
+    assert MODULE.validated_ref("--image", image) == image
+
+
+def test_local_passes_the_image_to_docker_after_a_double_dash(
+    docker: Path, budgets: Path
+) -> None:
+    _local_image(docker, MIB)
+
+    assert _local(budgets) == 0
+    assert f"image inspect --format {{{{.Size}}}} -- {IMAGE}" in _calls(docker)
+
+
+def test_name_is_only_a_budget_key_never_reaching_docker(
+    docker: Path, budgets: Path
+) -> None:
+    _local_image(docker, MIB)
+
+    assert _local(budgets, name="../../etc/passwd") == 2
+    assert _calls(docker) == []
+
+
 def test_repository_budgets_file_covers_exactly_the_published_images() -> None:
     document = json.loads(REPO_BUDGETS.read_text(encoding="utf-8"))
     budgets = MODULE.load_budgets(REPO_BUDGETS)
 
-    assert isinstance(document.get("_doc"), str) and document["_doc"].strip()
+    assert isinstance(document.get("_doc"), str)
+    assert document["_doc"].strip()
     assert set(document["images"]) == PUBLISHED_IMAGES
     assert set(budgets) == PUBLISHED_IMAGES
     for name, budget in budgets.items():
         for value in (budget.max_uncompressed_mib, budget.max_compressed_mib):
-            assert isinstance(value, int) and not isinstance(value, bool), name
+            assert isinstance(value, int), name
+            assert not isinstance(value, bool), name
             assert value > 0, name
         assert budget.max_compressed_mib < budget.max_uncompressed_mib, name
         assert budget.reason.strip(), name

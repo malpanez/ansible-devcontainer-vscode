@@ -4,7 +4,7 @@
 The budgets are in .github/image-size-budgets.json, one entry per published
 image (devcontainer-<name>, keyed by <name>), in MiB (1024 * 1024 bytes).
 
-  local --image <docker ref> --name <name>
+  local --image <image reference> --name <name>
       The pull request gate (ci.yml, devcontainer-build). Compares the size of
       an image in the local Docker engine, `docker image inspect` .Size, with
       max_uncompressed_mib. Over budget prints ::error:: and exits 1.
@@ -17,6 +17,12 @@ image (devcontainer-<name>, keyed by <name>), in MiB (1024 * 1024 bytes).
       that blocks, and a nightly rebuild that grew by OS updates alone must not
       hold back the security fixes it carries. A ref that is a single image
       manifest, not an index, is summed as it is.
+
+The budgets file is always .github/image-size-budgets.json of this repository,
+found from the script's own location; there is no option to point elsewhere.
+--image and --ref must be image references (lowercase repository path, optional
+:tag, optional @sha256:<digest>, never starting with "-"), checked before they
+reach docker, which also gets them after "--".
 
 Both modes append a table (image, metric, size, budget, headroom, verdict) to
 $GITHUB_STEP_SUMMARY when it is set. Headroom is the share of the budget left,
@@ -56,12 +62,19 @@ EXIT_OVER_BUDGET = 1
 EXIT_UNJUDGED = 2
 BUDGET_FIELDS = frozenset({"max_uncompressed_mib", "max_compressed_mib", "reason"})
 REF_RE = re.compile(
-    r"^(?P<repository>[a-z0-9.-]+(?::[0-9]+)?(?:/[a-z0-9._-]+)+)"
-    r"@(?P<digest>sha256:[0-9a-f]{64})$"
+    r"(?P<repository>[a-z0-9.-]+(?::\d+)?(?:/[a-z0-9._-]+)+)"
+    r"@(?P<digest>sha256:[0-9a-f]{64})"
 )
+_PATH_COMPONENT = r"[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?"
+IMAGE_REF_RE = re.compile(
+    rf"{_PATH_COMPONENT}(?::\d{{1,5}})?(?:/{_PATH_COMPONENT})*"
+    r"(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?"
+    r"(?:@sha256:[0-9a-f]{64})?"
+)
+MAX_REF_LENGTH = 255
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 PLATFORM_RE = re.compile(r"(?P<os>[a-z0-9]+)/(?P<arch>[a-z0-9_]+)")
-BYTE_COUNT_RE = re.compile(r"[0-9]+")
+BYTE_COUNT_RE = re.compile(r"\d+")
 CONTAINERD_SNAPSHOTTER = "io.containerd.snapshotter"
 REGISTRY_ATTEMPTS = 3
 REGISTRY_RETRY_DELAY_SECONDS = 3.0
@@ -111,36 +124,34 @@ def _is_positive_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
+def _parse_budget(name: str, entry: object, path: Path) -> Budget:
+    if not isinstance(entry, dict) or set(entry) != BUDGET_FIELDS:
+        raise CheckError(
+            f"{path}: images.{name} must have exactly the keys"
+            f" {', '.join(sorted(BUDGET_FIELDS))}"
+        )
+    for field in ("max_uncompressed_mib", "max_compressed_mib"):
+        if not _is_positive_int(entry[field]):
+            raise CheckError(
+                f"{path}: images.{name}.{field} is {json.dumps(entry[field])},"
+                " not a positive integer"
+            )
+    reason = entry["reason"]
+    if not isinstance(reason, str) or not reason.strip():
+        raise CheckError(f"{path}: images.{name}.reason must say why")
+    return Budget(entry["max_uncompressed_mib"], entry["max_compressed_mib"], reason)
+
+
 def load_budgets(path: Path) -> dict[str, Budget]:
     """Read and validate the whole budgets file; any defect is a CheckError."""
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         raise CheckError(f"cannot read the budgets file {path}: {exc}") from exc
     images = document.get("images") if isinstance(document, dict) else None
     if not isinstance(images, dict) or not images:
         raise CheckError(f'{path}: has no non-empty "images" object')
-
-    budgets: dict[str, Budget] = {}
-    for name, entry in images.items():
-        if not isinstance(entry, dict) or set(entry) != BUDGET_FIELDS:
-            raise CheckError(
-                f"{path}: images.{name} must have exactly the keys"
-                f" {', '.join(sorted(BUDGET_FIELDS))}"
-            )
-        for field in ("max_uncompressed_mib", "max_compressed_mib"):
-            if not _is_positive_int(entry[field]):
-                raise CheckError(
-                    f"{path}: images.{name}.{field} is {json.dumps(entry[field])},"
-                    " not a positive integer"
-                )
-        reason = entry["reason"]
-        if not isinstance(reason, str) or not reason.strip():
-            raise CheckError(f"{path}: images.{name}.reason must say why")
-        budgets[name] = Budget(
-            entry["max_uncompressed_mib"], entry["max_compressed_mib"], reason
-        )
-    return budgets
+    return {name: _parse_budget(name, entry, path) for name, entry in images.items()}
 
 
 def budget_for(budgets: dict[str, Budget], name: str, path: Path) -> Budget:
@@ -151,6 +162,16 @@ def budget_for(budgets: dict[str, Budget], name: str, path: Path) -> Budget:
             " add it under images with both limits and a reason."
         )
     return budget
+
+
+def validated_ref(option: str, value: str) -> str:
+    """Return value if it is an image reference; it never starts with "-"."""
+    if len(value) > MAX_REF_LENGTH or IMAGE_REF_RE.fullmatch(value) is None:
+        raise CheckError(
+            f"{option} {value!r} is not an image reference: a lowercase"
+            " repository path, an optional :tag and an optional @sha256:<digest>"
+        )
+    return value
 
 
 def _docker(args: list[str]) -> subprocess.CompletedProcess[bytes]:
@@ -197,7 +218,7 @@ def check_image_store() -> None:
 
 
 def local_size(image: str) -> int:
-    proc = _docker(["image", "inspect", "--format", "{{.Size}}", image])
+    proc = _docker(["image", "inspect", "--format", "{{.Size}}", "--", image])
     if proc.returncode != 0:
         raise CheckError(f"docker image inspect {image} failed: {_detail(proc)}")
     text = proc.stdout.decode("utf-8", errors="replace").strip()
@@ -215,11 +236,12 @@ def inspect_raw(ref: str) -> bytes:
     (a timeout, a reset, a 5xx) is tried again, as check-devcontainer-images.py
     does.
     """
+    validated_ref("reference", ref)
     detail = ""
     for attempt in range(1, REGISTRY_ATTEMPTS + 1):
         try:
             proc = subprocess.run(
-                ["docker", "buildx", "imagetools", "inspect", "--raw", ref],
+                ["docker", "buildx", "imagetools", "inspect", "--raw", "--", ref],
                 capture_output=True,
                 check=False,
             )
@@ -300,7 +322,8 @@ def _compressed_size(manifest: dict[str, Any], ref: str) -> int:
 
 def registry_size(ref: str, platform: str) -> tuple[str, str, int]:
     """Return the manifest ref measured, the metric's label and its size."""
-    match = REF_RE.match(ref)
+    validated_ref("--ref", ref)
+    match = REF_RE.fullmatch(ref)
     if match is None:
         raise CheckError(
             f"--ref {ref!r} is not <registry>/<repository>@sha256:<digest>"
@@ -351,6 +374,7 @@ def report(measurement: Measurement, name: str) -> None:
 
 
 def check_local(image: str, name: str, budget: Budget, path: Path) -> int:
+    validated_ref("--image", image)
     check_image_store()
     measurement = Measurement(
         image,
@@ -397,12 +421,6 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         help="Budget key: the image name without devcontainer-, e.g. ansible-aws.",
     )
-    common.add_argument(
-        "--budgets",
-        type=Path,
-        default=DEFAULT_BUDGETS,
-        help="Budgets file (default: .github/image-size-budgets.json of this repository).",
-    )
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     modes = parser.add_subparsers(dest="mode", required=True)
     local = modes.add_parser(
@@ -427,13 +445,13 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, budgets_path: Path = DEFAULT_BUDGETS) -> int:
     args = _parser().parse_args(argv)
     try:
-        budget = budget_for(load_budgets(args.budgets), args.name, args.budgets)
+        budget = budget_for(load_budgets(budgets_path), args.name, budgets_path)
         if args.mode == "local":
-            return check_local(args.image, args.name, budget, args.budgets)
-        return check_registry(args.ref, args.platform, args.name, budget, args.budgets)
+            return check_local(args.image, args.name, budget, budgets_path)
+        return check_registry(args.ref, args.platform, args.name, budget, budgets_path)
     except CheckError as exc:
         print(f"::error::check-image-size: {exc}", file=sys.stderr)
         return EXIT_UNJUDGED
