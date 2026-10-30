@@ -8,8 +8,8 @@
 # grype reads the Go build info embedded in each binary and reports the
 # toolchain's stdlib (and vendored golang.org/x modules) as vulnerable
 # whenever a newer Go patch release exists. These are THIRD-PARTY release
-# binaries (terraform, terragrunt, tflint, sops, age, gh, podman, aws-cli's
-# bundled Python): we cannot recompile them, and the vulnerable code
+# binaries (terraform, terragrunt, tflint, sops, age, gh, podman): we
+# cannot recompile them, and the vulnerable code
 # paths (net/http & SSH servers, x/crypto SSH auth) are not exercised by
 # these CLIs run locally in a devcontainer. Rather than chase each new
 # CVE id — Go stdlib advisories land in waves of dozens — the ignores
@@ -19,6 +19,15 @@
 # Go toolchain is deliberately NOT covered — it must track Go security
 # releases through its base-image bump.
 # Revisit when a vendor ships a release built with a newer Go toolchain.
+#
+# EXCEPTION — aws-cli's bundled CPython is NOT under that policy. It is the
+# CLI's whole interpreter and TLS stack, not an embedded Go stdlib, so a
+# blanket (package, location) rule would hide every present and future
+# CPython CVE: one hid a critical (CVE-2026-115557) for the whole life of
+# the -aws images. It also looks able to hide the image's own Python when the
+# versions match, since grype can report one package with several locations
+# (not proven: the versions differ today).
+# Its entry below therefore names a single CVE.
 
 ignore:
   # --- age / age-keygen (v1.3.1 is the latest release; stale Go + x/crypto)
@@ -79,8 +88,18 @@ ignore:
       name: golang.org/x/crypto
       location: "/usr/bin/gh"
 
-  # --- aws-cli bundles its own CPython; not patchable until AWS rebundles.
-  - package:
+  # --- aws-cli bundles its own CPython (libpython3.14.so.1.0, 3.14.8).
+  # CVE-2026-115557 (critical, CPython's ssl denylist of compromised
+  # certificates) is fixed in 3.14.10 and is accepted here for one reason:
+  # this repository cannot patch the CPython that AWS CLI bundles, and no
+  # AWS CLI release has rebundled a fixed one. Verified on 2026-10-30 on
+  # AWS CLI 2.38.5 (the pinned version) and 2.39.2 (the newest at the
+  # time), both with Python 3.14.8. This is ONE CVE, not the whole
+  # library: any other vulnerability in that Python must stop the -aws
+  # gates until someone decides. When a new AWS CLI version bundles a
+  # Python at or above 3.14.10, delete this entry.
+  - vulnerability: CVE-2026-115557
+    package:
       name: python
       location: "/usr/local/aws-cli/**/libpython*.so*"
 
