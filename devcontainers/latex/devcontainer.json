@@ -1,6 +1,6 @@
 {
   "name": "LaTeX Dev Container",
-  "image": "ghcr.io/malpanez/devcontainer-latex:v1.4.0@sha256:3416e24b7d48ab9895e83b0c49cd3bb1b91145ea295bed2b866c8c4de0d1538a",
+  "image": "ghcr.io/malpanez/devcontainer-latex:v2.0.0@sha256:4427be67441d24b2ff3b64c273b5d33a11219b6eb5ca323aefcb9dd6b4251699",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },

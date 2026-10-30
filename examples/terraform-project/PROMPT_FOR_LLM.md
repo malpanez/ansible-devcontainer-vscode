@@ -7,11 +7,11 @@
 ## 🎯 Objetivo
 
 Configurar un entorno de desarrollo Terraform con devcontainers de malpanez que incluye:
-- ✅ Terraform 1.14.0 + Terragrunt 0.93.11 + TFLint 0.60.0
+- ✅ Terraform + Terragrunt + TFLint (versiones en `devcontainers/terraform/Dockerfile`)
 - ✅ Pre-commit hooks (fmt, validate, tflint, trivy, terraform-docs)
 - ✅ VS Code extensions (Terraform, GitLens)
-- ✅ Security tools (SOPS + age, Trivy, gitleaks)
-- ✅ AWS CLI pre-instalado
+- ✅ Security tools (SOPS + age; Trivy and gitleaks via pre-commit hooks)
+- ✅ AWS CLI (imagen `devcontainer-terraform-aws`)
 - ✅ Entorno consistente en todo el equipo
 - ✅ Zero configuración manual
 
@@ -32,9 +32,9 @@ Necesito configurar un proyecto de Terraform/Terragrunt usando los devcontainers
 
 1. **DevContainer con la imagen de malpanez**:
    - Imagen: ghcr.io/malpanez/devcontainer-terraform:latest
-   - Incluye: Terraform 1.14.0, Terragrunt 0.93.11, TFLint 0.60.0
-   - Tools: SOPS, age, Trivy, AWS CLI
-   - Features adicionales: git, github-cli, aws-cli (ya están en el template)
+   - Incluye: Terraform, Terragrunt, TFLint (versiones en `devcontainers/terraform/Dockerfile`)
+   - Tools: SOPS, age (AWS CLI: usar devcontainer-terraform-aws)
+   - Features adicionales: git, github-cli (ya están en el template)
 
 2. **Pre-commit hooks que se ejecuten ANTES de cada commit**:
    - terraform fmt (auto-formato)
@@ -57,7 +57,7 @@ Necesito configurar un proyecto de Terraform/Terragrunt usando los devcontainers
    - Evitar errores de "Permission denied" en gitleaks/Go
 
 5. **Montajes automáticos**:
-   - ~/.aws (read-only) para credenciales de AWS
+   - ~/.aws (read-only, debe existir en el host) para credenciales de AWS; solo con la imagen -aws
    - ~/.ssh (read-only) para git/SSH
    - Mantener secrets fuera del container
 
@@ -136,9 +136,9 @@ git commit -m "feat: add VPC security group"
 
 | Feature | Oficial HashiCorp | malpanez/devcontainer-terraform |
 |---------|------------------|----------------------------------|
-| Terraform | Latest | 1.14.0 (pinned) |
-| Terragrunt | ❌ No | ✅ 0.93.11 |
-| TFLint | ❌ No | ✅ 0.60.0 (con rulesets) |
+| Terraform | Latest | pinned (`devcontainers/terraform/Dockerfile`) |
+| Terragrunt | ❌ No | ✅ pinned |
+| TFLint | ❌ No | ✅ pinned (con rulesets) |
 | Pre-commit | ❌ No | ✅ Si (configurado) |
 | Security Tools | ❌ No | ✅ Trivy, SOPS, age, gitleaks |
 | terraform-docs | ❌ No | ✅ Si (auto-updates README) |

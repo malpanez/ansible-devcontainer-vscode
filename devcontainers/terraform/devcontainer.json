@@ -1,6 +1,6 @@
 {
   "name": "Terraform Dev Container",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:v1.4.0@sha256:077a7105c24e2c4f9bcb3591a061afe989adc78e92f7e8b61dfab41b981fb948",
+  "image": "ghcr.io/malpanez/devcontainer-terraform:v2.0.0@sha256:2149339e017c5cbf5d80aecf796d7945c0ad85bd3fbc900c215b40ff32e6607f",
   "customizations": {
     "vscode": {
       "extensions": [

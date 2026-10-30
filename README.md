@@ -118,6 +118,38 @@ The image also bakes in `/usr/local/bin/ensure-precommit`, which the `postCreate
 
 ¹Sizes are indicative for `linux/amd64` and vary slightly per architecture.
 
+### AWS templates
+
+`devcontainers/terraform/devcontainer.aws.json` and
+`devcontainers/ansible/devcontainer.aws.json` open `devcontainer-terraform-aws`
+and `devcontainer-ansible-aws`, the images with AWS CLI v2 (and, for Ansible,
+`amazon.aws` and `boto3`). The plain terraform and ansible images have no
+`aws` command.
+
+- **No credentials are mounted.** The templates do not bind-mount the host's
+  `~/.aws`, so they start on a machine that has none, and the container cannot
+  read or change the host's credentials.
+- **Forwarded variables.** `AWS_PROFILE`, `AWS_REGION` and `AWS_DEFAULT_REGION`
+  reach the container only if they are set on the host, through
+  `"runArgs": ["--env", "AWS_PROFILE", ...]`. A `remoteEnv` entry with
+  `${localEnv:AWS_PROFILE}` would pass an empty string when the variable is
+  unset, and the AWS CLI rejects that (`The config profile () could not be
+  found`).
+- **Logging in happens inside the container**: run `aws configure`, or
+  `aws sso login --no-browser` and open the printed URL on the host. The login
+  lives in the container's home and is lost when the container is rebuilt.
+- **Using the host's `~/.aws` instead.** Add this entry to `mounts` in your
+  copy of the template:
+
+  ```json
+  "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly"
+  ```
+
+  Trade-offs: with `readonly`, `aws sso login` cannot write its token cache;
+  without it, anything in the container can change the host's credentials.
+  Either way the container does not start if `~/.aws` does not exist on the
+  host.
+
 ## Why not distroless or Alpine?
 
 See [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md).
@@ -130,18 +162,18 @@ for tags, pull commands and the publishing pipeline.
 
 ## Toolchain Overview
 
-The table below outlines the tooling shipped with the Ansible stack; Terraform inherits the Python toolchain plus HashiCorp utilities, while Golang and LaTeX stay intentionally lean.
+The table below outlines the tooling shipped with the images (the sources of truth are listed under Pinned Tool Versions); the terraform images carry HashiCorp utilities plus pre-commit and yamllint, while Golang and LaTeX stay intentionally lean.
 
 | Area             | Included tooling                                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Provisioning     | Ansible 9, ansible-navigator, Molecule (Docker driver), pytest, pytest-ansible, pytest-testinfra                   |
-| Linting          | ansible-lint (production profile), yamllint, ruff, black, mypy, tflint                                             |
+| Provisioning     | `ansible-core`, ansible-navigator, ansible-builder (the `ansible` package and its bundled collections are not shipped) |
+| Linting          | ansible-lint, yamllint, black, pre-commit (ansible images); TFLint (terraform images)                              |
 | Python packaging | [`uv`](https://github.com/astral-sh/uv) for package installation and script execution                              |
-| Collections      | `ansible.posix`, `community.general`, `community.docker`, `kubernetes.core`, `amazon.aws` (see `requirements.yml`) |
+| Collections      | `ansible.posix`, `community.general`, `community.docker` and their dependency `community.library_inventory_filtering_v1` (see `devcontainers/ansible/collections.txt`); `amazon.aws` only in `devcontainer-ansible-aws` (see `collections-aws.txt`). `kubernetes.core` is not shipped: install it from a `requirements.yml`. The repo-root `requirements.yml` is this repository's own dependency list, not the images' |
 | VS Code          | Recommended extensions, workspace settings, and tasks delivered by the `vscode_config` role                        |
-| Terraform        | Terraform CLI, Terragrunt, TFLint, Checkov (Dev Container installs; CI mirrors tooling)                            |
+| Terraform        | Terraform CLI, Terragrunt, TFLint, SOPS, age (no `aws` command: use `devcontainer-terraform-aws`)                  |
 
-All Python dependencies for the Ansible stack are declared in `pyproject.toml` and locked in `uv.lock`. The container installs them system-wide with `uv pip install --system .` during build. If you prefer an isolated virtual environment, run `uv venv .venv && uv pip install -e .` inside the container; VS Code will automatically pick up `.venv` thanks to the defaults in `.vscode/settings.json`. Other stacks install only the tooling they need (for example, Terraform pins Terraform/Terragrunt/TFLint via the Dockerfile and installs Checkov with `uv pip install "checkov>=3.0.0,<4.0.0"`).
+The Python dependencies of the images are declared in `pyproject.toml` and locked in `uv.lock`; `requirements*.txt` are generated from the lock. If you prefer an isolated virtual environment, run `uv venv .venv && uv pip install -e .` inside the container; VS Code will automatically pick up `.venv` thanks to the defaults in `.vscode/settings.json`.
 
 ## Pinned Tool Versions
 
@@ -279,7 +311,7 @@ add tools at build time, or layer extra VS Code settings — recipes in
 - `molecule test` – full integration verification.
   Run `molecule test --scenario-name latex` to exercise the MiKTeX ↔ TeX Live toggle specifically.
 - `tflint --init && tflint` – optional Terraform lint (configure rules in `infrastructure/.tflint.hcl`).
-- `checkov -d infrastructure/` – run policy-as-code scans locally; the Terraform container installs Checkov by default.
+- `checkov -d infrastructure/` – run policy-as-code scans locally; Checkov is not in the images, install it with `uv tool install checkov`.
 
 ## Infrastructure Modules
 
