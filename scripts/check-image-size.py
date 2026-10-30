@@ -165,13 +165,14 @@ def budget_for(budgets: dict[str, Budget], name: str, path: Path) -> Budget:
 
 
 def validated_ref(option: str, value: str) -> str:
-    """Return value if it is an image reference; it never starts with "-"."""
-    if len(value) > MAX_REF_LENGTH or IMAGE_REF_RE.fullmatch(value) is None:
+    """Return the image reference matched in value; it never starts with "-"."""
+    match = None if len(value) > MAX_REF_LENGTH else IMAGE_REF_RE.fullmatch(value)
+    if match is None:
         raise CheckError(
             f"{option} {value!r} is not an image reference: a lowercase"
             " repository path, an optional :tag and an optional @sha256:<digest>"
         )
-    return value
+    return match.group(0)
 
 
 def _docker(args: list[str]) -> subprocess.CompletedProcess[bytes]:
@@ -374,12 +375,12 @@ def report(measurement: Measurement, name: str) -> None:
 
 
 def check_local(image: str, name: str, budget: Budget, path: Path) -> int:
-    validated_ref("--image", image)
+    reference = validated_ref("--image", image)
     check_image_store()
     measurement = Measurement(
-        image,
+        reference,
         "uncompressed, docker image inspect",
-        local_size(image),
+        local_size(reference),
         budget.max_uncompressed_mib,
     )
     report(measurement, name)
