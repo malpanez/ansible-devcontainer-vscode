@@ -20,9 +20,10 @@ A production-ready Ansible development container with hardened defaults, multipl
 The default configuration has no access to the host Docker daemon:
 
 ```bash
-# 1. Open this repository in VS Code
-# 2. Run: "Dev Containers: Reopen in Container"
-# 3. Select: devcontainers/ansible/devcontainer.json
+# 1. Make ansible the active stack of this repository
+./scripts/use-devcontainer.sh ansible
+# 2. Open the repository in VS Code
+# 3. Run: "Dev Containers: Reopen in Container"
 ```
 
 This is the **recommended** profile for most use cases. Pick the
@@ -30,6 +31,18 @@ docker-socket or dind profile only when you need to run containers
 (e.g. molecule with the docker driver) from inside the devcontainer.
 
 ## Runtime Profiles
+
+A profile is a complete `devcontainer.json`, not a set of overrides: the
+[dev container specification](https://containers.dev/implementors/json_reference/)
+has no `extends` property, so one file cannot inherit from another. Tools look
+for `.devcontainer/devcontainer.json`, `.devcontainer.json` or
+`.devcontainer/<folder>/devcontainer.json`, and the Dev Containers CLI refuses
+any other file name, so `devcontainer.dind.json` cannot be opened where it lies.
+
+To use a profile, copy it into a folder of its own under `.devcontainer/`, as
+each section below shows. **Reopen in Container** then asks which configuration
+to open. Run `use-devcontainer.sh` first: it replaces all of `.devcontainer/`.
+In a repository of your own, copy the profile to `.devcontainer/devcontainer.json`.
 
 ### 1. default ✅ Recommended
 
@@ -44,11 +57,8 @@ docker-socket or dind profile only when you need to run containers
 - Fast and lightweight
 
 **Select in VS Code:**
-```json
-// .devcontainer/devcontainer.json
-{
-  "extends": "../devcontainers/ansible/devcontainer.json"
-}
+```bash
+./scripts/use-devcontainer.sh ansible
 ```
 
 ---
@@ -68,11 +78,10 @@ docker-socket or dind profile only when you need to run containers
 - No Docker-in-Docker overhead; shares images/containers with the host
 
 **Select in VS Code:**
-```json
-// .devcontainer/devcontainer.json
-{
-  "extends": "../devcontainers/ansible/devcontainer.docker-socket.json"
-}
+```bash
+./scripts/use-devcontainer.sh ansible
+mkdir -p .devcontainer/docker-socket
+cp devcontainers/ansible/devcontainer.docker-socket.json .devcontainer/docker-socket/devcontainer.json
 ```
 
 ---
@@ -89,15 +98,17 @@ docker-socket or dind profile only when you need to run containers
 **Characteristics:**
 - Uses `ghcr.io/devcontainers/features/docker-in-docker:2`
 - Runs `--privileged` (required for dind)
+- Runs the container as root (`containerUser`): the feature starts the daemon
+  from the container's entrypoint, and `sudo` has no rules in these images.
+  Terminals, tasks and lifecycle commands still run as `vscode` (`remoteUser`)
 - Independent Docker daemon inside container
 - No Docker socket mount
 
 **Select in VS Code:**
-```json
-// .devcontainer/devcontainer.json
-{
-  "extends": "../devcontainers/ansible/devcontainer.dind.json"
-}
+```bash
+./scripts/use-devcontainer.sh ansible
+mkdir -p .devcontainer/dind
+cp devcontainers/ansible/devcontainer.dind.json .devcontainer/dind/devcontainer.json
 ```
 
 ---
@@ -121,11 +132,10 @@ docker-socket or dind profile only when you need to run containers
 - Rootless container execution (more secure)
 
 **Select in VS Code:**
-```json
-// .devcontainer/devcontainer.json
-{
-  "extends": "../devcontainers/ansible/devcontainer.podman.json"
-}
+```bash
+./scripts/use-devcontainer.sh ansible
+mkdir -p .devcontainer/podman
+cp devcontainers/ansible/devcontainer.podman.json .devcontainer/podman/devcontainer.json
 ```
 
 **Quick Start:**
@@ -187,11 +197,10 @@ anything in the container can change the host's credentials. Either way the
 container does not start if `~/.aws` does not exist on the host.
 
 **Select in VS Code:**
-```json
-// .devcontainer/devcontainer.json
-{
-  "extends": "../devcontainers/ansible/devcontainer.aws.json"
-}
+```bash
+./scripts/use-devcontainer.sh ansible
+mkdir -p .devcontainer/aws
+cp devcontainers/ansible/devcontainer.aws.json .devcontainer/aws/devcontainer.json
 ```
 
 ---
@@ -443,20 +452,19 @@ directly with `ansible-galaxy collection install amazon.aws`. For
 
 ### Using with .devcontainer Directory
 
-Create a `.devcontainer/devcontainer.json` in your repository root:
+Copy the profile you want to `.devcontainer/devcontainer.json` in your
+repository root. There is no `extends` in the specification, so the copy stands
+alone and later changes to the profile do not reach it:
 
-```json
-{
-  "name": "My Ansible Project",
-  "dockerComposeFile": "../devcontainers/ansible/devcontainer.json"
-}
+```bash
+mkdir -p .devcontainer
+cp devcontainers/ansible/devcontainer.json .devcontainer/devcontainer.json
 ```
 
-Or extend with custom settings:
+Then edit the copy, for example to add settings:
 
 ```json
 {
-  "extends": "../devcontainers/ansible/devcontainer.json",
   "customizations": {
     "vscode": {
       "settings": {
@@ -469,9 +477,10 @@ Or extend with custom settings:
 
 ### Adding Custom Environment Variables
 
+Add them to `remoteEnv` in your copy of the profile:
+
 ```json
 {
-  "extends": "../devcontainers/ansible/devcontainer.dind.json",
   "remoteEnv": {
     "ANSIBLE_INVENTORY": "${containerWorkspaceFolder}/inventory/hosts.yml",
     "ANSIBLE_VAULT_PASSWORD_FILE": "${containerWorkspaceFolder}/.vault-pass"
@@ -502,35 +511,14 @@ If migrating from the previous configuration:
 }
 ```
 
-**New (choose one):**
+**New:** copy one profile, as in [Runtime Profiles](#runtime-profiles):
 
-For most users (docker-socket):
-```json
-{
-  "extends": "../devcontainers/ansible/devcontainer.json"
-}
-```
-
-For the host Docker daemon (docker-socket):
-```json
-{
-  "extends": "../devcontainers/ansible/devcontainer.docker-socket.json"
-}
-```
-
-For isolated Docker (dind):
-```json
-{
-  "extends": "../devcontainers/ansible/devcontainer.dind.json"
-}
-```
-
-For Podman + Execution Environments (AAP):
-```json
-{
-  "extends": "../devcontainers/ansible/devcontainer.podman.json"
-}
-```
+| For | Profile |
+| --- | --- |
+| Most users | `devcontainer.json` |
+| The host Docker daemon | `devcontainer.docker-socket.json` |
+| Isolated Docker | `devcontainer.dind.json` |
+| Podman + Execution Environments (AAP) | `devcontainer.podman.json` |
 
 ---
 
