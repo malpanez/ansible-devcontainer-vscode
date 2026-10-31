@@ -120,7 +120,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends \
       # Base tools plus podman (Debian build, ABI-coherent) and its
       # rootless dependencies: conmon, crun, dbus-user-session,
-      # fuse-overlayfs, iptables, slirp4netns, uidmap.
+      # fuse-overlayfs, iptables, passt, slirp4netns, uidmap. passt carries
+      # pasta, the default rootless network since podman 5: without it
+      # `podman run` stopped at "could not find pasta".
       # One alphabetical list, not grouped sublists (docker:S7018).
       conmon \
       crun \
@@ -131,6 +133,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       iptables \
       libonig5 \
       openssh-client \
+      passt \
       podman \
       rsync \
       slirp4netns \

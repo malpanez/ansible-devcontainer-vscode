@@ -22,6 +22,11 @@ fileExistenceTests:
     path: '/usr/bin/fuse-overlayfs'
     shouldExist: true
 
+  # The default rootless network: `podman run` needs it.
+  - name: 'pasta'
+    path: '/usr/bin/pasta'
+    shouldExist: true
+
   - name: 'slirp4netns'
     path: '/usr/bin/slirp4netns'
     shouldExist: true
