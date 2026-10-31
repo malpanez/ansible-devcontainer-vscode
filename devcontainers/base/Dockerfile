@@ -24,6 +24,8 @@ ENV UV_COMPILE_BYTECODE=1
 ARG UV_VERSION=0.13.6
 
 # Common system packages used across Python-based stacks.
+# sudo is deliberately absent: it has had no rules since 1a62ea6, so it was a
+# setuid root binary nothing could use. A root shell is `docker exec -u 0`.
 # hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
@@ -37,7 +39,6 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
         openssh-client \
         rsync \
         sshpass \
-        sudo \
         unzip \
         vim-tiny \
     # full-upgrade AFTER the install, not before: libssh2-1 is not present

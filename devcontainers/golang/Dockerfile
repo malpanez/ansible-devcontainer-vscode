@@ -49,7 +49,6 @@ RUN apk add --no-cache \
       git=~2 \
       libstdc++=~15 \
       openssh-client-default=~10 \
-      sudo=~1 \
     && rm -f /var/log/apk.log
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

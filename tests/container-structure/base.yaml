@@ -45,7 +45,18 @@ fileExistenceTests:
     shouldExist: true
     uid: 1000
 
+  # sudo has had no rules since 1a62ea6, so the package is not installed: a
+  # setuid root binary that only ever answered "a password is required".
+  - name: 'No sudo binary'
+    path: '/usr/bin/sudo'
+    shouldExist: false
+
 commandTests:
+  - name: 'sudo is not on the PATH'
+    command: 'sh'
+    args: ['-c', '! command -v sudo']
+    exitCode: 0
+
   # Python version: any 3.x, as the other tests match names, not versions
   - name: 'Python 3 available'
     command: 'python3'

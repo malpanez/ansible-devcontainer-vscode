@@ -4,6 +4,11 @@
   "runArgs": [
     "--init"
   ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -43,7 +48,6 @@
     }
   },
   "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
     "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
   ],
@@ -55,11 +59,12 @@
     "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
+  "containerUser": "root",
   "remoteUser": "vscode",
   "postCreateCommand": [
     "/bin/bash",
     "-lc",
-    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && (test -f requirements.yml && ansible-galaxy collection install -r requirements.yml || echo 'No requirements.yml found, skipping collection install')"
+    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi"
   ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

@@ -36,7 +36,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       git \
       openssh-client \
       perl \
-      sudo \
       unzip \
     # Upgrade AFTER the installs, never before: the stale packages here
     # arrive as dependencies of the list above (libpcre2-8-0 comes in with

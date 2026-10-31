@@ -244,6 +244,25 @@ jobs:
             --output junit \
             --test-report "test-results-${STACK}.xml"
 
+      # The structure tests only ask podman for its version, and `podman run`
+      # failed in the image for lack of pasta with all of them green. Privileged
+      # because Docker's default seccomp profile stops rootless podman at
+      # "cannot clone: Operation not permitted". Retried for quay.io, which the
+      # script pulls from.
+      - name: Run the podman smoke test
+        if: matrix.stack == 'ansible-podman'
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if docker run --rm --privileged test-ansible-podman:latest podman-smoke-test; then
+              exit 0
+            fi
+            echo "::warning::podman smoke test attempt ${attempt} failed; retrying"
+            sleep "$((attempt * 20))"
+          done
+          echo "::error::podman smoke test failed after 3 attempts"
+          exit 1
+
       - name: Publish test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d  # v2.25.0

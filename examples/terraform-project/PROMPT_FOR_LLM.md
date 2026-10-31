@@ -256,17 +256,19 @@ SKIP=terraform_trivy git commit -m "feat: quick change"
 
 **Causa**: Permisos incorrectos en ~/.cache/pre-commit
 
-**Solución**: Asegúrate que el devcontainer.json incluye:
+**Solución**: Las imágenes ya crean `/home/vscode/.cache/pre-commit` con `vscode` como dueño. Si falla es porque un volumen o un bind mount la tapó con un dueño root. Quita ese mount, o cambia el dueño desde el host (las imágenes no incluyen `sudo`, y los comandos de ciclo de vida corren como `remoteUser`, no como root):
+
+```bash
+docker exec -u 0 <contenedor> chown -R vscode:vscode /home/vscode/.cache
+```
+
+Con el directorio en orden, basta con:
 
 ```json
 {
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
-  "updateContentCommand": [
-    "bash", "-c",
-    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
-  ],
   "postCreateCommand": [
     "bash", "-c",
     "pre-commit install --install-hooks || true"
@@ -274,7 +276,7 @@ SKIP=terraform_trivy git commit -m "feat: quick change"
 }
 ```
 
-**IMPORTANTE**: Usa `updateContentCommand` (ejecuta como root) en lugar de `postCreateCommand` con sudo, para evitar problemas de permisos en diferentes entornos.
+**IMPORTANTE**: No uses `sudo` en `postCreateCommand` ni esperes root en `updateContentCommand`: ambos corren como `vscode` y las imágenes no tienen `sudo`.
 
 ### "Trivy muy lento"
 

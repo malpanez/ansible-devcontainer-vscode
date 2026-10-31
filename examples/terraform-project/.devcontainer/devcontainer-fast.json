@@ -42,7 +42,7 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; terraform init || true"
+    "set -euo pipefail; pre-commit install --install-hooks || true; terraform init || true"
   ],
 
   "remoteUser": "vscode"
