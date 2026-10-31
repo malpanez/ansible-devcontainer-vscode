@@ -9,7 +9,7 @@ A production-ready Ansible development container with hardened defaults, multipl
   pinned collections (see [Ansible collections](#ansible-collections))
 - **Pre-commit hooks** automatically configured
 - **VS Code extensions** for Ansible, Python, YAML, and Docker
-- **Hardened security defaults** (no sudo rules, docker socket only by opt-in)
+- **Hardened security defaults** (no sudo installed, docker socket only by opt-in)
 - **Multiple runtime profiles** (default, docker-socket, dind, podman, aws)
 - **Podman + Execution Environments** support for modern Ansible workflows
 
@@ -99,7 +99,7 @@ cp devcontainers/ansible/devcontainer.docker-socket.json .devcontainer/docker-so
 - Uses `ghcr.io/devcontainers/features/docker-in-docker:2`
 - Runs `--privileged` (required for dind)
 - Runs the container as root (`containerUser`): the feature starts the daemon
-  from the container's entrypoint, and `sudo` has no rules in these images.
+  from the container's entrypoint, and the images carry no `sudo` for it to use.
   Terminals, tasks and lifecycle commands still run as `vscode` (`remoteUser`)
 - Independent Docker daemon inside container
 - No Docker socket mount
@@ -334,10 +334,10 @@ This is **idempotent** and safe to run multiple times.
 
 ## Hardened Security Defaults
 
-### No sudo rules
+### No sudo
 
-The `vscode` user has **no passwordless sudo grants** — every package is
-installed at image build time. To add tooling, extend the Dockerfile and
+The images do **not install `sudo`**, so the `vscode` user has no way to
+escalate; every package is installed at image build time. To add tooling, extend the Dockerfile and
 rebuild; for ad-hoc Python packages use user-scoped installs
 (`uv tool install <pkg>` or a virtualenv), which need no root.
 

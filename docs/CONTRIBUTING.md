@@ -258,7 +258,7 @@ pre-commit install --install-hooks
 
 ### "Permission denied" errors with cache directories
 
-The devcontainer should handle this automatically. If you see permission errors, fix the owner from the host, because `sudo` has no rules inside the images:
+The devcontainer should handle this automatically. If you see permission errors, fix the owner from the host, because the images carry no `sudo`:
 ```bash
 docker exec -u 0 <container> chown -R vscode:vscode /workspace/.cache /home/vscode/.cache
 ```

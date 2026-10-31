@@ -108,17 +108,9 @@ tests/
 **/__pycache__
 ```
 
-### 7. Hardened Sudoers
+### 7. No sudo
 
-`NOPASSWD: ALL` was replaced with explicit binary allowlists. This is a security improvement, not a size one, but it follows the principle of minimal surface area:
-
-```dockerfile
-# Before (too permissive):
-printf '%s ALL=(root) NOPASSWD: ALL\n'
-
-# After (explicit allowlist):
-printf '%s ALL=(root) NOPASSWD: /usr/local/bin/uv, /usr/local/bin/uvx\n'
-```
+`NOPASSWD: ALL` became an allowlist of `uv` and `uvx`, and the allowlist went too (1a62ea6): `sudo uvx <package>` runs arbitrary PyPI code as root, so it granted full root anyway. The `sudo` package stayed installed with no rules, a setuid root binary that only answered `sudo: a password is required`, and it is now not installed either. This is a security improvement and about 2 MiB, not a size one, but it follows the principle of minimal surface area. A root shell is `docker exec -u 0` from the host.
 
 ### 8. Renovate Annotations for All Tool Versions
 
@@ -141,7 +133,7 @@ Distroless images remove the shell, package manager, and most system utilities. 
 
 - DevContainer lifecycle scripts that require `bash`
 - `git`, `gh`, and SSH tools needed for daily development
-- A package manager for occasional additions at runtime, from a root shell opened on the host (`docker exec -u 0`), since `sudo` has no rules in these images
+- A package manager for occasional additions at runtime, from a root shell opened on the host (`docker exec -u 0`), since the images carry no `sudo`
 
 The `debian:bookworm-slim` base is already minimal (~30 MB). Switching to distroless would save ~25 MB at the cost of making the container non-functional as a dev environment.
 

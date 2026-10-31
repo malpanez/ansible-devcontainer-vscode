@@ -171,7 +171,7 @@ Si el comando retorna una ruta (`/usr/bin/git`), **ya está instalado**.
 
   "postCreateCommand": [
     "bash", "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "set -euo pipefail; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
   ],
 
   "remoteUser": "vscode"
@@ -356,7 +356,7 @@ docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest bash -c "
 
   "postCreateCommand": [
     "bash", "-lc",
-    "sudo mkdir -p /home/vscode/.cache/pre-commit && sudo chown -R vscode:vscode /home/vscode/.cache && pre-commit install --install-hooks || true"
+    "pre-commit install --install-hooks || true"
   ],
 
   "remoteUser": "vscode"
@@ -398,7 +398,7 @@ docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest bash -c "
 
   "postCreateCommand": [
     "bash", "-lc",
-    "sudo mkdir -p /home/vscode/.cache/pre-commit && sudo chown -R vscode:vscode /home/vscode/.cache && pre-commit install --install-hooks || true && terraform init || true"
+    "pre-commit install --install-hooks || true && terraform init || true"
   ],
 
   "remoteUser": "vscode"

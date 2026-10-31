@@ -104,7 +104,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl \
       git \
       openssh-client \
-      sudo \
       unzip \
     && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \

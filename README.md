@@ -113,7 +113,7 @@ The image also bakes in `/usr/local/bin/ensure-precommit`, which the `postCreate
 | ----------- | ----------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------- | --------------------------------------------- |
 | `ansible`   | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB       | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume        |
 | `terraform` | multi-stage Debian (bookworm tools + runtime)               | ~240 MB       | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher                   | `${workspace}/.terraform.d/plugin-cache` bind |
-| `golang`    | `golang:1.23-alpine` (overrideable via `BASE_IMAGE`)        | ~210 MB       | Go toolchain, git, `uv` launcher, sudo minimal                                | Go module & build caches                      |
+| `golang`    | `golang:1.23-alpine` (overrideable via `BASE_IMAGE`)        | ~210 MB       | Go toolchain, git, `uv` launcher                                             | Go module & build caches                      |
 | `latex`     | `debian:bookworm-slim` + Tectonic                           | ~320 MB       | Tectonic CLI, git/perl helpers, `uv` launcher                                 | `${HOME}/.cache/tectonic` bind                |
 
 ¹Sizes are indicative for `linux/amd64` and vary slightly per architecture.

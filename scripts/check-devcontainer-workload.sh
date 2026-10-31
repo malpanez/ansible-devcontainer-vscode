@@ -130,8 +130,8 @@ EOF
 }
 
 # ping needs no root and the question is whether ansible runs. This repository's
-# ansible.cfg sets become = True, and sudo has no rules in the images, so with
-# that config alone this stops at `sudo: a password is required`.
+# ansible.cfg sets become = True, and the images carry no sudo, so with that
+# config alone this stops at `sudo: not found`.
 check_ansible_ping() {
   run_check "ansible localhost -m ansible.builtin.ping" \
     env ANSIBLE_BECOME=false ansible localhost -m ansible.builtin.ping

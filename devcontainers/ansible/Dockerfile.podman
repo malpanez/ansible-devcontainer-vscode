@@ -134,7 +134,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       podman \
       rsync \
       slirp4netns \
-      sudo \
       uidmap \
       unzip \
     # Upgrade AFTER the install, never before: the packages that go stale

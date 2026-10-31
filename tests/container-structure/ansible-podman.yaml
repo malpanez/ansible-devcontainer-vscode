@@ -69,7 +69,18 @@ fileExistenceTests:
     path: '/var/lib/dbus/machine-id'
     shouldExist: false
 
+  # sudo has had no rules since 1a62ea6, so the package is not installed: a
+  # setuid root binary that only ever answered "a password is required".
+  - name: 'No sudo binary'
+    path: '/usr/bin/sudo'
+    shouldExist: false
+
 commandTests:
+  - name: 'sudo is not on the PATH'
+    command: 'sh'
+    args: ['-c', '! command -v sudo']
+    exitCode: 0
+
   # The Dockerfile requires 5.4 or later; any 5.x and up loads here
   - name: 'Podman runs'
     command: 'podman'

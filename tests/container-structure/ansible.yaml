@@ -236,6 +236,8 @@ commandTests:
   # image on the BASE_IMAGE pin, which trails the base Dockerfile until main
   # publishes it, so a check here could not pass in the pull request that fixes
   # base.
+  # The same goes for the absence of sudo: it is checked in base.yaml,
+  # ansible-podman.yaml, terraform.yaml, golang.yaml and latex.yaml.
 
   # git needs it for every git@ remote: "error: cannot run ssh".
   - name: 'ssh client runs'

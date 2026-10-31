@@ -53,7 +53,7 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "set -euo pipefail; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
   ],
 
   "remoteUser": "vscode"
