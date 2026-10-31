@@ -119,6 +119,9 @@ jobs:
               # the images it judges, as a .grype.yaml change runs the scan.
               - '.github/image-size-budgets.json'
               - 'scripts/check-image-size.py'
+              # What devcontainer-cli-test checks inside the container: a
+              # change to it must run that job against the images it judges.
+              - 'scripts/check-devcontainer-workload.sh'
               # This workflow: a change to the build job, its runner or its
               # gates must run that job. PR #606 (2026-10-30) changed only the
               # job's runs-on, every build job skipped and CI went green
@@ -726,14 +729,43 @@ jobs:
             jq . "devcontainers/${STACK}/${config}"
           done
 
+      # devcontainers/ansible/Dockerfile resolves its BASE_IMAGE pin unless told
+      # otherwise, and the pin trails the base Dockerfile until main publishes
+      # it and Renovate moves it. The checks below look at what base sets up
+      # (the login shell), so on the pin a fix to base could not pass here in
+      # the pull request that makes it. Built from this commit, as in
+      # devcontainer-build; this job's builder is the daemon's own, so it sees
+      # the loaded image.
+      - name: Build base from this commit
+        if: matrix.stack == 'ansible'
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            docker buildx build --load -t devcontainer-base:ci -f devcontainers/base/Dockerfile . && break
+            [ "${attempt}" -lt 3 ] || exit 1
+            sleep "$((attempt * 20))"
+          done
+
       - name: Test devcontainer up
         env:
           STACK: ${{ matrix.stack }}
         run: |
+          set -euo pipefail
           # From the repository root: the build variant's context is
           # ${localWorkspaceFolder}, which must be the root that the
           # Dockerfile COPYs from.
-          DEVCONTAINER_ARGS=(--workspace-folder . --config "devcontainers/${STACK}/local-build/devcontainer.json")
+          CONFIG="devcontainers/${STACK}/local-build/devcontainer.json"
+          if [ "${STACK}" = "ansible" ]; then
+            # On the base the step above built. Build arguments can only come
+            # from the config, and a copy elsewhere needs the Dockerfile's full
+            # path; the CLI takes no other file name.
+            CONFIG_DIR="$(mktemp -d)"
+            jq --arg dockerfile "${PWD}/devcontainers/ansible/Dockerfile" \
+              '.build.dockerfile = $dockerfile | .build.args.BASE_IMAGE = "devcontainer-base:ci"' \
+              "${CONFIG}" > "${CONFIG_DIR}/devcontainer.json"
+            CONFIG="${CONFIG_DIR}/devcontainer.json"
+          fi
+          DEVCONTAINER_ARGS=(--workspace-folder . --config "${CONFIG}")
           # The CLI builds through a generated Dockerfile-with-features whose
           # own '# syntax=docker/dockerfile:1.27' directive forces an
           # unauthenticated docker.io pull on every run. Anonymous Docker Hub
@@ -744,8 +776,14 @@ jobs:
           # develop two hours earlier, and a bare re-run went green. Retry
           # rather than pin: the directive lives in a Dockerfile the CLI
           # generates at build time, so pinning ours does not affect it.
+          #
+          # --remove-existing-container so that a retry runs the lifecycle
+          # again. Without it a postCreateCommand failure on attempt 1 left the
+          # container behind, attempt 2 reused it, skipped the lifecycle and
+          # reported success, and the job went green on a template that fails
+          # for every user who opens it (run 41140335315, latex).
           for attempt in 1 2 3; do
-            if devcontainer up "${DEVCONTAINER_ARGS[@]}"; then
+            if devcontainer up --remove-existing-container "${DEVCONTAINER_ARGS[@]}"; then
               break
             fi
             if [ "${attempt}" -eq 3 ]; then
@@ -755,8 +793,58 @@ jobs:
             echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
             sleep "$((attempt * 20))"
           done
-          devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${STACK} container is running'"
+          # jq fails on a mount written as an object, instead of skipping it.
+          VOLUME_TARGETS="$(jq -r '.mounts // [] | .[]
+            | select(test("(^|,)type=volume(,|$)"))
+            | capture("(^|,)target=(?<target>[^,]+)").target' "${CONFIG}")"
+          VOLUME_TARGET_ARGS=()
+          if [ -n "${VOLUME_TARGETS}" ]; then
+            mapfile -t VOLUME_TARGET_ARGS <<< "${VOLUME_TARGETS}"
+          fi
+          # The repository root is the template's workspaceMount, /workspace.
+          devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- \
+            bash /workspace/scripts/check-devcontainer-workload.sh "${STACK}" "${VOLUME_TARGET_ARGS[@]}"
           # no 'devcontainer stop' subcommand exists; the runner cleans up
+
+      # The docker-in-docker profile, which only ansible has. Its feature starts
+      # dockerd from the container's entrypoint, through sudo unless the
+      # container runs as root, and sudo has had no rules since 1a62ea6:
+      # `sudo: a password is required`, no dockerd, and `devcontainer up` still
+      # reported success. The profile runs as it ships, on the published image
+      # it pins; Renovate's next bump of that pin runs this on the new image.
+      - name: Test the docker-in-docker profile
+        if: matrix.stack == 'ansible'
+        run: |
+          set -euo pipefail
+          # The CLI takes no other name: "Filename must be devcontainer.json
+          # or .devcontainer.json".
+          CONFIG_DIR="$(mktemp -d)"
+          cp devcontainers/ansible/devcontainer.dind.json "${CONFIG_DIR}/devcontainer.json"
+          DEVCONTAINER_ARGS=(--workspace-folder . --config "${CONFIG_DIR}/devcontainer.json")
+          # Retried as in the step above, and it pulls the feature on top.
+          for attempt in 1 2 3; do
+            if devcontainer up --remove-existing-container "${DEVCONTAINER_ARGS[@]}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error::devcontainer up of the dind profile failed after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
+            sleep "$((attempt * 20))"
+          done
+          # As the template's remoteUser, through the docker group the feature
+          # adds it to. dockerd starts in the background, so give it a minute.
+          for attempt in {1..30}; do
+            if devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- \
+              bash -c 'id -un | grep -qx vscode && docker info'; then
+              exit 0
+            fi
+            echo "dockerd not answering yet (attempt ${attempt} of 30)"
+            sleep 2
+          done
+          echo "::error::docker info did not succeed as vscode after 30 attempts"
+          exit 1
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
