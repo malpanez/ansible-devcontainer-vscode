@@ -109,7 +109,8 @@ def test_config_is_the_profile_built_from_the_stack_dockerfile(
     assert proc.returncode == 0, proc.stderr
     rendered = json.loads((fake / "config.json").read_text())
     shipped = json.loads((REPO_ROOT / "devcontainers" / stack / profile).read_text())
-    assert rendered.pop("build") == {
+    build = rendered.pop("build")
+    assert build == {
         "dockerfile": str(REPO_ROOT / "devcontainers" / stack / "Dockerfile"),
         "context": "${localWorkspaceFolder}",
     }
