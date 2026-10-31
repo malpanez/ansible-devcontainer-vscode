@@ -41,6 +41,12 @@ fileExistenceTests:
     shouldExist: true
     uid: 1000
 
+  # The template mounts a named volume here: see ansible.yaml.
+  - name: 'Podman storage owned by vscode'
+    path: '/home/vscode/.local/share/containers'
+    shouldExist: true
+    uid: 1000
+
   - name: 'Podman smoke test script'
     path: '/usr/local/bin/podman-smoke-test'
     shouldExist: true
@@ -69,3 +75,25 @@ commandTests:
     command: 'podman'
     args: ['--version']
     expectedOutput: ['podman version ([5-9]|[1-9][0-9])\.']
+
+  # This image creates its own user; the others inherit it from base.yaml's.
+  # useradd's default is /bin/sh, which VS Code would open terminals in.
+  - name: 'Login shell is bash'
+    command: 'sh'
+    args: ['-c', 'grep "^vscode:" /etc/passwd']
+    expectedOutput: ['(?m)^vscode:.*:/bin/bash$']
+    exitCode: 0
+
+  # uv leaves /tmp/uv-<hash>.lock behind, mode 0666, after an install into a
+  # system environment; the build removes it (devcontainers/base/Dockerfile).
+  - name: 'No world-writable file in /tmp'
+    command: 'sh'
+    args: ['-c', '! find /tmp -xdev -type f -perm -0002 | grep .']
+    exitCode: 0
+
+metadataTest:
+  # From the python base. Not every digest sets it (3.14.8 did not, 3.14.10
+  # does), and nothing else in this image does.
+  envVars:
+    - key: 'LANG'
+      value: 'C.UTF-8'

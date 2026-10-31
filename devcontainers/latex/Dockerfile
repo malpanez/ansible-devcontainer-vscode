@@ -12,7 +12,10 @@ LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devco
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
+# LANG: debian-slim sets none, so `locale charmap` printed ANSI_X3.4-1968 and
+# tools that ask the locale treated everything as ASCII.
 ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     WORKSPACE=/workspace \
@@ -20,6 +23,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel \
     TECTONIC_CACHE_DIR=/home/vscode/.cache/Tectonic
 
+# openssh-client: without it `git ls-remote git@...` stopped at "error: cannot
+# run ssh".
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
@@ -29,6 +34,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl \
       fontconfig \
       git \
+      openssh-client \
       perl \
       sudo \
       unzip \
@@ -155,7 +161,9 @@ ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # useradd stamps today's day number into the shadow entry's
     # last-change field, so the image changed with the build date even
     # when nothing else did. An empty field disables password aging,
@@ -165,6 +173,10 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/Tectonic" \
+    # The template mounts a named volume here. A new volume takes the owner of
+    # the directory it lands on, and a directory the image does not have is
+    # created for root: postCreateCommand died with PermissionError on .lock.
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/pre-commit" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/latex \
     # install -d creates parents as root; hand ~/.cache and ~/.local to vscode
     && chown "${USERNAME}:${USERNAME}" \
@@ -176,9 +188,13 @@ COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bi
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 
