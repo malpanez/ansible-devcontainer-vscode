@@ -1,9 +1,6 @@
 {
   "name": "LaTeX Dev Container",
   "image": "ghcr.io/malpanez/devcontainer-latex:v2.0.0@sha256:4427be67441d24b2ff3b64c273b5d33a11219b6eb5ca323aefcb9dd6b4251699",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  },
   "customizations": {
     "vscode": {
       "extensions": [

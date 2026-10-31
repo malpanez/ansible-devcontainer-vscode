@@ -14,7 +14,10 @@ FROM python:3.14-slim-trixie@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8c
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION="0.13.6"
 
+# LANG: the python base sets it on some digests only (3.14.8 did not, 3.14.10
+# does), so a digest bump could turn it off.
 ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1
@@ -192,7 +195,9 @@ ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # Empty the shadow last-change day useradd stamps: see devcontainers/base.
     && sed -i "s/^\(${USERNAME}:[^:]*\):[0-9]*:/\1::/" /etc/shadow \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
@@ -238,10 +243,13 @@ COPY --chmod=0555 devcontainers/scripts/podman-smoke-test.sh /usr/local/bin/podm
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-# Configure git for user
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 
