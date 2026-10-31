@@ -58,6 +58,7 @@
     "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
+  "containerUser": "root",
   "remoteUser": "vscode",
   "postCreateCommand": [
     "/bin/bash",

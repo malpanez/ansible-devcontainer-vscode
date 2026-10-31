@@ -79,7 +79,10 @@ LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devco
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
+# LANG: debian-slim sets none, so `locale charmap` printed ANSI_X3.4-1968 and
+# tools that ask the locale treated everything as ASCII.
 ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     TF_PLUGIN_CACHE_DIR=/workspaces/.terraform.d/plugin-cache \
@@ -89,6 +92,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install system dependencies + GitHub CLI (gh) to avoid DevContainer features rebuild
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+# openssh-client: without it `git ls-remote git@...` stopped at "error: cannot
+# run ssh" and `terraform init` could not fetch a git::ssh:// module.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -98,6 +103,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates \
       curl \
       git \
+      openssh-client \
       sudo \
       unzip \
     && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -206,7 +212,9 @@ ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # useradd stamps today's day number into the shadow entry's
     # last-change field, so the image changed with the build date even
     # when nothing else did. An empty field disables password aging,
@@ -216,7 +224,10 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     # terraform init failed with "mkdir /workspaces: permission denied" while
     # this directory did not exist. Owned by vscode here, it is also the owner
     # Docker gives the empty terraform-plugin-cache volume mounted on it.
-    && install -d -o "${USERNAME}" -g "${USERNAME}" "${TF_PLUGIN_CACHE_DIR}" \
+    # Sticky and open to everyone because that owner is not enough: on a host
+    # whose uid is not 1000, updateRemoteUserUID gives vscode the host's uid and
+    # chowns only its home, and this is outside it, so the volume stayed 1000's.
+    && install -d -m 1777 -o "${USERNAME}" -g "${USERNAME}" "${TF_PLUGIN_CACHE_DIR}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
@@ -233,9 +244,13 @@ COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensur
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 

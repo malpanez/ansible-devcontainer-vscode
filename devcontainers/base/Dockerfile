@@ -14,6 +14,9 @@ LABEL maintainer="alpanez.alcalde@gmail.com" \
       org.opencontainers.image.vendor="malpanez"
 
 ENV DEBIAN_FRONTEND=noninteractive
+# LANG: the python base sets it on some digests only (3.14.8 did not, 3.14.10
+# does), so a digest bump could turn it off.
+ENV LANG=C.UTF-8
 ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
@@ -89,7 +92,9 @@ ARG USER_GID=$USER_UID
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
     groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # useradd stamps today's day number into the shadow entry's
     # last-change field, so the image changed with the build date even
     # when nothing else did. An empty field disables password aging,
@@ -148,6 +153,11 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     # clamped alike.
     && CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes --only-binary :all: \
          -r /tmp/requirements-devcontainer-tools.txt \
+    # uv locks a system environment through /tmp/uv-<hash>.lock, mode 0666, and
+    # leaves it behind: a world-writable file in this image and in the ansible
+    # images built on it. Their builder stages leave one too, but only
+    # /usr/local is copied out of those.
+    && rm -f /tmp/uv-*.lock \
     && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
     && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
          -x '/site-packages/pip/' "${SITE}" \

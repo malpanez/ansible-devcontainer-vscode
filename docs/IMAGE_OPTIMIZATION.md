@@ -141,7 +141,7 @@ Distroless images remove the shell, package manager, and most system utilities. 
 
 - DevContainer lifecycle scripts that require `bash`
 - `git`, `gh`, and SSH tools needed for daily development
-- `sudo` for occasional package additions at runtime
+- A package manager for occasional additions at runtime, from a root shell opened on the host (`docker exec -u 0`), since `sudo` has no rules in these images
 
 The `debian:bookworm-slim` base is already minimal (~30 MB). Switching to distroless would save ~25 MB at the cost of making the container non-functional as a dev environment.
 

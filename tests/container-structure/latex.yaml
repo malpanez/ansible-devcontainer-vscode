@@ -47,6 +47,26 @@ fileExistenceTests:
   - name: 'Tectonic cache directory'
     path: '/home/vscode/.cache/Tectonic'
     shouldExist: true
+    uid: 1000
+
+  # The Dev Containers extension copies the user's .gitconfig only when the
+  # container's has nothing but [filter] and [safe] sections, so what the image
+  # configures goes in the system file.
+  - name: 'No .gitconfig in the home directory'
+    path: '/home/vscode/.gitconfig'
+    shouldExist: false
+
+  # The template mounts named volumes on these. A new volume takes the owner of
+  # the directory it lands on, and one the image lacks is created for root.
+  - name: 'uv cache owned by vscode'
+    path: '/home/vscode/.cache/uv'
+    shouldExist: true
+    uid: 1000
+
+  - name: 'pre-commit cache owned by vscode'
+    path: '/home/vscode/.cache/pre-commit'
+    shouldExist: true
+    uid: 1000
 
 commandTests:
   # Versions pin the major only: the Dockerfile ARGs (checksum-verified,
@@ -181,6 +201,34 @@ commandTests:
     expectedOutput: ['checked-hash bytecode: True']
     exitCode: 0
 
+  # In the system file: see 'No .gitconfig in the home directory'.
+  - name: 'Default branch set in the system git config'
+    command: 'git'
+    args: ['config', '--system', '--get', 'init.defaultBranch']
+    expectedOutput: ['main']
+    exitCode: 0
+
+  # useradd's default is /bin/sh, which VS Code would open terminals in.
+  - name: 'Login shell is bash'
+    command: 'sh'
+    args: ['-c', 'grep "^vscode:" /etc/passwd']
+    expectedOutput: ['(?m)^vscode:.*:/bin/bash$']
+    exitCode: 0
+
+  # git needs it for every git@ remote: "error: cannot run ssh".
+  - name: 'ssh client runs'
+    command: 'ssh'
+    args: ['-V']
+    expectedError: ['OpenSSH_']
+    exitCode: 0
+
+  # What LANG=C.UTF-8 is for: without it this printed ANSI_X3.4-1968.
+  - name: 'Locale charmap is UTF-8'
+    command: 'locale'
+    args: ['charmap']
+    expectedOutput: ['UTF-8']
+    exitCode: 0
+
   # Workspace writable
   - name: 'Workspace writable'
     command: 'sh'
@@ -193,6 +241,8 @@ metadataTest:
       value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
 
   envVars:
+    - key: 'LANG'
+      value: 'C.UTF-8'
     - key: 'DEVCONTAINER_STACK'
       value: 'latex'
     - key: 'WORKSPACE'
