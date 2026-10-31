@@ -147,7 +147,7 @@
   "postCreateCommand": [
     "/bin/bash",
     "-lc",
-    "(test -f requirements.yml && ansible-galaxy collection install -r requirements.yml || echo 'No requirements.yml found, skipping collection install') && podman-smoke-test"
+    "if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi && podman-smoke-test"
   ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
