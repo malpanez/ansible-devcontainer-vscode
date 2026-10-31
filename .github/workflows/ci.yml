@@ -122,6 +122,8 @@ jobs:
               # What devcontainer-cli-test checks inside the container: a
               # change to it must run that job against the images it judges.
               - 'scripts/check-devcontainer-workload.sh'
+              # Same for the Docker profiles.
+              - 'scripts/test-devcontainer-profile.sh'
               # This workflow: a change to the build job, its runner or its
               # gates must run that job. PR #606 (2026-10-30) changed only the
               # job's runs-on, every build job skipped and CI went green
@@ -810,41 +812,24 @@ jobs:
       # dockerd from the container's entrypoint, through sudo unless the
       # container runs as root, and sudo has had no rules since 1a62ea6:
       # `sudo: a password is required`, no dockerd, and `devcontainer up` still
-      # reported success. The profile runs as it ships, on the published image
-      # it pins; Renovate's next bump of that pin runs this on the new image.
+      # reported success. The script runs it on the image built from this commit.
       - name: Test the docker-in-docker profile
         if: matrix.stack == 'ansible'
-        run: |
-          set -euo pipefail
-          # The CLI takes no other name: "Filename must be devcontainer.json
-          # or .devcontainer.json".
-          CONFIG_DIR="$(mktemp -d)"
-          cp devcontainers/ansible/devcontainer.dind.json "${CONFIG_DIR}/devcontainer.json"
-          DEVCONTAINER_ARGS=(--workspace-folder . --config "${CONFIG_DIR}/devcontainer.json")
-          # Retried as in the step above, and it pulls the feature on top.
-          for attempt in 1 2 3; do
-            if devcontainer up --remove-existing-container "${DEVCONTAINER_ARGS[@]}"; then
-              break
-            fi
-            if [ "${attempt}" -eq 3 ]; then
-              echo "::error::devcontainer up of the dind profile failed after 3 attempts"
-              exit 1
-            fi
-            echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
-            sleep "$((attempt * 20))"
-          done
-          # As the template's remoteUser, through the docker group the feature
-          # adds it to. dockerd starts in the background, so give it a minute.
-          for attempt in {1..30}; do
-            if devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- \
-              bash -c 'id -un | grep -qx vscode && docker info'; then
-              exit 0
-            fi
-            echo "dockerd not answering yet (attempt ${attempt} of 30)"
-            sleep 2
-          done
-          echo "::error::docker info did not succeed as vscode after 30 attempts"
-          exit 1
+        env:
+          BASE_IMAGE: devcontainer-base:ci
+        run: bash scripts/test-devcontainer-profile.sh ansible devcontainer.dind.json 'docker info'
+
+      # The docker-socket profile, which ansible and terraform have. It used to
+      # mount the socket and stop there: the images have no docker CLI, vscode
+      # is not in the socket's group, and `devcontainer up` reported success. Its
+      # feature adds both, again from an entrypoint that needs root. docker
+      # version asks the runner's own daemon, so it fails without that access.
+      - name: Test the docker-socket profile
+        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
+        env:
+          STACK: ${{ matrix.stack }}
+          BASE_IMAGE: ${{ matrix.stack == 'ansible' && 'devcontainer-base:ci' || '' }}
+        run: bash scripts/test-devcontainer-profile.sh "${STACK}" devcontainer.docker-socket.json 'docker version'
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
