@@ -30,8 +30,8 @@ This guide helps you resolve common issues when using the devcontainer environme
 
 2. **Re-pull base images**:
    ```bash
-   docker pull debian:bookworm-slim
-   docker pull python:3.12-slim-bookworm
+   docker pull debian:trixie-slim
+   docker pull python:3.14-slim-trixie
    docker pull golang:1.23-alpine
    ```
 

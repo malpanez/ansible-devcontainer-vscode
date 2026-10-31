@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-ARG DEBIAN_VERSION=bookworm-slim
+ARG DEBIAN_VERSION=trixie-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.17.0
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
@@ -13,7 +13,7 @@ ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.13.6
 
-FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS fetch
+FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS fetch
 ARG TARGETARCH
 ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
@@ -70,7 +70,7 @@ RUN set -eux; \
 
 # devcontainer-terraform. Not the last stage: the empty one at the end of
 # this file, which repeats it, is.
-FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS terraform
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS terraform
 
 ARG IMAGE_VENDOR="malpanez"
 
@@ -113,9 +113,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get install -y --no-install-recommends gh \
     # Upgrade AFTER the installs, never before: the stale packages here
     # arrive as dependencies of the list above (libpcre2-8-0 comes in with
-    # git and grep), so an upgrade placed first never reaches them. The
-    # pinned bookworm digest ships libpcre2-8-0 10.42-1 while bookworm
-    # has 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
+    # git and grep), so an upgrade placed first never reaches them. On
+    # Debian 12 that kept libpcre2-8-0 at 10.42-1 while the archive had
+    # 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
@@ -162,9 +162,9 @@ COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-key
 #
 # The interpreter is the CPython version devcontainer-base runs, installed by
 # the pinned uv, which carries the sha256 of every Python build it can
-# install and refuses a download that does not match. Debian's python3 is no
-# option: bookworm ships 3.11, below the lock's requires-python (>=3.12), so
-# the export has no wheel it could verify.
+# install and refuses a download that does not match. Debian's python3 is not
+# used: trixie's 3.13 meets the lock's requires-python (>=3.12), but it is not
+# the version the base runs, and it would put a python3 on every user's PATH.
 #
 # Then it is trimmed of what nothing here loads: libpython3.14.so* (the
 # python executable is linked statically) and Tcl/Tk with tkinter, idlelib

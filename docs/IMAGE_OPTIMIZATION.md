@@ -62,10 +62,10 @@ Benefits:
 The `fetch` stage downloads all binaries (terraform, terragrunt, tflint, sops, age) on `$BUILDPLATFORM` and only copies the binaries into the final image. The `curl`, `unzip`, and APT cache never appear in the final layer:
 
 ```dockerfile
-FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS fetch
+FROM --platform=$BUILDPLATFORM debian:trixie-slim AS fetch
 # ... download tools ...
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 COPY --from=fetch --link --chmod=0755 /tmp/bin/terraform /usr/local/bin/terraform
 ```
 
@@ -135,7 +135,7 @@ Distroless images remove the shell, package manager, and most system utilities. 
 - `git`, `gh`, and SSH tools needed for daily development
 - A package manager for occasional additions at runtime, from a root shell opened on the host (`docker exec -u 0`), since the images carry no `sudo`
 
-The `debian:bookworm-slim` base is already minimal (~30 MB). Switching to distroless would save ~25 MB at the cost of making the container non-functional as a dev environment.
+The `debian:trixie-slim` base is already minimal (~30 MB). Switching to distroless would save ~25 MB at the cost of making the container non-functional as a dev environment.
 
 ### Checksum Verification for Tectonic
 

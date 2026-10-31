@@ -436,7 +436,7 @@ Needs an image with the AWS CLI (`devcontainer-terraform-aws` or `devcontainer-a
 ```json
 {
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false },
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
   }
 }

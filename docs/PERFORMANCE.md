@@ -255,13 +255,13 @@ RUN --mount=type=cache,target=/var/cache/apt \
 **Example** (Terraform stack):
 ```dockerfile
 # Stage 1: Build tools
-FROM debian:bookworm-slim AS builder
+FROM debian:trixie-slim AS builder
 RUN apt-get update && apt-get install -y wget unzip
 RUN wget https://releases.hashicorp.com/terraform/1.9.6/terraform_1.9.6_linux_amd64.zip
 RUN unzip terraform*.zip
 
 # Stage 2: Runtime (smaller)
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 COPY --from=builder /terraform /usr/local/bin/
 ```
 

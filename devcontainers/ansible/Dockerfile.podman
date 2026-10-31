@@ -6,8 +6,8 @@
 # from quay.io/containers/podman — never worked at runtime: those are
 # Fedora builds that need GLIBC 2.38, libsubid.so.5 and libgpgme.so.45,
 # none of which exist on the Debian bases.
-# trixie base (not bookworm like the other stacks): podman >= 5 needs
-# the newer userland.
+# Debian 13 like the other Debian stacks, and it has to be: podman >= 5
+# needs the userland bookworm does not have.
 # Stage 1: trixie + checksum-verified uv, shared by builder and runtime
 FROM python:3.14-slim-trixie@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8 AS uv-base
 
