@@ -63,7 +63,7 @@
   "postCreateCommand": [
     "/bin/bash",
     "-lc",
-    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && (test -f requirements.yml && ansible-galaxy collection install -r requirements.yml || echo 'No requirements.yml found, skipping collection install')"
+    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi"
   ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

@@ -65,17 +65,37 @@ In a repository of your own, copy the profile to `.devcontainer/devcontainer.jso
 
 ### 1b. docker-socket ⚠️ Host-equivalent access
 
-**File:** `devcontainer.docker-socket.json`
+**File:** `devcontainer.docker-socket.json` (terraform has one too, in
+`devcontainers/terraform/`)
 
 **When to use:**
 - Running molecule with the docker driver inside the devcontainer
 - You explicitly want to share the host's Docker daemon
 
 **Characteristics:**
-- Mounts `/var/run/docker.sock` from host
-- **Grants root-equivalent control of the host Docker daemon** — treat
-  it as trusted-workload-only
-- No Docker-in-Docker overhead; shares images/containers with the host
+- Uses `ghcr.io/devcontainers/features/docker-outside-of-docker:1`, which
+  installs the `docker` CLI and mounts `/var/run/docker.sock` from the host
+- **Grants root-equivalent access to the host.** Anything that runs in the
+  container, a pre-commit hook or a Molecule scenario included, can start a
+  privileged container that mounts the host's `/`. Treat it as
+  trusted-workload-only
+- `docker` commands act on the host's own containers, images and volumes, so a
+  `docker system prune` here prunes the host
+- Runs the container as root (`containerUser`): the feature gives `vscode`
+  access to the socket from the container's entrypoint, and the images carry no
+  `sudo` for it to use. Terminals, tasks and lifecycle commands still run as `vscode`
+  (`remoteUser`)
+- Paths in `docker run -v` are paths on the host, because the host's daemon
+  reads them: `/workspace` does not exist there. Add
+  `"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"` to `remoteEnv` and mount
+  `${LOCAL_WORKSPACE_FOLDER}` instead
+- `"moby": false` installs Docker CE from `download.docker.com`, because the
+  feature refuses its default, Moby, on Debian trixie. The first open builds that
+  on top of the image, which takes a couple of minutes and needs that host and
+  `github.com`
+- Expects the daemon's socket at `/var/run/docker.sock`. Rootless Docker keeps it
+  elsewhere, so add a mount of it on `/var/run/docker-host.sock`, the path of the
+  feature's `socketPath` option
 
 **Select in VS Code:**
 ```bash
