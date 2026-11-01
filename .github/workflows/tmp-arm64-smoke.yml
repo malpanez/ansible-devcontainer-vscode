@@ -1,0 +1,55 @@
+---
+name: tmp arm64 smoke
+
+on:
+  push:
+    branches: [tmp/arm64-smoke]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: arm64 ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: base, tag: py314-v2.2.0}
+          - {name: ansible, tag: v2.2.0}
+          - {name: ansible-podman, tag: v2.2.0}
+          - {name: ansible-aws, tag: v2.2.0}
+          - {name: terraform, tag: v2.2.0}
+          - {name: terraform-aws, tag: v2.2.0}
+          - {name: golang, tag: v2.2.0}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Smoke
+        env:
+          NAME: ${{ matrix.name }}
+          REF: ghcr.io/malpanez/devcontainer-${{ matrix.name }}:${{ matrix.tag }}
+        run: |
+          set -euo pipefail
+          uname -m
+          docker pull "${REF}"
+          docker image inspect "${REF}" --format '{{.Architecture}} {{.Os}}'
+          bash scripts/smoke-devcontainer-image.sh --stack "${NAME%-podman}" --image "${REF}"
+
+      - name: Podman profile
+        if: matrix.name == 'ansible-podman'
+        env:
+          REF: ghcr.io/malpanez/devcontainer-${{ matrix.name }}:${{ matrix.tag }}
+        run: |
+          set -euo pipefail
+          docker volume create podman-storage
+          mkdir -p "${RUNNER_TEMP}/ws"
+          chmod a+rwX "${RUNNER_TEMP}/ws"
+          docker run --rm --init --security-opt=seccomp=unconfined --security-opt=apparmor=unconfined \
+            --security-opt=systempaths=unconfined --security-opt=label=disable --device=/dev/fuse \
+            --device=/dev/net/tun --tmpfs=/tmp:exec -v podman-storage:/home/vscode/.local/share/containers \
+            -v "${RUNNER_TEMP}/ws:/workspace" -w /workspace "${REF}" podman-smoke-test --ee
