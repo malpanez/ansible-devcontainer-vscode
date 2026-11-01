@@ -10,14 +10,14 @@ Our devcontainers are superior to official images:
 
 **✅ Production-Ready Tools**:
 - Pinned, current tool versions (see `uv.lock`, the `ARG *_VERSION` lines in `devcontainers/*/Dockerfile` and `devcontainers/ansible/collections.txt` for the exact ones)
-- Pre-configured security tools (SOPS, age; Trivy and gitleaks run as pre-commit hooks, not from the image)
+- Pre-configured secret tools (SOPS, age). Trivy and gitleaks are not in the images: the `terraform_trivy` and `terraform_docs` hooks need `trivy` and `terraform-docs` on the PATH, so install them or skip those hooks
 - Optimized for infrastructure work
 
 **✅ Security First**:
 - Pinned dependencies by SHA256
 - Pre-commit hooks configured
-- Security scanning integrated
-- OpenSSF Scorecard: 6.1/10
+- Every published image is Grype-scanned in CI before it is tagged
+- OpenSSF Scorecard: 8.1/10 (2026-10-30)
 
 **✅ Performance Optimized**:
 - Build caching enabled
@@ -98,8 +98,7 @@ terraform plan
 # Format check (auto-runs on commit)
 terraform fmt
 
-# Security scan (auto-runs on commit)
-trivy config .
+# Security scan: no scanner is in the image. This repository's CI uses grype; the terraform_trivy hook needs its own binary
 ```
 
 ---
@@ -151,7 +150,7 @@ trivy config .
 - Configuration management + provisioning
 - Full stack IaC
 
-Use the terraform container - it includes both toolsets.
+There is no image with both: `devcontainer-terraform` has no Ansible, and `devcontainer-ansible` has no Terraform. Use the image of the tool you run most and add the other as a `features` entry or in your own Dockerfile `FROM` it.
 
 ---
 
@@ -197,7 +196,7 @@ and take its `Digest:` line.
     }
   },
 
-  "postCreateCommand": "uvx pre-commit install --install-hooks && ansible-galaxy collection install -r requirements.yml || true",
+  "postCreateCommand": "pre-commit install --install-hooks && ansible-galaxy collection install -r requirements.yml || true",
 
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
@@ -355,7 +354,7 @@ git push
 **Before EVERY commit**:
 1. ✅ Formatting (terraform fmt, yamllint)
 2. ✅ Linting (ansible-lint, tflint)
-3. ✅ Security (trivy, gitleaks, detect-private-key)
+3. ✅ Security (gitleaks, detect-private-key; trivy where you installed it)
 4. ✅ Validation (terraform validate, yaml syntax)
 5. ✅ Trailing whitespace, EOF newlines
 
@@ -383,13 +382,13 @@ git commit --no-verify -m "emergency fix"
 
 | Feature | Official Ansible | Official Terraform | Our Containers |
 |---------|-----------------|-------------------|----------------|
-| Python Version | 3.11 | N/A | 3.12.12 (latest) |
+| Python Version | 3.11 | N/A | 3.14 (`python:3.14-slim-trixie`) |
 | Package Manager | pip | N/A | uv (10-100x faster) |
 | Pre-commit Configured | ❌ No | ❌ No | ✅ Yes |
-| Security Tools | ❌ Basic | ❌ None | ✅ Trivy, SOPS, age |
+| Security Tools | ❌ Basic | ❌ None | ✅ SOPS, age (Trivy and gitleaks are not in the image) |
 | Multi-arch Support | ⚠️ Limited | ⚠️ Limited | ✅ amd64/arm64 |
 | Build Cache | ❌ No | ❌ No | ✅ Yes (faster rebuilds) |
-| OpenSSF Scorecard | N/A | N/A | ✅ 6.1/10 |
+| OpenSSF Scorecard | N/A | N/A | ✅ 8.1/10 (2026-10-30) |
 | Dependencies Pinned | ❌ No | ❌ No | ✅ Yes (SHA256) |
 | Auto-updates | ❌ Manual | ❌ Manual | ✅ Renovate bot |
 | Maintenance Docs | ❌ No | ❌ No | ✅ Yes |
@@ -399,6 +398,8 @@ git commit --no-verify -m "emergency fix"
 ## Advanced Configuration
 
 ### Mount SSH Keys
+
+VS Code recommends SSH agent forwarding over mounting keys (https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials): run `ssh-add` on the host with the agent running (on Windows, the OpenSSH Authentication Agent service), and the Dev Containers extension forwards it; it also copies your host `.gitconfig`. Mount `~/.ssh` only if you need the files themselves.
 
 ```json
 {
@@ -436,10 +437,14 @@ Needs an image with the AWS CLI (`devcontainer-terraform-aws` or `devcontainer-a
 ```json
 {
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false },
+    "ghcr.io/devcontainers/features/docker-in-docker:4": { "moby": false },
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
-  }
+  },
+  "containerUser": "root",
+  "remoteUser": "vscode"
 }
+
+`"moby": false` is required on Debian 13 (the feature's default, Moby, is not available there). `"containerUser": "root"` is required too: the feature's entrypoint starts `dockerd` with `sudo`, which these images do not have, so as `vscode` the daemon never starts. `"remoteUser": "vscode"` keeps terminals and tasks unprivileged. See `devcontainers/ansible/devcontainer.dind.json` for a working profile.
 ```
 
 ---
@@ -484,7 +489,6 @@ Ready-to-use templates available in `/examples`:
 
 1. **Ansible Collection**: `examples/ansible-collection/`
 2. **Terraform Module**: `examples/terraform-project/`
-3. **Mixed IaC Project**: `examples/mixed-iac/`
 
 Copy and customize for your project.
 
@@ -526,7 +530,7 @@ lint:
 
 **Documentation**:
 - [MAINTENANCE.md](MAINTENANCE.md) - Maintenance procedures
-- [SECURITY.md](SECURITY.md) - Security policies
+- [SECURITY.md](../SECURITY.md) - Security policies
 - [README.md](README.md) - Container details
 
 **Support**:

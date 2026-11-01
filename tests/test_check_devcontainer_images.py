@@ -34,6 +34,11 @@ if [[ -f "${FAKE_REGISTRY}/${key}.flaky" ]]; then
   echo "ERROR: ${ref}: dial tcp: i/o timeout" >&2
   exit 1
 fi
+if [[ -f "${FAKE_REGISTRY}/${key}.flaky_not_found" ]]; then
+  rm -f "${FAKE_REGISTRY}/${key}.flaky_not_found"
+  echo "ERROR: ${ref}: not found" >&2
+  exit 1
+fi
 if [[ -f "${FAKE_REGISTRY}/${key}" ]]; then
   cat "${FAKE_REGISTRY}/${key}"
   exit 0
@@ -527,6 +532,7 @@ def _registry_on_path(
     monkeypatch.setenv("PATH", f"{_fake_docker(tmp_path)}:{os.environ['PATH']}")
     monkeypatch.setenv("FAKE_REGISTRY", str(registry))
     monkeypatch.setattr(MODULE, "REGISTRY_RETRY_DELAY_SECONDS", 0.0)
+    monkeypatch.setattr(MODULE, "NOT_FOUND_RETRY_DELAY_SECONDS", 0.0)
     return registry
 
 
@@ -545,7 +551,18 @@ def test_transient_registry_failure_is_retried(
     assert _calls(registry) == [ref, ref]
 
 
-def test_missing_reference_is_not_retried(
+def test_not_found_that_the_next_request_does_not_repeat_is_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = f"{REPOSITORY}:{TAG}"
+    registry = _registry_on_path(tmp_path, monkeypatch, {ref: MULTI_ARCH})
+    (registry / f"{ref.replace('/', '_').replace(':', '_')}.flaky_not_found").touch()
+
+    assert MODULE.inspect_raw(ref) == MULTI_ARCH
+    assert _calls(registry) == [ref, ref]
+
+
+def test_missing_reference_still_fails_after_a_bounded_number_of_attempts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ref = f"{REPOSITORY}:{TAG}"
@@ -553,7 +570,7 @@ def test_missing_reference_is_not_retried(
 
     with pytest.raises(MODULE.RegistryError, match="not found"):
         MODULE.inspect_raw(ref)
-    assert _calls(registry) == [ref]
+    assert _calls(registry) == [ref] * MODULE.NOT_FOUND_ATTEMPTS
 
 
 def test_registry_that_stays_down_fails_after_every_attempt(

@@ -7,9 +7,9 @@ The repository has evolved into a **TOP 0.1% enterprise-grade DevContainer solut
 - [x] **Baseline Release** – Repository is production-ready with comprehensive documentation, 0 security alerts, and enterprise-grade configuration.
 - [x] **Terraform Ready Stack** – Full Terraform stack with core binaries, linting, and smoke tests. DevContainer + CI checks are live.
 - [x] **Automated Dependency Refresh** – Enterprise-grade Renovate configuration with auto-merge, grouped updates, and priority-based security handling.
-- [x] **Recurring Image Hardening** – Weekly container builds with automated security scanning (Trivy + CodeQL), 0 open vulnerabilities.
+- [x] **Recurring Image Hardening** – Daily uncached container builds, each gated by a Grype scan (fixable high/critical findings block the tags), plus CodeQL.
 - [x] **Security Excellence** – CodeQL analysis, enhanced pre-commit hooks (10 repos), comprehensive security review documentation.
-- [x] **Developer Experience** – Pre-installed tools (gh, make, yamllint, jq, git-lfs, vim, ripgrep), 30-60s faster startup.
+- [x] **Developer Experience** – Pre-installed tools (gh, git, jq, rsync, vim-tiny, pre-commit, yamllint), 30-60s faster startup.
 - [x] **Documentation** – CONTRIBUTING.md, enhanced issue/PR templates.
 
 ## Short Term (Q1 2025)

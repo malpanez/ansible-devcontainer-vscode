@@ -15,11 +15,11 @@ This repository documents the way I automate my technical workflow. It doubles a
 - Windows bootstrap script validates admin rights, configures proxies, reports reboot requirements, and installs either Docker Desktop or Podman depending on licensing needs.
 - Opinionated VS Code tasks for linting, health checks, dependency refresh, and Molecule tests.
 - Multiple Dev Container templates (`ansible`, `golang`, `latex`, `terraform`) with helper scripts to switch stacks instantly.
-- LaTeX Dev Container includes a build-time toggle for MiKTeX vs TeX Live to match CI or on-demand needs.
+- LaTeX Dev Container compiles with Tectonic (checksum-pinned per release), with a persistent Tectonic cache volume.
 - Dev Container tooling: `scripts/debug-devcontainer.sh` drops you into a live stack for smoke tests, `scripts/devcontainer-metadata.py` verifies provisioning metadata, and `scripts/devcontainer-diff.py` highlights local tweaks versus the template.
 - Terraform workflow script (`scripts/run-terraform-tests.sh`) runs fmt/validate across modules so infrastructure changes stay healthy in CI and locally.
 - Starter Proxmox Terraform module under `infrastructure/proxmox_lab/` with documentation and tfvars template for homelab services.
-- Molecule scenarios cover both the default stack and a LaTeX toggle run (MiKTeX → TeX Live) ensuring reproducible template switches.
+- Molecule scenarios cover the default stack and the LaTeX template copy, ensuring reproducible template switches.
 - CI that mirrors local flow (lint → `ansible-test` sanity → playbook tests → check mode → Molecule → Dev Container build).
 - `scripts/run-ansible-tests.sh` packages each role into a temporary collection so `ansible-test` sanity runs locally and in CI without extra scaffolding.
 - Documentation for troubleshooting, corporate setups, and (future) multi-stack Dev Containers (Golang, LaTeX, Terraform).

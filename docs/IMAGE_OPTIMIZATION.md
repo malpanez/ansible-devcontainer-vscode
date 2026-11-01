@@ -4,13 +4,14 @@ This document explains the techniques applied to keep devcontainer images as sma
 
 ## Results
 
-| Stack     | Before    | After   | Savings |
-| --------- | --------- | ------- | ------- |
-| Ansible   | ~1,050 MB | ~650 MB | −38%    |
-| Terraform | ~480 MB   | ~240 MB | −50%    |
-| LaTeX     | ~420 MB   | ~280 MB | −33%    |
-| Go        | ~210 MB   | ~210 MB | —       |
+| Stack     | Before (historical) | Now (v2.x, MiB uncompressed, `linux/amd64`) |
+| --------- | ------------------- | ------------------------------------------- |
+| Ansible   | ~1,050 MB           | 436 MiB                                     |
+| Terraform | ~480 MB             | 669 MiB                                     |
+| LaTeX     | ~420 MB             | 335 MiB                                     |
+| Go        | ~210 MB             | 376 MiB                                     |
 
+The "Before" column is the historical figure this page was written with; the right column is what CI measures today (`.github/image-size-budgets.json` holds the enforced limits). Terraform and Go grew past the old figures because every image now also carries `pre-commit`, `yamllint`, `gh`, a uv-managed Python for them and an upgrade layer.
 For context, Microsoft's equivalent devcontainer images range from 1.4–1.8 GB.
 
 ---
@@ -32,23 +33,15 @@ python3-dev
 pkg-config
 ```
 
-The comment in the Dockerfile explains the rationale so future maintainers don't re-add them:
-
-```dockerfile
-# build-essential / libffi-dev / libssl-dev / python3-dev are intentionally
-# omitted: uv resolves manylinux binary wheels for all packages in
-# pyproject.toml (ansible, cryptography, cffi, etc.) so no C compiler is
-# needed at image build time, saving ~400 MB.
-```
+These are not in the final image. The one exception, arm64, is confined to the builder stage: `onigurumacffi` (via `ansible-navigator`) publishes no aarch64 wheel, so `devcontainers/ansible/Dockerfile` installs `gcc`, `libc6-dev`, `libffi-dev` and `libonig-dev` in its `python-builder` stage and copies only `/usr/local` out of it.
 
 ### 2. Pin `uv` with Native Installer (All images)
 
-Installing `uv` via `pip install uv` drags in pip's overhead. The native curl installer downloads a single ~10 MB standalone Rust binary:
+Installing `uv` via `pip install uv` drags in pip's overhead. The image downloads the standalone Rust binary from the GitHub release and verifies its published sha256 (see `devcontainers/base/Dockerfile`), never `curl | sh`:
 
 ```dockerfile
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.9.13
-RUN curl -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+ARG UV_VERSION=0.13.6
 ```
 
 Benefits:
@@ -118,7 +111,7 @@ Every `ARG TOOL_VERSION=x.y.z` now has a `# renovate:` annotation so Renovate Bo
 
 ```dockerfile
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.14.4
+ARG TERRAFORM_VERSION=1.17.0
 ```
 
 This eliminates version drift without manual tracking.
@@ -137,8 +130,8 @@ Distroless images remove the shell, package manager, and most system utilities. 
 
 The `debian:trixie-slim` base is already minimal (~30 MB). Switching to distroless would save ~25 MB at the cost of making the container non-functional as a dev environment.
 
-### Checksum Verification for Tectonic
+### Checksum Manifest for Tectonic
 
-The [tectonic](https://tectonic-typesetting.github.io) project does not publish SHA256 checksum files alongside its release assets. Checksum verification was not added for tectonic downloads. The binary is still fetched over HTTPS from the official GitHub releases endpoint.
+The [tectonic](https://tectonic-typesetting.github.io) project does not publish SHA256 checksum files alongside its release assets, so `devcontainers/latex/Dockerfile` pins a sha256 per release and architecture itself and verifies the download against it. The binary is fetched over HTTPS from the official GitHub releases endpoint.
 
-All other tools with upstream checksum files (age, terraform, terragrunt, tflint, sops) either verify via HTTPS or have checksum support available.
+terraform, terragrunt, tflint, sops and uv are verified against their upstream checksum files. age publishes none either, so its sha256 is pinned in the Dockerfile and passed to `install_age.sh`.

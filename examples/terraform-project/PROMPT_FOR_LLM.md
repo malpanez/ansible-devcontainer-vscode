@@ -8,7 +8,7 @@
 
 Configurar un entorno de desarrollo Terraform con devcontainers de malpanez que incluye:
 - ✅ Terraform + Terragrunt + TFLint (versiones en `devcontainers/terraform/Dockerfile`)
-- ✅ Pre-commit hooks (fmt, validate, tflint, trivy, terraform-docs)
+- ✅ Pre-commit hooks (fmt, validate, tflint, trivy, terraform-docs). Los hooks `terraform_trivy` y `terraform_docs` necesitan los binarios `trivy` y `terraform-docs`, que la imagen no incluye
 - ✅ VS Code extensions (Terraform, GitLens)
 - ✅ Security tools (SOPS + age; Trivy and gitleaks via pre-commit hooks)
 - ✅ AWS CLI (imagen `devcontainer-terraform-aws`)
@@ -140,9 +140,9 @@ git commit -m "feat: add VPC security group"
 | Terragrunt | ❌ No | ✅ pinned |
 | TFLint | ❌ No | ✅ pinned (con rulesets) |
 | Pre-commit | ❌ No | ✅ Si (configurado) |
-| Security Tools | ❌ No | ✅ Trivy, SOPS, age, gitleaks |
+| Security Tools | ❌ No | ✅ SOPS, age en la imagen; gitleaks y trivy solo como hooks (trivy y terraform-docs no vienen en la imagen) |
 | terraform-docs | ❌ No | ✅ Si (auto-updates README) |
-| OpenSSF Scorecard | N/A | ✅ 6.1/10 |
+| OpenSSF Scorecard | N/A | ✅ 8.1/10 (2026-10-30) |
 | Automation | ❌ No | ✅ 90% automatizado |
 | Maintenance | Manual | Renovate bot |
 
@@ -150,7 +150,7 @@ git commit -m "feat: add VPC security group"
 - ✅ Pinned dependencies (SHA256) - reproducible
 - ✅ Multi-arch (amd64/arm64) - funciona en Apple Silicon
 - ✅ Automated updates (Renovate bot) - siempre actualizado
-- ✅ Security scanning built-in (Trivy) - detecta vulnerabilidades
+- ✅ Cada imagen publicada se escanea con Grype antes de etiquetarse
 - ✅ 90% maintenance automated - casi cero mantenimiento
 - ✅ SOPS + age para secrets - cifrado de secretos en git
 - ✅ terraform-docs - documentación automática
@@ -340,10 +340,10 @@ docker pull ghcr.io/malpanez/devcontainer-terraform:latest
 
 ## 📊 Métricas de Producción
 
-- **OpenSSF Scorecard**: 6.1/10
+- **OpenSSF Scorecard**: 8.1/10 (2026-10-30)
 - **Automation**: 90%
 - **Maintenance**: 5 min/semana (review), 2 horas/trimestre (comprehensive)
-- **Security**: Renovate bot + weekly alert cleanup + Trivy scanning
+- **Security**: Renovate bot + weekly alert cleanup + Grype scan gate
 
 ---
 
@@ -354,7 +354,7 @@ docker pull ghcr.io/malpanez/devcontainer-terraform:latest
 ```
 👋 Bienvenido al equipo!
 
-Usamos devcontainers de malpanez para Terraform (production-ready, OpenSSF 6.1/10).
+Usamos devcontainers de malpanez para Terraform (production-ready, OpenSSF 8.1/10 (2026-10-30)).
 
 **Setup rápido (2 minutos)**:
 1. Instala Docker Desktop + VS Code
