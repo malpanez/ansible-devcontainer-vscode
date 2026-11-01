@@ -80,7 +80,25 @@ fileExistenceTests:
     path: '/usr/bin/sudo'
     shouldExist: false
 
+fileContentTests:
+  - name: 'gh comes from cli.github.com'
+    path: '/etc/apt/sources.list.d/github-cli.list'
+    expectedContents: ['https://cli\.github\.com/packages stable main']
+
 commandTests:
+  # Debian's package is 2.46.0, which cli.github.com's documentation says is
+  # broken by deprecated GitHub APIs. Its version line names Debian.
+  - name: 'gh is not the Debian build'
+    command: 'gh'
+    args: ['--version']
+    expectedOutput: ['gh version [0-9]']
+    excludedOutput: ['Debian']
+
+  - name: 'gh package is GitHub''s'
+    command: 'dpkg-query'
+    args: ['--status', 'gh']
+    expectedOutput: ['(?m)^Maintainer: GitHub']
+
   - name: 'sudo is not on the PATH'
     command: 'sh'
     args: ['-c', '! command -v sudo']
