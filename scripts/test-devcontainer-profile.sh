@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Bring up a Docker profile of a template on the image built from this commit,
-# and check that its remoteUser reaches a Docker daemon.
+# and check, as its remoteUser, that it can do what the profile is for: reach a
+# Docker daemon, or run podman.
 #
 # A profile pins a published image, so running it as it ships tests the last
 # release: a change that breaks a profile showed up only when Renovate moved the
 # pin, after the release it broke. The config brought up here is the profile
 # with its "image" replaced by the "build" of the stack's
-# local-build/devcontainer.json. Lifecycle commands, mounts, features and users
-# stay the profile's.
+# local-build/devcontainer.json, and for a profile of another image, the
+# Dockerfile named by DOCKERFILE. Lifecycle commands, mounts, features and users
+# stay the profile's. The profile has to be plain JSON, because jq reads it.
 #
 # `devcontainer up` is not the check: it reports success on a profile with no
 # daemon and no access to one, and the CLI does not look at how a feature's
@@ -15,11 +17,16 @@
 #
 # The container is left running. ci.yml relies on the runner to clean up.
 #
-# Usage: [BASE_IMAGE=image] test-devcontainer-profile.sh STACK PROFILE CHECK
-#   STACK       a directory under devcontainers/
-#   PROFILE     a config file in that directory
-#   CHECK       the Docker command that must succeed, such as 'docker version'
-#   BASE_IMAGE  build argument for a Dockerfile that takes one (ansible)
+# Usage: [BASE_IMAGE=image] [DOCKERFILE=file] [CHECK_ATTEMPTS=n]
+#        test-devcontainer-profile.sh STACK PROFILE CHECK
+#   STACK           a directory under devcontainers/
+#   PROFILE         a config file in that directory
+#   CHECK           the command that must succeed, such as 'docker version'
+#   BASE_IMAGE      build argument for a Dockerfile that takes one (ansible)
+#   DOCKERFILE      a file in that directory to build, not local-build's
+#   CHECK_ATTEMPTS  how often to try CHECK, by default 30 two seconds apart for
+#                   the daemon of a feature to start. A slow CHECK with nothing
+#                   to wait for sets it lower.
 #
 # Run from the repository root: the build context is ${localWorkspaceFolder}.
 # Exits 1 if the container does not come up or the check keeps failing. Usage
@@ -27,7 +34,7 @@
 set -euo pipefail
 
 UP_ATTEMPTS=3
-CHECK_ATTEMPTS=30
+CHECK_ATTEMPTS="${CHECK_ATTEMPTS:-30}"
 CHECK_DELAY_SECONDS=2
 CONFIG_DIR=""
 
@@ -39,7 +46,7 @@ cleanup() {
 trap cleanup EXIT
 
 usage() {
-  echo "Usage: [BASE_IMAGE=image] $(basename "$0") STACK PROFILE CHECK" >&2
+  echo "Usage: [BASE_IMAGE=image] [DOCKERFILE=file] [CHECK_ATTEMPTS=n] $(basename "$0") STACK PROFILE CHECK" >&2
   exit 2
 }
 
@@ -51,7 +58,11 @@ render_config() {
 
   # Absolute, because the config moves: the CLI takes no other file name than
   # devcontainer.json, so a profile can only run from a directory of its own.
-  dockerfile="$(realpath "${template_dir}/local-build/$(jq -r '.build.dockerfile' "${local_build}")")"
+  if [[ -n "${DOCKERFILE:-}" ]]; then
+    dockerfile="$(realpath "${template_dir}/${DOCKERFILE}")"
+  else
+    dockerfile="$(realpath "${template_dir}/local-build/$(jq -r '.build.dockerfile' "${local_build}")")"
+  fi
   jq --slurpfile local_build "${local_build}" \
     --arg dockerfile "${dockerfile}" \
     --arg base_image "${BASE_IMAGE:-}" \
@@ -105,6 +116,10 @@ CHECK="$3"
 TEMPLATE_DIR="devcontainers/${STACK}"
 if [[ ! -f "${TEMPLATE_DIR}/${PROFILE}" ]]; then
   echo "::error::${TEMPLATE_DIR}/${PROFILE} does not exist" >&2
+  usage
+fi
+if [[ -n "${DOCKERFILE:-}" && ! -f "${TEMPLATE_DIR}/${DOCKERFILE}" ]]; then
+  echo "::error::${TEMPLATE_DIR}/${DOCKERFILE} does not exist" >&2
   usage
 fi
 

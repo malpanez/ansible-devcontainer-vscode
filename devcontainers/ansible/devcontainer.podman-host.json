@@ -1,0 +1,131 @@
+{
+  "name": "Ansible Dev Container (Podman host + Execution Environments)",
+  "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v2.0.0@sha256:74bd6c399cd77200dc22460d78858ee84c76013a21547002cede10fe75cc5d81",
+  "runArgs": [
+    "--systemd=false",
+    "--userns=host",
+    "--privileged",
+    "--tmpfs=/run"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "samuelcolvin.jinjahtml",
+        "ms-azuretools.vscode-docker",
+        "tamasfe.even-better-toml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "ansible.python.interpreterPath": "/usr/local/bin/python",
+        "ansible.ansible.path": "/usr/local/bin/ansible",
+        "ansible.ansible.useFullyQualifiedCollectionNames": true,
+        "ansible.validation.enabled": true,
+        "ansible.validation.lint.enabled": true,
+        "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
+        "ansible.executionEnvironment.enabled": true,
+        "ansible.executionEnvironment.containerEngine": "podman",
+        "ansible.executionEnvironment.image": "ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d",
+        "ansible.executionEnvironment.pull.policy": "missing",
+        "files.associations": {
+          "*.yml": "ansible",
+          "*.yaml": "ansible"
+        },
+        "[yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2
+        },
+        "editor.rulers": [120],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      },
+      "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+          {
+            "label": "Ansible: Lint Current File",
+            "type": "shell",
+            "command": "ansible-lint ${file}",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "new"
+            }
+          },
+          {
+            "label": "Ansible: Run Playbook with EE",
+            "type": "shell",
+            "command": "ansible-navigator run ${file} --ee true --ce podman --mode stdout",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "new"
+            }
+          },
+          {
+            "label": "Ansible: Build Custom Execution Environment",
+            "type": "shell",
+            "command": "ansible-builder build -f execution-environment.yml -t my-custom-ee:latest --container-runtime podman",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "new"
+            }
+          },
+          {
+            "label": "Podman: List Images",
+            "type": "shell",
+            "command": "podman images",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "shared"
+            }
+          },
+          {
+            "label": "Podman: Info",
+            "type": "shell",
+            "command": "podman info",
+            "problemMatcher": [],
+            "presentation": {
+              "reveal": "always",
+              "panel": "shared"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "mounts": [
+    "source=podman-host-storage,target=/var/lib/containers,type=volume",
+    "source=uv-cache,target=/root/.cache/uv,type=volume",
+    "source=ansible-galaxy-cache,target=/root/.ansible,type=volume"
+  ],
+  "remoteEnv": {
+    "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible.cfg",
+    "ANSIBLE_FORCE_COLOR": "true",
+    "UV_CACHE_DIR": "/root/.cache/uv",
+    "ANSIBLE_GALAXY_CACHE_DIR": "/root/.ansible/galaxy_cache",
+    "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
+    "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp",
+    "CONTAINER_ENGINE": "podman",
+    "ANSIBLE_NAVIGATOR_CONTAINER_ENGINE": "podman",
+    "ANSIBLE_NAVIGATOR_EXECUTION_ENVIRONMENT_IMAGE": "ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d",
+    "NETAVARK_FW": "iptables"
+  },
+  "containerUser": "root",
+  "remoteUser": "root",
+  "postCreateCommand": [
+    "/bin/bash",
+    "-lc",
+    "if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi && podman-smoke-test"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+}

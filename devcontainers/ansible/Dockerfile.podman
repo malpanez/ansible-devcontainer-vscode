@@ -142,6 +142,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       gh \
       git \
       iptables \
+      libcap2-bin \
       libonig5 \
       openssh-client \
       passt \
@@ -180,9 +181,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # systemd's and dbus's postinst write a random machine ID, which made
     # every build differ and gave every container of one image the same
     # ID. The base image ships none; rootless podman runs without one.
-    && rm -f /etc/machine-id /var/lib/dbus/machine-id
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+    && rm -f /etc/machine-id /var/lib/dbus/machine-id \
+    # File capabilities instead of Debian's setuid root, as upstream's podman
+    # image ships them. Setuid, rootless podman under Docker stops at "newuidmap:
+    # write to uid_map failed: Operation not permitted" unless the container has
+    # CAP_SYS_ADMIN, the reason devcontainer.podman.json would need --privileged.
+    # These need only CAP_SETUID and CAP_SETGID, which Docker grants by default.
+    # /etc/subuid stays as useradd writes it, vscode:100000:65536. Docker has
+    # every id, updateRemoteUserUID gives vscode the host's uid, and podman
+    # refuses a range that contains it ("includes the user UID"), which any range
+    # below 65536 does for somebody, upstream's for every uid but 1000.
+    && chmod u-s /usr/bin/newuidmap /usr/bin/newgidmap \
+    && setcap cap_setuid=ep /usr/bin/newuidmap \
+    && setcap cap_setgid=ep /usr/bin/newgidmap
 
 # The old quay-binary approach shipped a podman that could not even load;
 # verify the installed one actually runs in THIS image.

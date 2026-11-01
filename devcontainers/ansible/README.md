@@ -10,7 +10,7 @@ A production-ready Ansible development container with hardened defaults, multipl
 - **Pre-commit hooks** automatically configured
 - **VS Code extensions** for Ansible, Python, YAML, and Docker
 - **Hardened security defaults** (no sudo installed, docker socket only by opt-in)
-- **Multiple runtime profiles** (default, docker-socket, dind, podman, aws)
+- **Multiple runtime profiles** (default, docker-socket, dind, podman, podman-host, aws)
 - **Podman + Execution Environments** support for modern Ansible workflows
 
 ## Quick Start
@@ -141,21 +141,56 @@ cp devcontainers/ansible/devcontainer.dind.json .devcontainer/dind/devcontainer.
 
 ### 3. podman (Podman + Execution Environments) 🚀 **Best for AAP/Collections**
 
-**File:** `devcontainer.podman.json`
+**File:** `devcontainer.podman.json`. **This profile runs on Docker.** With Podman
+as the host runtime, use [`devcontainer.podman-host.json`](#3b-podman-host-podman-as-the-host-runtime).
 
 **When to use:**
 - Creating Ansible collections, roles, or playbooks for Ansible Automation Platform (AAP)
-- Testing with Execution Environments (the modern Ansible standard)
-- Want Podman instead of Docker (e.g., security policies, rootless preference)
+- Testing with Execution Environments
 - Developing content that will run in containerized Ansible (ansible-navigator)
 
 **Characteristics:**
-- Uses **Podman** for container runtime (rootless by default)
-- Includes **ansible-navigator** for running playbooks in Execution Environments
-- Includes **ansible-builder** for creating custom Execution Environments
-- Pre-configured with `creator-ee` (official minimal EE for content creators)
-- No Docker socket dependency
-- Rootless container execution (more secure)
+- Rootless Podman runs inside the container, as `vscode`. There is no Docker socket
+  and no `docker` CLI
+- `ansible-navigator` runs playbooks in an Execution Environment, and
+  `ansible-builder` builds custom ones
+- The Execution Environment is `ghcr.io/ansible/community-ansible-dev-tools`, pinned
+  in `ANSIBLE_NAVIGATOR_EXECUTION_ENVIRONMENT_IMAGE` and in the extension's settings.
+  It is about 1.4 GB, and the first open pulls it in the background
+- Works at the usual host uids, and was tested at 1000 and 1001.
+  `updateRemoteUserUID` gives `vscode` your uid, and podman stops at `includes the
+  user UID` if the ids in `/etc/subuid` (`vscode:100000:65536`) contain it, so a uid
+  from 100000 to 165535 does not work
+- The profile is plain JSON, with no comments, because
+  `scripts/test-devcontainer-profile.sh` reads it with `jq`. Its reasons are here
+
+**Its `runArgs`**, each tested by taking it out:
+
+| Argument | Without it |
+| --- | --- |
+| `--security-opt=seccomp=unconfined` | `cannot clone: Operation not permitted`: Docker's default profile stops podman creating its user namespace |
+| `--security-opt=systempaths=unconfined` | `crun: open /proc/sys/net/ipv4/ping_group_range: Read-only file system`: the inner container needs its own `/proc` and `/sys` |
+| `--device=/dev/fuse` | `fuse: device not found`: the storage driver is `fuse-overlayfs` |
+| `--device=/dev/net/tun` | `Failed to open() /dev/net/tun`: `pasta`, the default rootless network, needs it |
+| `--tmpfs=/tmp:exec` | Podman keeps its state in `/tmp/storage-run-<uid>`. It must not survive a restart of the container, and in a restarted container the old pause process's PID can belong to something else, which stops every podman command with `cannot set user namespace`. `:exec` because Docker's tmpfs is otherwise `noexec`, and programs do run from `/tmp` |
+| `--security-opt=apparmor=unconfined`, `--security-opt=label=disable` | Only matter on a host with AppArmor or SELinux, and neither was available to test without them. [Red Hat](https://www.redhat.com/en/blog/podman-inside-container) and [Ansible](https://docs.ansible.com/projects/dev-tools/container/) both turn these off, because those policies block the mounts podman makes |
+| `--init` | `podman run` works without it. It is here as in the other ansible profiles, because the image has no init of its own |
+
+**What this gives up.** It is not `--privileged`, and it is not a normal container
+either: seccomp, AppArmor and SELinux are off for it, and `/proc` and `/sys` are
+unmasked. Keep to code you trust. What it keeps, compared with `--privileged`:
+Docker's default capabilities, not all of them, and no device of the host but these
+two. Processes run as `vscode`, with no capabilities at all, and inner containers run
+in their own user namespace.
+
+[Red Hat's article](https://www.redhat.com/en/blog/podman-inside-container) gives only
+`--privileged` for rootless Podman in Docker. The smaller set here is tested on this
+image, and it needs `newuidmap` and `newgidmap` to have file capabilities, as
+[upstream's image](https://github.com/containers/image_build/blob/main/podman/Containerfile)
+does: Debian installs them setuid root, and those need `CAP_SYS_ADMIN`. If it fails on
+your host, `--privileged` in place of those `--security-opt` and `--device` lines
+passes the same checks, and gives root in the container every capability and every
+device of the host.
 
 **Select in VS Code:**
 ```bash
@@ -169,6 +204,9 @@ cp devcontainers/ansible/devcontainer.podman.json .devcontainer/podman/devcontai
 # Run a playbook in an Execution Environment
 ansible-navigator run playbook.yml --ee true --ce podman --mode stdout
 
+# Check everything, running a playbook in the Execution Environment as well
+podman-smoke-test --ee
+
 # Build a custom Execution Environment
 ansible-builder build -f execution-environment.yml -t my-ee:latest --container-runtime podman
 
@@ -179,15 +217,59 @@ podman images
 ```
 
 **Why Podman + EE?**
-- ✅ **AAP-compatible**: Matches Ansible Automation Platform's execution model
-- ✅ **Isolated dependencies**: Each playbook can use different Python/collection versions
-- ✅ **Reproducible**: EE images lock all dependencies
-- ✅ **Portable**: Same EE runs in dev, CI, and production
-- ✅ **Rootless**: More secure than traditional Docker
-- ✅ **Future-proof**: This is the direction Ansible is heading
+- **AAP-compatible**: Matches Ansible Automation Platform's execution model
+- **Isolated dependencies**: Each playbook can use different Python/collection versions
+- **Reproducible**: EE images lock all dependencies
+- **Portable**: Same EE runs in dev, CI, and production
 
-> **💡 Tip:** If you're creating collections or roles for AAP, start with the Podman profile.
+> **💡 Tip:** If you're creating collections or roles for AAP, start with this profile.
 > It ensures your content works the same way in AAP as in your dev environment.
+
+---
+
+### 3b. podman-host (Podman as the host runtime)
+
+**File:** `devcontainer.podman-host.json`, for `"dev.containers.dockerPath": "podman"`.
+VS Code [says](https://code.visualstudio.com/remote/advancedcontainers/docker-options)
+Podman 5 and later is "mostly compatible". The Dev Containers CLI ran this profile, its
+`postCreateCommand`, the smoke test and a playbook in the Execution Environment on
+Podman 4.9.3 and 5.4.2. **Never open this profile on Docker**: its `root` would be the
+host's root, in a privileged container. `--systemd=false` is there so that Docker
+refuses to start it, with `unknown flag: --systemd`.
+
+**Why a profile of its own:** `devcontainer.podman.json` fails on a Podman host with
+`newuidmap: write to uid_map failed: Operation not permitted`. A rootless container
+has about 65536 ids, and the 100000 and up that `/etc/subuid` names do not exist in it.
+[Upstream's ranges](https://github.com/containers/image_build/blob/main/podman/Containerfile)
+(`vscode:1:999`, `vscode:1001:64535`) fit, but contain the uid of anybody who is not
+1000 once `updateRemoteUserUID` has given it to `vscode`, and Podman then stops at
+`includes the user UID`. A range that avoids 1000 to 1999 leaves too few ids for
+`nobody` (65534) in the inner containers, on Docker too, which has them to spare.
+
+**Characteristics:**
+- Runs as `root` in the container, which rootless Podman maps to you: what it writes in
+  the workspace is yours. This is the rootful-Podman-in-rootless-Podman form in
+  [Red Hat's article](https://www.redhat.com/en/blog/podman-inside-container), and
+  how Ansible's own
+  [podman dev container](https://github.com/ansible/ansible-dev-tools/blob/main/.devcontainer/podman/devcontainer.json)
+  runs
+- `--privileged` gives the container no more than your user has on the host. Rootless
+  containers "cannot have more privileges than the user that launched them", say
+  [Podman's docs](https://docs.podman.io/en/latest/markdown/podman-run.1.html). It can
+  do what your user can, so keep to code you trust here too
+- `--userns=host` keeps that mapping when the host sets `PODMAN_USERNS`
+- `--tmpfs=/run`: rootful Podman keeps its state there. Without it, an inner container
+  still shows as `Up` after a restart of the outer one
+- `NETAVARK_FW=iptables`: the image has `iptables` and not `nft`, and without it
+  `podman run` stops at `netavark: nftables error: unable to execute nft`
+- CI does not test this profile
+
+**Select in VS Code:**
+```bash
+./scripts/use-devcontainer.sh ansible
+mkdir -p .devcontainer/podman-host
+cp devcontainers/ansible/devcontainer.podman-host.json .devcontainer/podman-host/devcontainer.json
+```
 
 ---
 
@@ -338,7 +420,7 @@ The devcontainer configures Ansible extension with optimal defaults:
 
 ### Environment Variables
 
-All profiles set:
+All profiles set (`devcontainer.podman-host.json` has these caches under `/root`):
 - `ANSIBLE_FORCE_COLOR=true` - Colored output
 - `UV_CACHE_DIR=/home/vscode/.cache/uv` - uv package cache
 - `ANSIBLE_GALAXY_CACHE_DIR=/home/vscode/.ansible/galaxy_cache` - Collection cache
@@ -428,7 +510,8 @@ devcontainers/ansible/
 ├── devcontainer.json              # Default profile (no docker socket)
 ├── devcontainer.docker-socket.json # Host Docker daemon profile (opt-in)
 ├── devcontainer.dind.json         # Docker-in-Docker profile
-├── devcontainer.podman.json       # Podman profile
+├── devcontainer.podman.json       # Podman profile, on Docker
+├── devcontainer.podman-host.json  # Podman profile, on Podman
 ├── devcontainer.aws.json          # AWS profile (devcontainer-ansible-aws)
 └── README.md                      # This file
 ```
@@ -544,7 +627,8 @@ If migrating from the previous configuration:
 | Most users | `devcontainer.json` |
 | The host Docker daemon | `devcontainer.docker-socket.json` |
 | Isolated Docker | `devcontainer.dind.json` |
-| Podman + Execution Environments (AAP) | `devcontainer.podman.json` |
+| Podman + Execution Environments (AAP), on Docker | `devcontainer.podman.json` |
+| Podman + Execution Environments (AAP), on Podman | `devcontainer.podman-host.json` |
 
 ---
 
@@ -569,17 +653,23 @@ They ensure consistent execution across development, CI, and production (AAP).
 version: 3
 images:
   base_image:
-    name: quay.io/ansible/creator-ee:v0.18.0
+    name: ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d
 
 dependencies:
   galaxy: requirements.yml
   # python: requirements.txt  # Uncomment if needed
+
+options:
+  package_manager_path: /usr/bin/dnf5
 ```
 
 2. **Build the EE**:
 ```bash
 ansible-builder build -f execution-environment.yml -t my-custom-ee:latest --container-runtime podman
 ```
+
+Expect this to be slow: it is 62 build steps on a 1.4 GB image, in Podman inside a
+container. This template took 45 minutes the one time it was measured, on WSL2.
 
 3. **Run a playbook with the EE**:
 ```bash
@@ -601,36 +691,33 @@ The Podman profile includes pre-configured tasks:
 
 ### Troubleshooting Podman
 
-#### Issue: `podman info` fails with "permission denied"
+#### Issue: `docker: --userns: invalid USER mode`
 
-**Cause:** cgroups v2 not available or user namespaces not configured
+A copy of the profile from before v2.2.0. `--userns=keep-id` is a Podman option, and
+Docker has no `keep-id`. Copy `devcontainer.podman.json` again.
 
-**Solution 1:** Check cgroups version
-```bash
-# Inside devcontainer
-if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
-  echo "cgroups v2 ✓"
-else
-  echo "cgroups v1 - Podman may have issues"
-fi
-```
+---
 
-**Solution 2:** Enable `--privileged` mode (temporary workaround)
+#### Issue: `newuidmap: write to uid_map failed: Operation not permitted`
 
-Edit `devcontainer.podman.json`:
-```json
-{
-  "runArgs": [
-    "--init",
-    "--userns=keep-id",
-    "--cgroupns=host",
-    "--privileged"  // Add this line
-  ]
-}
-```
+- On Podman as the host runtime: you opened `devcontainer.podman.json`. Use
+  [`devcontainer.podman-host.json`](#3b-podman-host-podman-as-the-host-runtime).
+- On Docker: the image is older than v2.2.0, whose `newuidmap` is setuid root and needs
+  `CAP_SYS_ADMIN`. Move to the v2.2.0 image.
 
-> **Note:** `--privileged` is a workaround for hosts with limited rootless support.
-> Most modern systems (Docker Desktop, Linux 5.x+) don't need it.
+---
+
+#### Issue: `cannot clone`, `Read-only file system`, `fuse: device not found`, `Failed to open() /dev/net/tun`
+
+The container is missing one of the [`runArgs`](#3-podman-podman--execution-environments--best-for-aapcollections).
+`podman-smoke-test` prints the error.
+
+---
+
+#### Issue: `cannot set user namespace` after the container restarts
+
+A copy of the profile without `--tmpfs=/tmp:exec` kept podman's state across the
+restart. Rebuild the container with that argument, or remove `/tmp/storage-run-*` once.
 
 ---
 
@@ -693,7 +780,7 @@ Error pulling image: timeout
 
 1. **Pre-pull manually**:
 ```bash
-podman pull quay.io/ansible/creator-ee:v0.18.0
+podman pull ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d
 ```
 
 2. **Use a mirror** (if behind corporate proxy):
@@ -701,7 +788,7 @@ podman pull quay.io/ansible/creator-ee:v0.18.0
 Edit `~/.config/containers/registries.conf`:
 ```toml
 [[registry]]
-location = "quay.io"
+location = "ghcr.io"
 [[registry.mirror]]
 location = "your-mirror.company.com"
 ```
@@ -730,6 +817,9 @@ export ANSIBLE_NAVIGATOR_CONTAINER_ENGINE=podman
 ```
 
 These are pre-configured in `devcontainer.podman.json` but can be overridden.
+`ANSIBLE_NAVIGATOR_EXECUTION_ENVIRONMENT_IMAGE` picks the image the same way. Without
+it `ansible-navigator` uses `ghcr.io/ansible/community-ansible-dev-tools:latest` and
+pulls it on every run.
 
 ---
 

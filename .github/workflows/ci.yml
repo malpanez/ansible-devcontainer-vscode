@@ -833,6 +833,21 @@ jobs:
           BASE_IMAGE: ${{ matrix.stack == 'ansible' && 'devcontainer-base:ci' || '' }}
         run: bash scripts/test-devcontainer-profile.sh "${STACK}" devcontainer.docker-socket.json 'docker version'
 
+      # The podman profile, which only ansible has, on the image Dockerfile.podman
+      # builds. test-containers.yml runs the smoke test under `docker run
+      # --privileged`, so it never saw the template, whose --userns=keep-id stopped
+      # Docker at once with "invalid USER mode". The check is the smoke test plus a
+      # playbook in the Execution Environment, what the profile is for and nothing
+      # ran before: a 1.4 GB pull from ghcr.io, about two minutes on top of building
+      # the image. Two attempts, for ghcr.io and quay.io: there is no daemon to wait
+      # for here, and the default 30 would take most of this job's timeout to fail.
+      - name: Test the podman profile
+        if: matrix.stack == 'ansible'
+        env:
+          DOCKERFILE: Dockerfile.podman
+          CHECK_ATTEMPTS: 2
+        run: bash scripts/test-devcontainer-profile.sh ansible devcontainer.podman.json 'podman-smoke-test --ee'
+
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

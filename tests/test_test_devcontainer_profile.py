@@ -11,9 +11,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "test-devcontainer-profile.sh"
 
 PROFILES = [
-    ("ansible", "devcontainer.docker-socket.json"),
-    ("ansible", "devcontainer.dind.json"),
-    ("terraform", "devcontainer.docker-socket.json"),
+    ("ansible", "devcontainer.docker-socket.json", None),
+    ("ansible", "devcontainer.dind.json", None),
+    ("ansible", "devcontainer.podman.json", "Dockerfile.podman"),
+    ("terraform", "devcontainer.docker-socket.json", None),
 ]
 
 FAKE_DEVCONTAINER = """#!/usr/bin/env bash
@@ -67,6 +68,8 @@ def _run(
     fake: Path,
     *args: str,
     base_image: str | None = None,
+    dockerfile: str | None = None,
+    check_attempts: int | None = None,
     user: str = "vscode",
     up_failures: int = 0,
     check_failures: int = 0,
@@ -80,9 +83,14 @@ def _run(
         "FAKE_UP_FAILURES": str(up_failures),
         "FAKE_CHECK_FAILURES": str(check_failures),
     }
-    env.pop("BASE_IMAGE", None)
+    for name in ("BASE_IMAGE", "DOCKERFILE", "CHECK_ATTEMPTS"):
+        env.pop(name, None)
     if base_image is not None:
         env["BASE_IMAGE"] = base_image
+    if dockerfile is not None:
+        env["DOCKERFILE"] = dockerfile
+    if check_attempts is not None:
+        env["CHECK_ATTEMPTS"] = str(check_attempts)
     if tmpdir is not None:
         env["TMPDIR"] = str(tmpdir)
     return subprocess.run(
@@ -100,18 +108,20 @@ def _calls(fake: Path, name: str) -> int:
     return log.read_text().splitlines().count(name) if log.exists() else 0
 
 
-@pytest.mark.parametrize(("stack", "profile"), PROFILES)
+@pytest.mark.parametrize(("stack", "profile", "dockerfile"), PROFILES)
 def test_config_is_the_profile_built_from_the_stack_dockerfile(
-    fake: Path, stack: str, profile: str
+    fake: Path, stack: str, profile: str, dockerfile: str | None
 ) -> None:
-    proc = _run(fake, stack, profile, "docker version")
+    proc = _run(fake, stack, profile, "docker version", dockerfile=dockerfile)
 
     assert proc.returncode == 0, proc.stderr
     rendered = json.loads((fake / "config.json").read_text())
     shipped = json.loads((REPO_ROOT / "devcontainers" / stack / profile).read_text())
     build = rendered.pop("build")
     assert build == {
-        "dockerfile": str(REPO_ROOT / "devcontainers" / stack / "Dockerfile"),
+        "dockerfile": str(
+            REPO_ROOT / "devcontainers" / stack / (dockerfile or "Dockerfile")
+        ),
         "context": "${localWorkspaceFolder}",
     }
     assert "image" in shipped
@@ -200,6 +210,21 @@ def test_the_check_is_bounded(fake: Path) -> None:
     assert "::error::'docker info' did not succeed as vscode" in proc.stderr
 
 
+def test_check_attempts_can_be_lowered(fake: Path) -> None:
+    proc = _run(
+        fake,
+        "ansible",
+        "devcontainer.podman.json",
+        "docker info",
+        dockerfile="Dockerfile.podman",
+        check_attempts=2,
+        check_failures=1000,
+    )
+
+    assert proc.returncode == 1
+    assert _calls(fake, "exec") == 2
+
+
 def test_the_check_only_counts_as_vscode(fake: Path) -> None:
     proc = _run(
         fake,
@@ -226,4 +251,50 @@ def test_usage_errors_exit_2(fake: Path, args: tuple[str, ...]) -> None:
     proc = _run(fake, *args)
 
     assert proc.returncode == 2
+    assert _calls(fake, "up") == 0
+
+
+def test_a_missing_dockerfile_is_a_usage_error(fake: Path) -> None:
+    proc = _run(
+        fake,
+        "ansible",
+        "devcontainer.podman.json",
+        "docker info",
+        dockerfile="Dockerfile.nope",
+    )
+
+    assert proc.returncode == 2
+    assert "Dockerfile.nope does not exist" in proc.stderr
+    assert _calls(fake, "up") == 0
+
+
+def test_a_profile_with_comments_fails_before_up(fake: Path, tmp_path: Path) -> None:
+    """jq, which renders the config, reads plain JSON only."""
+    stack = tmp_path / "repo" / "devcontainers" / "demo"
+    (stack / "local-build").mkdir(parents=True)
+    (stack / "devcontainer.commented.json").write_text(
+        '{\n  // a comment\n  "image": "x"\n}\n'
+    )
+    (stack / "local-build" / "devcontainer.json").write_text(
+        '{"build": {"dockerfile": "../Dockerfile", "context": "."}}\n'
+    )
+
+    env = {
+        **os.environ,
+        "PATH": f"{fake / 'bin'}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_STATE": str(fake),
+        "FAKE_USER": "vscode",
+        "FAKE_UP_FAILURES": "0",
+        "FAKE_CHECK_FAILURES": "0",
+    }
+    proc = subprocess.run(
+        ["bash", str(SCRIPT), "demo", "devcontainer.commented.json", "docker info"],
+        cwd=tmp_path / "repo",
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    assert proc.returncode != 0
     assert _calls(fake, "up") == 0

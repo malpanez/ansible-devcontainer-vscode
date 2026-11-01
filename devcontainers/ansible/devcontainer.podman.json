@@ -3,16 +3,13 @@
   "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v2.0.0@sha256:74bd6c399cd77200dc22460d78858ee84c76013a21547002cede10fe75cc5d81",
   "runArgs": [
     "--init",
-    // Rootless Podman configuration
-    "--userns=keep-id",
-    "--cgroupns=host",
-    // Enable systemd (optional, helps with some Podman operations)
-    "--tmpfs=/tmp:exec",
-    "--tmpfs=/run",
-    // Uncomment if you experience issues with rootless Podman on your host:
-    // "--privileged",
-    // Uncomment if you have SELinux issues:
-    // "--security-opt=label=disable"
+    "--security-opt=seccomp=unconfined",
+    "--security-opt=apparmor=unconfined",
+    "--security-opt=systempaths=unconfined",
+    "--security-opt=label=disable",
+    "--device=/dev/fuse",
+    "--device=/dev/net/tun",
+    "--tmpfs=/tmp:exec"
   ],
   "customizations": {
     "vscode": {
@@ -28,43 +25,30 @@
         "eamodio.gitlens"
       ],
       "settings": {
-        // Python configuration
         "python.defaultInterpreterPath": "/usr/local/bin/python",
-
-        // Ansible extension configuration
         "ansible.python.interpreterPath": "/usr/local/bin/python",
         "ansible.ansible.path": "/usr/local/bin/ansible",
         "ansible.ansible.useFullyQualifiedCollectionNames": true,
         "ansible.validation.enabled": true,
         "ansible.validation.lint.enabled": true,
         "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
-
-        // Execution Environment configuration
         "ansible.executionEnvironment.enabled": true,
         "ansible.executionEnvironment.containerEngine": "podman",
-        "ansible.executionEnvironment.image": "quay.io/ansible/creator-ee:v0.18.0",
+        "ansible.executionEnvironment.image": "ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d",
         "ansible.executionEnvironment.pull.policy": "missing",
-
-        // File associations
         "files.associations": {
           "*.yml": "ansible",
           "*.yaml": "ansible"
         },
-
-        // YAML formatting
         "[yaml]": {
           "editor.defaultFormatter": "redhat.vscode-yaml",
           "editor.formatOnSave": true,
           "editor.tabSize": 2
         },
-
-        // Editor settings
         "editor.rulers": [120],
         "files.trimTrailingWhitespace": true,
         "files.insertFinalNewline": true
       },
-
-      // VS Code tasks for common Ansible workflows
       "tasks": {
         "version": "2.0.0",
         "tasks": [
@@ -123,11 +107,8 @@
     }
   },
   "mounts": [
-    // Podman storage (images, containers)
     "source=podman-storage,target=/home/vscode/.local/share/containers,type=volume",
-    // UV package cache
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
-    // Ansible Galaxy cache
     "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
   ],
   "remoteEnv": {
@@ -137,13 +118,11 @@
     "ANSIBLE_GALAXY_CACHE_DIR": "/home/vscode/.ansible/galaxy_cache",
     "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp",
-    // Podman-specific environment
     "CONTAINER_ENGINE": "podman",
-    "ANSIBLE_NAVIGATOR_CONTAINER_ENGINE": "podman"
+    "ANSIBLE_NAVIGATOR_CONTAINER_ENGINE": "podman",
+    "ANSIBLE_NAVIGATOR_EXECUTION_ENVIRONMENT_IMAGE": "ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d"
   },
   "remoteUser": "vscode",
-  // The project's requirements.yml, as the other ansible templates install
-  // it (the image bakes in only a few collections), then the Podman check.
   "postCreateCommand": [
     "/bin/bash",
     "-lc",
