@@ -70,6 +70,8 @@ REGISTRY_WORKERS = 6
 REGISTRY_ATTEMPTS = 3
 REGISTRY_RETRY_DELAY_SECONDS = 3.0
 NOT_FOUND_MARKERS = (": not found", "manifest unknown")
+NOT_FOUND_ATTEMPTS = 3
+NOT_FOUND_RETRY_DELAY_SECONDS = 0.5
 INDEX_MEDIA_TYPES = frozenset(
     {
         "application/vnd.oci.image.index.v1+json",
@@ -284,12 +286,19 @@ def check_files(root: Path) -> tuple[list[str], list[PinnedImage]]:
 def inspect_raw(ref: str) -> bytes:
     """Return the manifest bytes the registry serves for ref.
 
-    A reference the registry does not have fails at once. Any other failure (a
-    timeout, a reset, a 5xx) is tried again: GHCR once answered an i/o timeout
-    that a rerun did not repeat, and would otherwise fail the check for an image
-    that is there.
+    Any failure (a timeout, a reset, a 5xx) is tried again: GHCR once answered
+    an i/o timeout that a rerun did not repeat, and would otherwise fail the
+    check for an image that is there.
+
+    "not found" is tried again too, on a shorter delay. GHCR answers a HEAD of
+    a manifest that exists with HTTP 404 now and then when several requests
+    arrive together (measured with six parallel `docker buildx imagetools
+    inspect`: 2 calls in 70, twice; one at a time, 0 in 112), and the next
+    request for the same reference succeeds. An image that is really gone
+    still fails, after NOT_FOUND_ATTEMPTS answers.
     """
     detail = ""
+    not_found_answers = 0
     for attempt in range(1, REGISTRY_ATTEMPTS + 1):
         try:
             proc = subprocess.run(
@@ -304,8 +313,11 @@ def inspect_raw(ref: str) -> bytes:
         detail = proc.stderr.decode("utf-8", errors="replace").strip()
         detail = detail or f"docker exited {proc.returncode}"
         if any(marker in detail for marker in NOT_FOUND_MARKERS):
-            break
-        if attempt < REGISTRY_ATTEMPTS:
+            not_found_answers += 1
+            if not_found_answers >= NOT_FOUND_ATTEMPTS:
+                break
+            time.sleep(NOT_FOUND_RETRY_DELAY_SECONDS * not_found_answers)
+        elif attempt < REGISTRY_ATTEMPTS:
             time.sleep(REGISTRY_RETRY_DELAY_SECONDS * attempt)
     raise RegistryError(detail)
 
