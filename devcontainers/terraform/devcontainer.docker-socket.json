@@ -2,7 +2,7 @@
   "name": "Terraform Dev Container (docker-socket)",
   "image": "ghcr.io/malpanez/devcontainer-terraform:v2.0.0@sha256:2149339e017c5cbf5d80aecf796d7945c0ad85bd3fbc900c215b40ff32e6607f",
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.1": {
       "moby": false
     }
   },

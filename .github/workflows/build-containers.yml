@@ -36,6 +36,8 @@ on:
       # Renovate opens after each release, must not rebuild and republish
       # every image. release.yml's IMAGE_INPUTS mirrors this list.
       - '!devcontainers/**/devcontainer*.json'
+      # The Dockerfiles copy these into the images
+      - 'templates/**'
       # Installed by both ansible Dockerfiles; a lock bump is an image change
       - 'requirements-ansible.txt'
       # Installed by the ansible-aws stage (boto3, botocore)

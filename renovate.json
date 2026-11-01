@@ -301,6 +301,20 @@
         "(?<depName>ghcr\\.io/malpanez/devcontainer-[a-z0-9-]+):(?<currentValue>[A-Za-z0-9_][A-Za-z0-9_.-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Version tag and digest of the Execution Environment image the podman profiles pin (<image>:vX.Y.Z@sha256:...). The devcontainer manager reads only the image and features properties, not a value in remoteEnv or customizations, and nothing else reads the smoke test, the execution-environment.yml template or the README. The image also has date tags (YYYYMMDD) and commit tags; docker versioning compares only tags of the same shape as the current one, so those never match a vX.Y.Z pin. The registry publishes the v<year>.<month>.<n> tags, so each January arrives as a major and waits for a person.",
+      "managerFilePatterns": [
+        "/^devcontainers/ansible/devcontainer\\.podman[^/]*\\.json$/",
+        "/^devcontainers/ansible/README\\.md$/",
+        "/^devcontainers/scripts/podman-smoke-test\\.sh$/",
+        "/^templates/ansible/execution-environment\\.yml$/"
+      ],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/ansible/community-ansible-dev-tools):(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "vulnerabilityAlerts": {

@@ -31,9 +31,34 @@ fileExistenceTests:
     path: '/usr/bin/slirp4netns'
     shouldExist: true
 
-  - name: 'newuidmap'
+  # File capabilities, not Debian's setuid root: see Dockerfile.podman. The
+  # template's runArgs do not give the container the CAP_SYS_ADMIN that the
+  # setuid form needs, so a setuid bit here fails `podman run` in the template.
+  - name: 'newuidmap is not setuid'
     path: '/usr/bin/newuidmap'
     shouldExist: true
+    permissions: '-rwxr-xr-x'
+    uid: 0
+
+  - name: 'newgidmap is not setuid'
+    path: '/usr/bin/newgidmap'
+    shouldExist: true
+    permissions: '-rwxr-xr-x'
+    uid: 0
+
+  # newuidmap runs with CAP_SETUID and trusts these: writable by vscode, they
+  # would make vscode root in the container.
+  - name: '/etc/subuid is not writable by vscode'
+    path: '/etc/subuid'
+    shouldExist: true
+    permissions: '-rw-r--r--'
+    uid: 0
+
+  - name: '/etc/subgid is not writable by vscode'
+    path: '/etc/subgid'
+    shouldExist: true
+    permissions: '-rw-r--r--'
+    uid: 0
 
   # Rootless configuration: podman refuses to run when it is not the user's
   - name: 'Rootless storage.conf owned by vscode'
@@ -80,7 +105,45 @@ fileExistenceTests:
     path: '/usr/bin/sudo'
     shouldExist: false
 
+fileContentTests:
+  # Outside every host's uids, because updateRemoteUserUID gives vscode the
+  # host's uid and podman refuses a range that contains it.
+  - name: 'vscode has the subordinate uids above 65536'
+    path: '/etc/subuid'
+    expectedContents: ['(?m)^vscode:100000:65536$']
+
+  - name: 'vscode has the subordinate gids above 65536'
+    path: '/etc/subgid'
+    expectedContents: ['(?m)^vscode:100000:65536$']
+
+  - name: 'gh comes from cli.github.com'
+    path: '/etc/apt/sources.list.d/github-cli.list'
+    expectedContents: ['https://cli\.github\.com/packages stable main']
+
 commandTests:
+  - name: 'newuidmap has its file capability'
+    command: 'getcap'
+    args: ['/usr/bin/newuidmap']
+    expectedOutput: ['cap_setuid=ep']
+
+  - name: 'newgidmap has its file capability'
+    command: 'getcap'
+    args: ['/usr/bin/newgidmap']
+    expectedOutput: ['cap_setgid=ep']
+
+  # Debian's package is 2.46.0, which cli.github.com's documentation says is
+  # broken by deprecated GitHub APIs. Its version line names Debian.
+  - name: 'gh is not the Debian build'
+    command: 'gh'
+    args: ['--version']
+    expectedOutput: ['gh version [0-9]']
+    excludedOutput: ['Debian']
+
+  - name: 'gh package is GitHub''s'
+    command: 'dpkg-query'
+    args: ['--status', 'gh']
+    expectedOutput: ['(?m)^Maintainer: GitHub']
+
   - name: 'sudo is not on the PATH'
     command: 'sh'
     args: ['-c', '! command -v sudo']
