@@ -73,7 +73,7 @@ In a repository of your own, copy the profile to `.devcontainer/devcontainer.jso
 - You explicitly want to share the host's Docker daemon
 
 **Characteristics:**
-- Uses `ghcr.io/devcontainers/features/docker-outside-of-docker:1`, which
+- Uses `ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.1`, which
   installs the `docker` CLI and mounts `/var/run/docker.sock` from the host
 - **Grants root-equivalent access to the host.** Anything that runs in the
   container, a pre-commit hook or a Molecule scenario included, can start a
@@ -88,7 +88,10 @@ In a repository of your own, copy the profile to `.devcontainer/devcontainer.jso
 - Paths in `docker run -v` are paths on the host, because the host's daemon
   reads them: `/workspace` does not exist there. Add
   `"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"` to `remoteEnv` and mount
-  `${LOCAL_WORKSPACE_FOLDER}` instead
+  `${LOCAL_WORKSPACE_FOLDER}` instead. There is no `${localWorkspaceFolder}` when
+  the repository was opened with "Clone Repository in Container Volume": the
+  [feature's documentation](https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker#supporting-bind-mounts-from-the-workspace-folder)
+  says so, and then there is no host path of the workspace to mount
 - `"moby": false` installs Docker CE from `download.docker.com`, because the
   feature refuses its default, Moby, on Debian trixie. The first open builds that
   on top of the image, which takes a couple of minutes and needs that host and
@@ -116,7 +119,7 @@ cp devcontainers/ansible/devcontainer.docker-socket.json .devcontainer/docker-so
 - Testing Docker-related Ansible modules in isolation
 
 **Characteristics:**
-- Uses `ghcr.io/devcontainers/features/docker-in-docker:2`
+- Uses `ghcr.io/devcontainers/features/docker-in-docker:4.1.3`
 - Runs `--privileged` (required for dind)
 - Runs the container as root (`containerUser`): the feature starts the daemon
   from the container's entrypoint, and the images carry no `sudo` for it to use.
