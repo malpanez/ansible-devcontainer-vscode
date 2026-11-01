@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'devcontainers/**'
+      - 'templates/**'
       - 'requirements-ansible.txt'
       - 'requirements-aws.txt'
       - 'requirements-devcontainer-tools.txt'
@@ -14,6 +15,7 @@ on:
     branches: [main, develop]
     paths:
       - 'devcontainers/**'
+      - 'templates/**'
       - 'requirements-ansible.txt'
       - 'requirements-aws.txt'
       - 'requirements-devcontainer-tools.txt'
@@ -51,23 +53,27 @@ jobs:
           filters: |
             golang:
               - 'devcontainers/golang/**'
+              - 'templates/pre-commit/golang/**'
               # pre-commit and yamllint come from this uv.lock export
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/golang.yaml'
             ansible:
               - 'devcontainers/ansible/**'
               - 'devcontainers/base/**'
+              - 'templates/pre-commit/ansible/**'
               # The ansible Dockerfiles install this uv.lock export
               - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
               - 'tests/container-structure/no-aws.yaml'
             terraform:
               - 'devcontainers/terraform/**'
+              - 'templates/pre-commit/terraform/**'
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/terraform.yaml'
               - 'tests/container-structure/no-aws.yaml'
             latex:
               - 'devcontainers/latex/**'
+              - 'templates/pre-commit/latex/**'
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/latex.yaml'
             base:
@@ -81,6 +87,8 @@ jobs:
               - 'devcontainers/ansible/collections*.txt'
               - 'devcontainers/ansible/install-collections.sh'
               - 'devcontainers/scripts/**'
+              - 'templates/ansible/**'
+              - 'templates/pre-commit/ansible/**'
               - 'requirements-ansible.txt'
               - 'tests/container-structure/ansible.yaml'
               - 'tests/container-structure/ansible-podman.yaml'
@@ -89,6 +97,7 @@ jobs:
             terraform-aws:
               - 'devcontainers/terraform/**'
               - 'devcontainers/scripts/**'
+              - 'templates/pre-commit/terraform/**'
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/terraform.yaml'
               - 'tests/container-structure/terraform-aws.yaml'
@@ -96,6 +105,7 @@ jobs:
               - 'devcontainers/ansible/**'
               - 'devcontainers/base/**'
               - 'devcontainers/scripts/**'
+              - 'templates/pre-commit/ansible/**'
               - 'requirements-ansible.txt'
               - 'requirements-aws.txt'
               - 'tests/container-structure/ansible.yaml'

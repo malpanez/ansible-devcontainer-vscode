@@ -94,6 +94,8 @@ jobs:
               - 'devcontainers/terraform/**'
             devcontainer:
               - 'devcontainers/**'
+              # The Dockerfiles copy these into the images.
+              - 'templates/**'
               # The CLI pin belongs here too: the devcontainer-cli-test jobs
               # are the only thing that exercises `npm ci` against it, and
               # without this a change to how the CLI is installed skips the
