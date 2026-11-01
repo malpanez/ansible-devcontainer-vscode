@@ -25,7 +25,7 @@ Stacks available today: ansible, golang, latex, terraform.
 Examples:
   scripts/debug-devcontainer.sh --stack golang
   scripts/debug-devcontainer.sh --stack latex -- ./scripts/run-smoke-tests.sh
-  scripts/debug-devcontainer.sh -b LATEX_DISTRO=texlive --stack latex
+  scripts/debug-devcontainer.sh -b BASE_IMAGE=devcontainer-base:ci --stack ansible
 
 The script performs:
   1. devcontainer build --workspace-folder devcontainers/<stack>

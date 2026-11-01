@@ -76,29 +76,3 @@
         devcontainer_template_target: "{{ devcontainer_template_target_override }}"
         devcontainer_template_stack: latex
         devcontainer_template_skip_when_unchanged: true
-
-  post_tasks:
-    - name: Toggle latex template to TeX Live
-      ansible.builtin.replace:
-        path: /workspace/devcontainers/latex/devcontainer.json
-        regexp: '"LATEX_DISTRO":\s*"miktex"'
-        replace: '"LATEX_DISTRO": "texlive"'
-      become: false
-
-    - name: Update latex image to TeX Live
-      ansible.builtin.replace:
-        path: /workspace/devcontainers/latex/devcontainer.json
-        regexp: '"LATEX_IMAGE":\s*"miktex/miktex:latest"'
-        replace: '"LATEX_IMAGE": "ghcr.io/xu-cheng/texlive-full:latest"'
-      become: false
-
-    - name: Re-run devcontainer_template after toggle
-      ansible.builtin.include_role:
-        name: devcontainer_template
-        apply:
-          become: true
-      vars:
-        devcontainer_template_root: "{{ devcontainer_template_root_override }}"
-        devcontainer_template_target: "{{ devcontainer_template_target_override }}"
-        devcontainer_template_stack: latex
-        devcontainer_template_skip_when_unchanged: true

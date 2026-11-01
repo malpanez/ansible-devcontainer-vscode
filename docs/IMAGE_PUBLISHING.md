@@ -14,9 +14,9 @@ This repository publishes eight container images to GHCR:
 | `devcontainer-golang`         | `latest` | amd64, arm64 | Go development environment                           |
 | `devcontainer-latex`          | `latest` | amd64 only   | LaTeX with Tectonic engine                           |
 
-`.github/workflows/build-containers.yml` is the only workflow that publishes these images to GHCR. It runs on the daily schedule, on pushes to `main` that touch `devcontainers/**`, and on manual dispatch (one stack or all), and it is the only place that signs with cosign, attaches provenance attestations, and Grype-scans what it pushed. Scheduled and manual runs build without cache; push runs reuse the registry cache (`:buildcache-publish`) that every run re-exports, so they start from the layers of the last uncached build. The one exception is `.github/workflows/release.yml`, which builds nothing and only adds release tags (`:<tag>`) to digests build-containers already published. `ci.yml` builds the images for testing but never pushes them.
+`.github/workflows/build-containers.yml` is the only workflow that publishes these images to GHCR. It runs on the daily schedule, on pushes to `main` that touch an image input (`devcontainers/**` except the `devcontainer*.json` templates, the three `requirements-*.txt` exports the Dockerfiles install, or the workflow itself), and on manual dispatch (one stack or all), and it is the only place that signs with cosign, attaches provenance attestations, and Grype-scans what it pushed. Scheduled and manual runs build without cache; push runs reuse the registry cache (`:buildcache-publish`) that every run re-exports, so they start from the layers of the last uncached build. The one exception is `.github/workflows/release.yml`, which builds nothing and only adds release tags (`:<tag>`) to digests build-containers already published. `ci.yml` builds the images for testing but never pushes them.
 
-Pushes to `main` produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` add only the immutable `:<tag>` (`:py<major><minor>-<tag>` for the base) to every image, the variants included, and never move the rolling tags.
+Pushes to `main` (and the daily run, which also runs on `main`) produce multi-arch `:latest`, `:main` and `:sha-<commit>` (plus the derived `py<major><minor>` stream tag for the base); tag pushes via `release.yml` add only the immutable `:<tag>` (`:py<major><minor>-<tag>` for the base) to every image, the variants included, and never move the rolling tags.
 
 `devcontainer-ansible` and `devcontainer-ansible-aws` are built on the base image produced in the same run: `build-all` overrides the `BASE_IMAGE` build-arg with `devcontainer-base@<digest>` from the `build-base` job, so a published ansible image always contains the base published beside it. The digest pinned in `devcontainers/ansible/Dockerfile` is what local and PR builds resolve, and Renovate keeps it fresh.
 
@@ -67,9 +67,10 @@ Without attestations the OCI layout points straight at the image manifest, and i
 To build or test images locally:
 
 ```bash
-# Ansible stack (override BASE_IMAGE if you want to test the Chainguard variant)
+# Ansible stack (BASE_IMAGE must be a devcontainer-base build: the Dockerfile expects its
+# vscode user, uv and pre-commit, so a bare python:* image fails; it defaults to the pinned digest)
 docker build devcontainers/ansible \
-  --build-arg BASE_IMAGE=python:3.14-slim-trixie \
+  --build-arg BASE_IMAGE=ghcr.io/<org>/devcontainer-base:main@sha256:<digest> \
   -t ghcr.io/<org>/devcontainer-ansible:local
 
 # Terraform stack (pre-commit and yamllint in /opt/devcontainer-tools, pinned from uv.lock)

@@ -264,19 +264,6 @@ urllib3            1.26.16    1.26.17   pypi  CVE-2023-43804 HIGH
 setuptools         65.5.1     70.0.0    pypi  CVE-2024-6345  CRITICAL
 ```
 
-### Trivy (Comprehensive Scanner)
-
-```bash
-# Install trivy
-brew install trivy
-
-# Scan using SBOM
-trivy sbom ./sbom.spdx.json
-
-# Or scan image (includes SBOM, config, secrets)
-trivy image ghcr.io/malpanez/devcontainer-ansible:latest
-```
-
 ### OSV-Scanner (Open Source Vulnerabilities)
 
 ```bash
@@ -297,18 +284,15 @@ Our CI pipeline scans all images on every build:
 
 ```yaml
 # .github/workflows/ci.yml
-- name: Scan with Trivy
-  uses: aquasecurity/trivy-action@master
+- name: Scan image with Grype
+  uses: anchore/scan-action@<pinned-sha>
+  env:
+    GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
   with:
-    image-ref: devcontainer-${{ matrix.stack }}:ci
-    format: "sarif"
-    output: "trivy-results.sarif"
-    severity: "CRITICAL,HIGH"
-
-- name: Upload to GitHub Security
-  uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: "trivy-results.sarif"
+    image: devcontainer-${{ matrix.stack }}${{ matrix.variant }}:ci
+    severity-cutoff: critical
+    only-fixed: true
+    fail-build: "true"
 ```
 
 Vulnerabilities appear in:
@@ -361,7 +345,6 @@ Vulnerabilities appear in:
 | [cosign](https://github.com/sigstore/cosign)         | Verify signatures     | `brew install cosign`     |
 | [syft](https://github.com/anchore/syft)              | Generate SBOMs        | `brew install syft`       |
 | [grype](https://github.com/anchore/grype)            | Scan vulnerabilities  | `brew install grype`      |
-| [trivy](https://github.com/aquasecurity/trivy)       | Comprehensive scanner | `brew install trivy`      |
 | [osv-scanner](https://github.com/google/osv-scanner) | OSV database scanner  | `go install ...`          |
 | [sbom-tool](https://github.com/microsoft/sbom-tool)  | Microsoft SBOM tool   | `dotnet tool install ...` |
 
