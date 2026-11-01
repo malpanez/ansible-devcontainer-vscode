@@ -123,6 +123,9 @@ cp devcontainers/ansible/devcontainer.docker-socket.json .devcontainer/docker-so
   Terminals, tasks and lifecycle commands still run as `vscode` (`remoteUser`)
 - Independent Docker daemon inside container
 - No Docker socket mount
+- `"moby": false` installs Docker CE from `download.docker.com`, because the
+  feature refuses its default, Moby, on Debian trixie. The first open builds that
+  on top of the image and needs that host and `github.com`
 
 **Select in VS Code:**
 ```bash

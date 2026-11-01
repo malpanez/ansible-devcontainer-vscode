@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-FROM python:3.14.10-slim-bookworm@sha256:516b51cb9db2ef061e465c803e50f64361b82cefd91e525b889b967b83e83527
+FROM python:3.14.10-slim-trixie@sha256:3cabfd7d7aaf394e6040e79fa1eec6ca1c52b74ed9188650472695d9a9326999
 
 # BuildKit platform arguments
 ARG TARGETPLATFORM
@@ -41,10 +41,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
         sshpass \
         unzip \
         vim-tiny \
-    # full-upgrade AFTER the install, not before: libssh2-1 is not present
-    # in python:*-slim, it arrives as a dependency of curl/git, so an
-    # upgrade running first never touched it and the image kept shipping
-    # 1.10.0-3+b1 while bookworm-security had 1.10.0-3+deb12u1
+    # full-upgrade AFTER the install, not before: libssh2 is not present in
+    # python:*-slim, it arrives as a dependency of curl/git, so an upgrade
+    # running first never touched it. On Debian 12 the image kept shipping
+    # libssh2-1 1.10.0-3+b1 while bookworm-security had 1.10.0-3+deb12u1
     # (CRITICAL CVE-2026-7598). Upgrading last covers pulled-in deps too.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \

@@ -210,7 +210,7 @@ Ejemplo: Proyecto que necesita Docker-in-Docker:
 {
   "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false }
   }
 }
 ```

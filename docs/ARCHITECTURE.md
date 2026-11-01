@@ -6,13 +6,13 @@ This document provides visual architecture diagrams and explanations for the dev
 
 ```mermaid
 graph TD
-    A[python:3.14-slim-bookworm] --> B[devcontainer-base]
+    A[python:3.14-slim-trixie] --> B[devcontainer-base]
     B --> C[devcontainer-ansible]
     C --> L[devcontainer-ansible-aws]
 
     K[python:3.14-slim-trixie] --> D[devcontainer-ansible-podman]
 
-    E[debian:bookworm-slim] --> F[devcontainer-terraform]
+    E[debian:trixie-slim] --> F[devcontainer-terraform]
     F --> M[devcontainer-terraform-aws]
     E --> G[devcontainer-latex]
 

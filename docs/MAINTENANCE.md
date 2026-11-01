@@ -335,7 +335,7 @@ gh run list --workflow token-health.yml --limit 1
 
 ```bash
 # Get latest digests
-docker manifest inspect python:3.12.12-slim-bookworm | jq -r '.config.digest'
+docker manifest inspect python:3.14.10-slim-trixie | jq -r '.config.digest'
 docker manifest inspect golang:1.25.4-alpine3.21 | jq -r '.config.digest'
 ```
 
@@ -552,7 +552,7 @@ in `Promote develop to main`, no Renovate PRs on Monday
 2. Verify network connectivity for downloads
 3. Test with latest base image:
    ```bash
-   docker pull python:3.12.12-slim-bookworm
+   docker pull python:3.14.10-slim-trixie
    docker build -f devcontainers/base/Dockerfile .
    ```
 4. Check tool download URLs still valid

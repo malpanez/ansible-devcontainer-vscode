@@ -75,6 +75,12 @@ fileExistenceTests:
     shouldExist: false
 
 commandTests:
+  # Debian 13. Fails on a revert, or on a digest of another release.
+  - name: 'Debian 13'
+    command: 'cat'
+    args: ['/etc/os-release']
+    expectedOutput: ['ID=debian', 'VERSION_ID="13"', 'VERSION_CODENAME=trixie']
+
   - name: 'sudo is not on the PATH'
     command: 'sh'
     args: ['-c', '! command -v sudo']

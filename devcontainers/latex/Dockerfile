@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.28
 # renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
 ARG TECTONIC_VERSION=0.17.0
-FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
 
 ARG TECTONIC_VERSION
 ARG TARGETARCH
@@ -39,9 +39,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unzip \
     # Upgrade AFTER the installs, never before: the stale packages here
     # arrive as dependencies of the list above (libpcre2-8-0 comes in with
-    # git and grep), so an upgrade placed first never reaches them. The
-    # pinned bookworm digest ships libpcre2-8-0 10.42-1 while bookworm
-    # has 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
+    # git and grep), so an upgrade placed first never reaches them. On
+    # Debian 12 that kept libpcre2-8-0 at 10.42-1 while the archive had
+    # 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
@@ -111,9 +111,9 @@ RUN set -eux; \
 #
 # The interpreter is the CPython version devcontainer-base runs, installed by
 # the pinned uv, which carries the sha256 of every Python build it can
-# install and refuses a download that does not match. Debian's python3 is no
-# option: bookworm ships 3.11, below the lock's requires-python (>=3.12), so
-# the export has no wheel it could verify.
+# install and refuses a download that does not match. Debian's python3 is not
+# used: trixie's 3.13 meets the lock's requires-python (>=3.12), but it is not
+# the version the base runs, and it would put a python3 on every user's PATH.
 #
 # Then it is trimmed of what nothing here loads: libpython3.14.so* (the
 # python executable is linked statically) and Tcl/Tk with tkinter, idlelib

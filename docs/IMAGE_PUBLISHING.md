@@ -69,7 +69,7 @@ To build or test images locally:
 ```bash
 # Ansible stack (override BASE_IMAGE if you want to test the Chainguard variant)
 docker build devcontainers/ansible \
-  --build-arg BASE_IMAGE=python:3.12-slim-bookworm \
+  --build-arg BASE_IMAGE=python:3.14-slim-trixie \
   -t ghcr.io/<org>/devcontainer-ansible:local
 
 # Terraform stack (pre-commit and yamllint in /opt/devcontainer-tools, pinned from uv.lock)

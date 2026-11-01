@@ -10,14 +10,12 @@ pytestmark = pytest.mark.unit
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "derive-toolchain-versions.sh"
 
-BASE_OK = (
-    "# syntax=docker/dockerfile:1.27\nFROM python:3.14.7-slim-bookworm@sha256:abc\n"
-)
+BASE_OK = "# syntax=docker/dockerfile:1.27\nFROM python:3.14.7-slim-trixie@sha256:abc\n"
 GOLANG_OK = (
     "# syntax=docker/dockerfile:1.27\nFROM golang:1.27.1-alpine3.23@sha256:def\n"
 )
 TERRAFORM_OK = (
-    "ARG DEBIAN_VERSION=bookworm-slim\n"
+    "ARG DEBIAN_VERSION=trixie-slim\n"
     "ARG TERRAFORM_VERSION=1.16.4\n"
     "FROM debian:${DEBIAN_VERSION} AS fetch\n"
     "ARG TERRAFORM_VERSION TFLINT_VERSION\n"
@@ -147,13 +145,13 @@ def test_missing_file_fails_without_output(
     ("base", "golang", "terraform", "expected"),
     [
         (
-            "FROM python:slim-bookworm\n",
+            "FROM python:slim-trixie\n",
             GOLANG_OK,
             TERRAFORM_OK,
             "FROM python:<major>.<minor>",
         ),
         (
-            "FROM debian:bookworm-slim\n",
+            "FROM debian:trixie-slim\n",
             GOLANG_OK,
             TERRAFORM_OK,
             "FROM python:<major>.<minor>",
