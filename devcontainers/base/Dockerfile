@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-FROM python:3.14.10-slim-bookworm@sha256:516b51cb9db2ef061e465c803e50f64361b82cefd91e525b889b967b83e83527
+FROM python:3.14.10-slim-trixie@sha256:3cabfd7d7aaf394e6040e79fa1eec6ca1c52b74ed9188650472695d9a9326999
 
 # BuildKit platform arguments
 ARG TARGETPLATFORM
@@ -14,6 +14,9 @@ LABEL maintainer="alpanez.alcalde@gmail.com" \
       org.opencontainers.image.vendor="malpanez"
 
 ENV DEBIAN_FRONTEND=noninteractive
+# LANG: the python base sets it on some digests only (3.14.8 did not, 3.14.10
+# does), so a digest bump could turn it off.
+ENV LANG=C.UTF-8
 ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
@@ -21,6 +24,8 @@ ENV UV_COMPILE_BYTECODE=1
 ARG UV_VERSION=0.13.6
 
 # Common system packages used across Python-based stacks.
+# sudo is deliberately absent: it has had no rules since 1a62ea6, so it was a
+# setuid root binary nothing could use. A root shell is `docker exec -u 0`.
 # hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
@@ -34,13 +39,12 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
         openssh-client \
         rsync \
         sshpass \
-        sudo \
         unzip \
         vim-tiny \
-    # full-upgrade AFTER the install, not before: libssh2-1 is not present
-    # in python:*-slim, it arrives as a dependency of curl/git, so an
-    # upgrade running first never touched it and the image kept shipping
-    # 1.10.0-3+b1 while bookworm-security had 1.10.0-3+deb12u1
+    # full-upgrade AFTER the install, not before: libssh2 is not present in
+    # python:*-slim, it arrives as a dependency of curl/git, so an upgrade
+    # running first never touched it. On Debian 12 the image kept shipping
+    # libssh2-1 1.10.0-3+b1 while bookworm-security had 1.10.0-3+deb12u1
     # (CRITICAL CVE-2026-7598). Upgrading last covers pulled-in deps too.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
@@ -54,13 +58,15 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
          /var/cache/ldconfig/aux-cache
 
 # Install GitHub CLI (gh) to avoid DevContainer features rebuild
-# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md, which publishes the
+# keyring's SHA256 checked below.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
     curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
       > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update \
@@ -89,7 +95,9 @@ ARG USER_GID=$USER_UID
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     --mount=type=bind,source=requirements-devcontainer-tools.txt,target=/tmp/requirements-devcontainer-tools.txt \
     groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # useradd stamps today's day number into the shadow entry's
     # last-change field, so the image changed with the build date even
     # when nothing else did. An empty field disables password aging,
@@ -148,6 +156,11 @@ RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     # clamped alike.
     && CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --system --require-hashes --only-binary :all: \
          -r /tmp/requirements-devcontainer-tools.txt \
+    # uv locks a system environment through /tmp/uv-<hash>.lock, mode 0666, and
+    # leaves it behind: a world-writable file in this image and in the ansible
+    # images built on it. Their builder stages leave one too, but only
+    # /usr/local is copied out of those.
+    && rm -f /tmp/uv-*.lock \
     && SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
     && python3 -m compileall -q -f -j 0 --invalidation-mode checked-hash \
          -x '/site-packages/pip/' "${SITE}" \

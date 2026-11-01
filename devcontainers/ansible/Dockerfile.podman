@@ -6,15 +6,18 @@
 # from quay.io/containers/podman — never worked at runtime: those are
 # Fedora builds that need GLIBC 2.38, libsubid.so.5 and libgpgme.so.45,
 # none of which exist on the Debian bases.
-# trixie base (not bookworm like the other stacks): podman >= 5 needs
-# the newer userland.
+# Debian 13 like the other Debian stacks, and it has to be: podman >= 5
+# needs the userland bookworm does not have.
 # Stage 1: trixie + checksum-verified uv, shared by builder and runtime
 FROM python:3.14-slim-trixie@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8 AS uv-base
 
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION="0.13.6"
 
+# LANG: the python base sets it on some digests only (3.14.8 did not, 3.14.10
+# does), so a digest bump could turn it off.
 ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1
@@ -111,13 +114,26 @@ ENV WORKSPACE=/workspace \
 # libonig5 is the runtime library behind the source-built onigurumacffi
 # on arm64. Note: git is installed via apt (no feature git:1); NOT
 # installing tini since we use --init in runArgs.
+# gh comes from cli.github.com, as in devcontainers/base. Debian's package is
+# 2.46.0, and https://github.com/cli/cli/blob/trunk/docs/install_linux.md says
+# of it: "community-distributed 2.45.x / 2.46.x version is broken due to
+# deprecated GitHub APIs". apt takes the newer of the two versions it then has.
+# The same page publishes the keyring's SHA256 checked below.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update \
+    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
       # Base tools plus podman (Debian build, ABI-coherent) and its
       # rootless dependencies: conmon, crun, dbus-user-session,
-      # fuse-overlayfs, iptables, slirp4netns, uidmap.
+      # fuse-overlayfs, iptables, passt, slirp4netns, uidmap. passt carries
+      # pasta, the default rootless network since podman 5: without it
+      # `podman run` stopped at "could not find pasta".
       # One alphabetical list, not grouped sublists (docker:S7018).
       conmon \
       crun \
@@ -126,12 +142,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       gh \
       git \
       iptables \
+      libcap2-bin \
       libonig5 \
       openssh-client \
+      passt \
       podman \
       rsync \
       slirp4netns \
-      sudo \
       uidmap \
       unzip \
     # Upgrade AFTER the install, never before: the packages that go stale
@@ -164,9 +181,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # systemd's and dbus's postinst write a random machine ID, which made
     # every build differ and gave every container of one image the same
     # ID. The base image ships none; rootless podman runs without one.
-    && rm -f /etc/machine-id /var/lib/dbus/machine-id
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+    && rm -f /etc/machine-id /var/lib/dbus/machine-id \
+    # File capabilities instead of Debian's setuid root, as upstream's podman
+    # image ships them. Setuid, rootless podman under Docker stops at "newuidmap:
+    # write to uid_map failed: Operation not permitted" unless the container has
+    # CAP_SYS_ADMIN, the reason devcontainer.podman.json would need --privileged.
+    # These need only CAP_SETUID and CAP_SETGID, which Docker grants by default.
+    # /etc/subuid stays as useradd writes it, vscode:100000:65536. Docker has
+    # every id, updateRemoteUserUID gives vscode the host's uid, and podman
+    # refuses a range that contains it ("includes the user UID"), which any range
+    # below 65536 does for somebody, upstream's for every uid but 1000.
+    && chmod u-s /usr/bin/newuidmap /usr/bin/newgidmap \
+    && setcap cap_setuid=ep /usr/bin/newuidmap \
+    && setcap cap_setgid=ep /usr/bin/newgidmap
 
 # The old quay-binary approach shipped a podman that could not even load;
 # verify the installed one actually runs in THIS image.
@@ -192,7 +219,9 @@ ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # Empty the shadow last-change day useradd stamps: see devcontainers/base.
     && sed -i "s/^\(${USERNAME}:[^:]*\):[0-9]*:/\1::/" /etc/shadow \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
@@ -238,10 +267,13 @@ COPY --chmod=0555 devcontainers/scripts/podman-smoke-test.sh /usr/local/bin/podm
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-# Configure git for user
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 

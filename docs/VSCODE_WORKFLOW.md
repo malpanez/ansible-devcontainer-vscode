@@ -141,31 +141,23 @@ Keep repository clean and up-to-date.
 graph TD
     A[Maintenance Tasks] --> B[Cleanup Merged Branches]
     A --> C[Update Dependencies]
-    A --> D[Update Tool Versions]
     A --> E[Check Workflow Syntax]
     A --> F[Lint Dockerfiles]
-    A --> G[Security Scan]
 
     B --> H[Dry-run branch cleanup]
     C --> I[uv lock --upgrade]
-    D --> J[Check README badges]
     E --> K[yamllint workflows]
     F --> L[hadolint all]
-    G --> M[trivy scan]
 
     style B fill:#fff3e0
     style C fill:#e3f2fd
-    style D fill:#f3e5f5
-    style G fill:#ffebee
 ```
 
 **Available Tasks:**
 - `Cleanup Merged Branches` - Preview branch cleanup (dry-run)
 - `Update Dependencies (uv lock)` - Refresh Python lockfile
-- `Update Tool Versions in README` - Check version badges
 - `Check Workflow Syntax` - Validate GitHub Actions
 - `Lint All Dockerfiles` - hadolint validation
-- `Security Scan (Trivy)` - CVE scan
 
 **Tip:** Run `Cleanup Merged Branches` after merging PRs to keep branch list clean.
 
@@ -185,7 +177,7 @@ graph LR
     C --> F[Opens GitHub<br/>Actions tab]
     D --> G[Opens Security<br/>tab]
 
-    E --> H[Current Score: 6.1/10]
+    E --> H[Current Score]
     F --> I[Workflow Status]
     G --> J[Open Alerts]
 

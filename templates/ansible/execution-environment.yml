@@ -9,13 +9,12 @@
 
 version: 3
 
-# Base image for the Execution Environment
-# creator-ee: Minimal image for creating collections/roles (recommended)
-# ee-minimal: Very minimal Ansible runtime
-# ansible-ee: Full-featured (includes many collections, larger)
+# Base image for the Execution Environment: Ansible Development Tools, the
+# replacement for the archived creator-ee.
+# https://docs.ansible.com/projects/dev-tools/container/
 images:
   base_image:
-    name: quay.io/ansible/creator-ee:v0.18.0
+    name: ghcr.io/ansible/community-ansible-dev-tools:v26.10.1@sha256:13c96bd005f156fb48ac9913545f3b56b265ba20824b0be7ef33fba1125c6b1d
 
 # Dependencies to install in the EE
 dependencies:
@@ -30,17 +29,12 @@ dependencies:
   # Uncomment and create bindep.txt if you need system packages
   # system: bindep.txt
 
-  # Python packages installed via pip (alternative to requirements.txt)
-  python_interpreter:
-    package_system: "python312"
-
-  # Ansible core version (optional, inherits from base image if not specified)
+  # ansible-core, ansible-runner and Python come from the base image. Set these
+  # only to replace them:
   # ansible_core:
-  #   package_pip: ansible-core>=2.16,<2.17
-
-  # Runner (ansible-runner) configuration
-  ansible_runner:
-    package_pip: ansible-runner
+  #   package_pip: ansible-core==2.21.5
+  # ansible_runner:
+  #   package_pip: ansible-runner
 
 # Additional build steps (optional)
 # These run during the container build process
@@ -64,7 +58,7 @@ additional_build_steps:
 # Build arguments (optional)
 # These can be overridden with --build-arg
 options:
-  package_manager_path: /usr/bin/microdnf
+  package_manager_path: /usr/bin/dnf5
 
 # Example: Custom user (inherits from base image by default)
 # options:

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.28
 # renovate: datasource=github-releases depName=tectonic-typesetting/tectonic
 ARG TECTONIC_VERSION=0.17.0
-FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
 
 ARG TECTONIC_VERSION
 ARG TARGETARCH
@@ -12,7 +12,10 @@ LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devco
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
+# LANG: debian-slim sets none, so `locale charmap` printed ANSI_X3.4-1968 and
+# tools that ask the locale treated everything as ASCII.
 ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     WORKSPACE=/workspace \
@@ -20,6 +23,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel \
     TECTONIC_CACHE_DIR=/home/vscode/.cache/Tectonic
 
+# openssh-client: without it `git ls-remote git@...` stopped at "error: cannot
+# run ssh".
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
@@ -29,14 +34,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       curl \
       fontconfig \
       git \
+      openssh-client \
       perl \
-      sudo \
       unzip \
     # Upgrade AFTER the installs, never before: the stale packages here
     # arrive as dependencies of the list above (libpcre2-8-0 comes in with
-    # git and grep), so an upgrade placed first never reaches them. The
-    # pinned bookworm digest ships libpcre2-8-0 10.42-1 while bookworm
-    # has 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
+    # git and grep), so an upgrade placed first never reaches them. On
+    # Debian 12 that kept libpcre2-8-0 at 10.42-1 while the archive had
+    # 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
@@ -106,9 +111,9 @@ RUN set -eux; \
 #
 # The interpreter is the CPython version devcontainer-base runs, installed by
 # the pinned uv, which carries the sha256 of every Python build it can
-# install and refuses a download that does not match. Debian's python3 is no
-# option: bookworm ships 3.11, below the lock's requires-python (>=3.12), so
-# the export has no wheel it could verify.
+# install and refuses a download that does not match. Debian's python3 is not
+# used: trixie's 3.13 meets the lock's requires-python (>=3.12), but it is not
+# the version the base runs, and it would put a python3 on every user's PATH.
 #
 # Then it is trimmed of what nothing here loads: libpython3.14.so* (the
 # python executable is linked statically) and Tcl/Tk with tkinter, idlelib
@@ -155,7 +160,9 @@ ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # useradd stamps today's day number into the shadow entry's
     # last-change field, so the image changed with the build date even
     # when nothing else did. An empty field disables password aging,
@@ -165,6 +172,10 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/Tectonic" \
+    # The template mounts a named volume here. A new volume takes the owner of
+    # the directory it lands on, and a directory the image does not have is
+    # created for root: postCreateCommand died with PermissionError on .lock.
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/pre-commit" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/latex \
     # install -d creates parents as root; hand ~/.cache and ~/.local to vscode
     && chown "${USERNAME}:${USERNAME}" \
@@ -176,9 +187,13 @@ COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bi
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 

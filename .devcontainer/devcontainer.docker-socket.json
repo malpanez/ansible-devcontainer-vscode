@@ -1,6 +1,11 @@
 {
   "name": "Terraform Dev Container (docker-socket)",
   "image": "ghcr.io/malpanez/devcontainer-terraform:v2.0.0@sha256:2149339e017c5cbf5d80aecf796d7945c0ad85bd3fbc900c215b40ff32e6607f",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.1": {
+      "moby": false
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -22,7 +27,6 @@
     }
   },
   "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
     "source=terraform-plugin-cache,target=/workspaces/.terraform.d/plugin-cache,type=volume"
   ],
@@ -33,6 +37,7 @@
     "TF_IN_AUTOMATION": "1",
     "SOPS_AGE_KEY_FILE": "/workspace/.secrets/age.key"
   },
+  "containerUser": "root",
   "remoteUser": "vscode",
   "postCreateCommand": [
     "/bin/bash",

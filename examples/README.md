@@ -29,7 +29,7 @@ cp examples/ansible-collection/.yamllint.yml /path/to/your/collection/
 
 **What's included**:
 - Pre-configured devcontainer.json
-- Pre-commit hooks (terraform fmt, validate, tflint, trivy)
+- Pre-commit hooks (terraform fmt, validate, tflint, trivy). The `terraform_docs` and `terraform_trivy` hooks need the `terraform-docs` and `trivy` binaries, which the image does not ship; install them or `SKIP=terraform_docs,terraform_trivy`
 - TFLint configuration (.tflint.hcl)
 - terraform-docs configuration (.terraform-docs.yml)
 - AWS CLI integration
@@ -96,10 +96,12 @@ Every template includes pre-commit hooks that run **before every commit**:
 
 ### Credential Management
 
-All templates mount your credentials **read-only**:
-- SSH keys (`~/.ssh`)
-- AWS credentials (`~/.aws`) - Terraform only
-- No credentials stored in container
+The templates in `devcontainers/` mount no credentials. These examples opt in, read-only:
+- SSH keys (`~/.ssh`) - both examples
+- AWS credentials (`~/.aws`) - Terraform example only; the directory must exist on the host or the container does not start
+- No credentials stored in the container image
+
+VS Code's own guidance (https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials) is to forward the SSH agent rather than mount keys: the Dev Containers extension forwards your local agent when one is running (`ssh-add` on the host; on Windows the OpenSSH Authentication Agent service must be started), and it copies your local `.gitconfig` into the container. Drop the `~/.ssh` mount if you use the agent.
 
 ---
 
@@ -136,11 +138,15 @@ Edit `.devcontainer/devcontainer.json`:
 ```json
 {
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:4": { "moby": false },
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
-  }
+  },
+  "containerUser": "root",
+  "remoteUser": "vscode"
 }
 ```
+
+`"moby": false` is required on Debian 13 (the feature's default, Moby, is not available there). `"containerUser": "root"` is required too: the feature's entrypoint starts `dockerd` with `sudo`, which these images do not have, so as `vscode` the daemon never starts; `"remoteUser": "vscode"` keeps terminals and tasks unprivileged. `devcontainers/ansible/devcontainer.dind.json` is a working profile.
 
 ### Environment Variables
 
@@ -312,6 +318,6 @@ Add Azure and GCP features:
 - ✅ Security scanning built-in
 - ✅ Multi-arch support (amd64/arm64)
 - ✅ Actively maintained
-- ✅ OpenSSF Scorecard: 6.1/10
+- ✅ OpenSSF Scorecard: 8.1/10 (2026-10-30)
 
 **Start now**: Copy a template → Open in VS Code → Start coding!

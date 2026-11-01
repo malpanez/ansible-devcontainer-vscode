@@ -8,7 +8,7 @@
 
 Configurar un entorno de desarrollo Terraform con devcontainers de malpanez que incluye:
 - ✅ Terraform + Terragrunt + TFLint (versiones en `devcontainers/terraform/Dockerfile`)
-- ✅ Pre-commit hooks (fmt, validate, tflint, trivy, terraform-docs)
+- ✅ Pre-commit hooks (fmt, validate, tflint, trivy, terraform-docs). Los hooks `terraform_trivy` y `terraform_docs` necesitan los binarios `trivy` y `terraform-docs`, que la imagen no incluye
 - ✅ VS Code extensions (Terraform, GitLens)
 - ✅ Security tools (SOPS + age; Trivy and gitleaks via pre-commit hooks)
 - ✅ AWS CLI (imagen `devcontainer-terraform-aws`)
@@ -140,9 +140,9 @@ git commit -m "feat: add VPC security group"
 | Terragrunt | ❌ No | ✅ pinned |
 | TFLint | ❌ No | ✅ pinned (con rulesets) |
 | Pre-commit | ❌ No | ✅ Si (configurado) |
-| Security Tools | ❌ No | ✅ Trivy, SOPS, age, gitleaks |
+| Security Tools | ❌ No | ✅ SOPS, age en la imagen; gitleaks y trivy solo como hooks (trivy y terraform-docs no vienen en la imagen) |
 | terraform-docs | ❌ No | ✅ Si (auto-updates README) |
-| OpenSSF Scorecard | N/A | ✅ 6.1/10 |
+| OpenSSF Scorecard | N/A | ✅ 8.1/10 (2026-10-30) |
 | Automation | ❌ No | ✅ 90% automatizado |
 | Maintenance | Manual | Renovate bot |
 
@@ -150,7 +150,7 @@ git commit -m "feat: add VPC security group"
 - ✅ Pinned dependencies (SHA256) - reproducible
 - ✅ Multi-arch (amd64/arm64) - funciona en Apple Silicon
 - ✅ Automated updates (Renovate bot) - siempre actualizado
-- ✅ Security scanning built-in (Trivy) - detecta vulnerabilidades
+- ✅ Cada imagen publicada se escanea con Grype antes de etiquetarse
 - ✅ 90% maintenance automated - casi cero mantenimiento
 - ✅ SOPS + age para secrets - cifrado de secretos en git
 - ✅ terraform-docs - documentación automática
@@ -256,17 +256,19 @@ SKIP=terraform_trivy git commit -m "feat: quick change"
 
 **Causa**: Permisos incorrectos en ~/.cache/pre-commit
 
-**Solución**: Asegúrate que el devcontainer.json incluye:
+**Solución**: Las imágenes ya crean `/home/vscode/.cache/pre-commit` con `vscode` como dueño. Si falla es porque un volumen o un bind mount la tapó con un dueño root. Quita ese mount, o cambia el dueño desde el host (las imágenes no incluyen `sudo`, y los comandos de ciclo de vida corren como `remoteUser`, no como root):
+
+```bash
+docker exec -u 0 <contenedor> chown -R vscode:vscode /home/vscode/.cache
+```
+
+Con el directorio en orden, basta con:
 
 ```json
 {
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
-  "updateContentCommand": [
-    "bash", "-c",
-    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
-  ],
   "postCreateCommand": [
     "bash", "-c",
     "pre-commit install --install-hooks || true"
@@ -274,7 +276,7 @@ SKIP=terraform_trivy git commit -m "feat: quick change"
 }
 ```
 
-**IMPORTANTE**: Usa `updateContentCommand` (ejecuta como root) en lugar de `postCreateCommand` con sudo, para evitar problemas de permisos en diferentes entornos.
+**IMPORTANTE**: No uses `sudo` en `postCreateCommand` ni esperes root en `updateContentCommand`: ambos corren como `vscode` y las imágenes no tienen `sudo`.
 
 ### "Trivy muy lento"
 
@@ -338,10 +340,10 @@ docker pull ghcr.io/malpanez/devcontainer-terraform:latest
 
 ## 📊 Métricas de Producción
 
-- **OpenSSF Scorecard**: 6.1/10
+- **OpenSSF Scorecard**: 8.1/10 (2026-10-30)
 - **Automation**: 90%
 - **Maintenance**: 5 min/semana (review), 2 horas/trimestre (comprehensive)
-- **Security**: Renovate bot + weekly alert cleanup + Trivy scanning
+- **Security**: Renovate bot + weekly alert cleanup + Grype scan gate
 
 ---
 
@@ -352,7 +354,7 @@ docker pull ghcr.io/malpanez/devcontainer-terraform:latest
 ```
 👋 Bienvenido al equipo!
 
-Usamos devcontainers de malpanez para Terraform (production-ready, OpenSSF 6.1/10).
+Usamos devcontainers de malpanez para Terraform (production-ready, OpenSSF 8.1/10 (2026-10-30)).
 
 **Setup rápido (2 minutos)**:
 1. Instala Docker Desktop + VS Code

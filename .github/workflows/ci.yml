@@ -94,6 +94,8 @@ jobs:
               - 'devcontainers/terraform/**'
             devcontainer:
               - 'devcontainers/**'
+              # The Dockerfiles copy these into the images.
+              - 'templates/**'
               # The CLI pin belongs here too: the devcontainer-cli-test jobs
               # are the only thing that exercises `npm ci` against it, and
               # without this a change to how the CLI is installed skips the
@@ -119,6 +121,16 @@ jobs:
               # the images it judges, as a .grype.yaml change runs the scan.
               - '.github/image-size-budgets.json'
               - 'scripts/check-image-size.py'
+              # What devcontainer-cli-test checks inside the container: a
+              # change to it must run that job against the images it judges.
+              - 'scripts/check-devcontainer-workload.sh'
+              # Same for the Docker profiles.
+              - 'scripts/test-devcontainer-profile.sh'
+              # This workflow: a change to the build job, its runner or its
+              # gates must run that job. PR #606 (2026-10-30) changed only the
+              # job's runs-on, every build job skipped and CI went green
+              # without running on the new runner.
+              - '.github/workflows/ci.yml'
             # The files that name the images the templates and examples open
             # from, checked by Devcontainer State. A filter of its own, not
             # more paths under devcontainer: examples/ is no image input, and
@@ -396,7 +408,12 @@ jobs:
 
   devcontainer-build:
     name: Build Devcontainer (${{ matrix.stack }}${{ matrix.variant }})
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: that label moves to Ubuntu 26.04 by 2026-11-19, with
+    # Docker 29 where 24.04 has Docker 28. The size gate below needs the classic
+    # overlay2 store its budgets were measured on, and fails on the containerd
+    # store, the default for a new Docker 29 install. Renovate ignores runner
+    # labels, so move this by hand and re-measure the budgets in that change.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read
@@ -716,14 +733,43 @@ jobs:
             jq . "devcontainers/${STACK}/${config}"
           done
 
+      # devcontainers/ansible/Dockerfile resolves its BASE_IMAGE pin unless told
+      # otherwise, and the pin trails the base Dockerfile until main publishes
+      # it and Renovate moves it. The checks below look at what base sets up
+      # (the login shell), so on the pin a fix to base could not pass here in
+      # the pull request that makes it. Built from this commit, as in
+      # devcontainer-build; this job's builder is the daemon's own, so it sees
+      # the loaded image.
+      - name: Build base from this commit
+        if: matrix.stack == 'ansible'
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            docker buildx build --load -t devcontainer-base:ci -f devcontainers/base/Dockerfile . && break
+            [ "${attempt}" -lt 3 ] || exit 1
+            sleep "$((attempt * 20))"
+          done
+
       - name: Test devcontainer up
         env:
           STACK: ${{ matrix.stack }}
         run: |
+          set -euo pipefail
           # From the repository root: the build variant's context is
           # ${localWorkspaceFolder}, which must be the root that the
           # Dockerfile COPYs from.
-          DEVCONTAINER_ARGS=(--workspace-folder . --config "devcontainers/${STACK}/local-build/devcontainer.json")
+          CONFIG="devcontainers/${STACK}/local-build/devcontainer.json"
+          if [ "${STACK}" = "ansible" ]; then
+            # On the base the step above built. Build arguments can only come
+            # from the config, and a copy elsewhere needs the Dockerfile's full
+            # path; the CLI takes no other file name.
+            CONFIG_DIR="$(mktemp -d)"
+            jq --arg dockerfile "${PWD}/devcontainers/ansible/Dockerfile" \
+              '.build.dockerfile = $dockerfile | .build.args.BASE_IMAGE = "devcontainer-base:ci"' \
+              "${CONFIG}" > "${CONFIG_DIR}/devcontainer.json"
+            CONFIG="${CONFIG_DIR}/devcontainer.json"
+          fi
+          DEVCONTAINER_ARGS=(--workspace-folder . --config "${CONFIG}")
           # The CLI builds through a generated Dockerfile-with-features whose
           # own '# syntax=docker/dockerfile:1.27' directive forces an
           # unauthenticated docker.io pull on every run. Anonymous Docker Hub
@@ -734,8 +780,14 @@ jobs:
           # develop two hours earlier, and a bare re-run went green. Retry
           # rather than pin: the directive lives in a Dockerfile the CLI
           # generates at build time, so pinning ours does not affect it.
+          #
+          # --remove-existing-container so that a retry runs the lifecycle
+          # again. Without it a postCreateCommand failure on attempt 1 left the
+          # container behind, attempt 2 reused it, skipped the lifecycle and
+          # reported success, and the job went green on a template that fails
+          # for every user who opens it (run 41140335315, latex).
           for attempt in 1 2 3; do
-            if devcontainer up "${DEVCONTAINER_ARGS[@]}"; then
+            if devcontainer up --remove-existing-container "${DEVCONTAINER_ARGS[@]}"; then
               break
             fi
             if [ "${attempt}" -eq 3 ]; then
@@ -745,8 +797,56 @@ jobs:
             echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
             sleep "$((attempt * 20))"
           done
-          devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- bash -c "echo '${STACK} container is running'"
+          # jq fails on a mount written as an object, instead of skipping it.
+          VOLUME_TARGETS="$(jq -r '.mounts // [] | .[]
+            | select(test("(^|,)type=volume(,|$)"))
+            | capture("(^|,)target=(?<target>[^,]+)").target' "${CONFIG}")"
+          VOLUME_TARGET_ARGS=()
+          if [ -n "${VOLUME_TARGETS}" ]; then
+            mapfile -t VOLUME_TARGET_ARGS <<< "${VOLUME_TARGETS}"
+          fi
+          # The repository root is the template's workspaceMount, /workspace.
+          devcontainer exec "${DEVCONTAINER_ARGS[@]}" -- \
+            bash /workspace/scripts/check-devcontainer-workload.sh "${STACK}" "${VOLUME_TARGET_ARGS[@]}"
           # no 'devcontainer stop' subcommand exists; the runner cleans up
+
+      # The docker-in-docker profile, which only ansible has. Its feature starts
+      # dockerd from the container's entrypoint, through sudo unless the
+      # container runs as root, and the images have no working sudo (no rules
+      # since 1a62ea6, no package since): no dockerd, and `devcontainer up` still
+      # reported success. The script runs it on the image built from this commit.
+      - name: Test the docker-in-docker profile
+        if: matrix.stack == 'ansible'
+        env:
+          BASE_IMAGE: devcontainer-base:ci
+        run: bash scripts/test-devcontainer-profile.sh ansible devcontainer.dind.json 'docker info'
+
+      # The docker-socket profile, which ansible and terraform have. It used to
+      # mount the socket and stop there: the images have no docker CLI, vscode
+      # is not in the socket's group, and `devcontainer up` reported success. Its
+      # feature adds both, again from an entrypoint that needs root. docker
+      # version asks the runner's own daemon, so it fails without that access.
+      - name: Test the docker-socket profile
+        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
+        env:
+          STACK: ${{ matrix.stack }}
+          BASE_IMAGE: ${{ matrix.stack == 'ansible' && 'devcontainer-base:ci' || '' }}
+        run: bash scripts/test-devcontainer-profile.sh "${STACK}" devcontainer.docker-socket.json 'docker version'
+
+      # The podman profile, which only ansible has, on the image Dockerfile.podman
+      # builds. test-containers.yml runs the smoke test under `docker run
+      # --privileged`, so it never saw the template, whose --userns=keep-id stopped
+      # Docker at once with "invalid USER mode". The check is the smoke test plus a
+      # playbook in the Execution Environment, what the profile is for and nothing
+      # ran before: a 1.4 GB pull from ghcr.io, about two minutes on top of building
+      # the image. Two attempts, for ghcr.io and quay.io: there is no daemon to wait
+      # for here, and the default 30 would take most of this job's timeout to fail.
+      - name: Test the podman profile
+        if: matrix.stack == 'ansible'
+        env:
+          DOCKERFILE: Dockerfile.podman
+          CHECK_ATTEMPTS: 2
+        run: bash scripts/test-devcontainer-profile.sh ansible devcontainer.podman.json 'podman-smoke-test --ee'
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})

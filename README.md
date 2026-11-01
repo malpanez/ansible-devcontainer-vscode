@@ -14,24 +14,24 @@
 [![uv](https://img.shields.io/badge/uv-ready-00A3FF?logo=astral)](https://github.com/astral-sh/uv)
 
 **Stacks:**
-[![Ansible](https://img.shields.io/badge/ansible-9.14.0-EE0000?logo=ansible)](https://www.ansible.com/)
-[![Terraform](https://img.shields.io/badge/terraform-1.14.0-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![Python](https://img.shields.io/badge/python-3.12.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Ansible](https://img.shields.io/badge/ansible--core-EE0000?logo=ansible)](https://www.ansible.com/)
+[![Terraform](https://img.shields.io/badge/terraform-7B42BC?logo=terraform)](https://www.terraform.io/)
+[![Go](https://img.shields.io/badge/go-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Python](https://img.shields.io/badge/python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 
-Pull a pre-built infrastructure workspace from GHCR and start writing Terraform or running Ansible in **under 30 seconds** — 3–5× smaller than Microsoft's devcontainer images, with no local setup and no drift between machines. Pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in VS Code, and your entire toolchain is already installed, locked, and ready. Works on Windows + WSL2, macOS, and Linux.
+Pull a pre-built infrastructure workspace from GHCR and start writing Terraform or running Ansible in **under 30 seconds** — roughly 2–4× smaller than Microsoft's devcontainer images, with no local setup and no drift between machines. Pick the stack you need (Ansible, Terraform, Golang, or LaTeX), reopen in VS Code, and your entire toolchain is already installed, locked, and ready. Works on Windows + WSL2, macOS, and Linux.
 
 ## Highlights
 
-- ⚡ **uv-first Python workflow** – dependency installs are fast and reproducible via `uv pip install --system .` using `pyproject.toml` for the Ansible stack.
+- ⚡ **uv-first Python workflow** – dependency installs are fast and reproducible: `uv.lock` is the source of truth and the images install its hashed `requirements*.txt` exports with `uv pip install --require-hashes`.
 - 🐳 **Dev Container ready** – Dockerfile, features, extensions, and VS Code settings ship in the repo.
 - 🤖 **Automation via Ansible** – `playbooks/setup-workspace.yml` provisions the container with roles for base OS tweaks, Ansible tooling, Python testing tools, and editor config.
 - 🧩 **Multi-stack templates** – ship Ansible, Terraform, Golang, and LaTeX workspaces side-by-side; switch with a single helper script.
-- 🧱 **Slim stack-specific images** – each stack is based on the leanest upstream image (Chainguard or slim Debian/Python) with layered cleanup for fast pulls.
+- 🧱 **Slim stack-specific images** – each stack is based on the leanest upstream image (slim Debian/Python, or Alpine for Go) with layered cleanup for fast pulls.
 - 📦 **GHCR-ready images** – Dockerfiles are optimised for publishing to `ghcr.io` so teams can pull prebuilt devcontainers instead of rebuilding locally.
 - 🧪 **Quality gates baked in** – pre-commit hooks, `ansible-lint`, `yamllint`, Molecule/pytest harness, and GitHub Actions CI.
 - 🪪 **Template-driven pre-commit** – every image ships pre-commit and yamllint at the versions `uv.lock` pins, and `ensure-precommit` seeds the right hook config per stack.
-- 🔐 **Security conscious** – runs as non-root, includes Trivy scanning in CI, and keeps secrets out of the repo.
+- 🔐 **Security conscious** – runs as non-root, gates every published image on a Grype scan, and keeps secrets out of the repo.
 - 🤖 **AI agent safe by design** – run Claude Code, Copilot, or any AI agent with full permissions inside the container. Worst case: a broken workspace, back to normal with `git reset` in seconds. Your host OS, credentials, and other projects are never at risk.
 - 📣 **Responsible disclosure** – see [`SECURITY.md`](SECURITY.md) for reporting guidelines and supply-chain expectations.
 - 🪟 **Windows bootstrap script** – run `scripts/bootstrap-windows.ps1` to enable WSL, configure proxies, and install Docker/VS Code with one command.
@@ -109,14 +109,16 @@ The image also bakes in `/usr/local/bin/ensure-precommit`, which the `postCreate
 
 ## Available Stacks
 
-| Stack       | Base image                                                  | Approx. size¹ | Included tooling                                                              | Cache mounts                                  |
-| ----------- | ----------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------- | --------------------------------------------- |
-| `ansible`   | `python:3.12-slim-bookworm` (overrideable via `BASE_IMAGE`) | ~650 MB       | uv-managed Python, Ansible + collections, `pre-commit`, `tini`, SSH/git utils | uv cache volume, Ansible Galaxy volume        |
-| `terraform` | multi-stage Debian (bookworm tools + runtime)               | ~240 MB       | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher                   | `${workspace}/.terraform.d/plugin-cache` bind |
-| `golang`    | `golang:1.23-alpine` (overrideable via `BASE_IMAGE`)        | ~210 MB       | Go toolchain, git, `uv` launcher, sudo minimal                                | Go module & build caches                      |
-| `latex`     | `debian:bookworm-slim` + Tectonic                           | ~320 MB       | Tectonic CLI, git/perl helpers, `uv` launcher                                 | `${HOME}/.cache/tectonic` bind                |
+| Stack       | Base image                                                                          | Size¹     | Included tooling                                                              | Cache mounts (named volumes)                         |
+| ----------- | ----------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `ansible`   | `devcontainer-base` (`python:3.14-slim-trixie`; `BASE_IMAGE` takes another base build) | 436 MiB   | uv-managed Python, Ansible + collections, `pre-commit`, SSH/git utils; the template runs it with `--init` | `uv-cache`, `ansible-galaxy-cache`                   |
+| `terraform` | `debian:trixie-slim` (multi-stage: tools fetched in a separate stage)               | 669 MiB   | Terraform CLI, Terragrunt, TFLint, SOPS, age, `uv` launcher                   | `uv-cache`, `terraform-plugin-cache`                 |
+| `golang`    | `golang:1.27-alpine3.23` (Alpine, musl; see the note below the table)               | 376 MiB   | Go toolchain, git, `uv` launcher                                              | `go-mod-cache`, `go-build-cache`                     |
+| `latex`     | `debian:trixie-slim` + Tectonic                                                     | 335 MiB   | Tectonic CLI, git/perl helpers, `uv` launcher                                 | `tectonic-cache`, `uv-cache`, `pre-commit-cache`     |
 
-¹Sizes are indicative for `linux/amd64` and vary slightly per architecture.
+¹Uncompressed size in MiB of the `linux/amd64` image (`docker image inspect` `.Size`, as CI's size gate measures it). `ansible-podman` is 518 MiB, `ansible-aws` 719 MiB, `terraform-aws` 918 MiB and the base 330 MiB. The limits CI enforces are in [`.github/image-size-budgets.json`](.github/image-size-budgets.json). `latex` is published for `linux/amd64` only; the other stacks also for `linux/arm64`.
+
+> **Golang is the one Alpine (musl) image, and it is published for `linux/arm64`.** VS Code's [Linux requirements](https://code.visualstudio.com/docs/remote/linux) list "Alpine Linux 64-bit x86 containers or WSL hosts (3.16+)" as supported in Dev Containers and WSL, and warn: "Extensions installed in the container may not work due to `glibc` dependencies in extension native code." They call AArch64 "preview", because extensions there may ship only x86_64 native code. So on an arm64 host (Apple Silicon, Graviton) `devcontainer-golang` is outside what VS Code lists as supported, and an extension with native code can fail to start in it. If one does, use a Debian-based stack or build your own image on `golang:<version>-trixie`.
 
 ### AWS templates
 
@@ -197,6 +199,7 @@ version tables rot:
    ```bash
    ansible-playbook playbooks/setup-workspace.yml --tags base,ansible
    ```
+   The play escalates with `sudo` (`become: true`), which the images do not carry: run it on a host (WSL, a VM), not inside a published image. `ansible.cfg` no longer enables `become` for every play, so `ansible-playbook playbooks/test-environment.yml` and `update-dependencies.yml` run unprivileged inside the container.
 3. **Use the VS Code tasks** (`Ctrl+Shift+B` / `Cmd+Shift+B`):
    - `Ansible: Lint All`
    - `Ansible: Syntax Check`
@@ -220,11 +223,11 @@ version tables rot:
 
 GitHub Actions workflows live under `.github/workflows/`:
 
-- `ci.yml` – runs repository-wide `uvx pre-commit run --all-files`, lints shell and PowerShell scripts, keeps Go/Terraform checks, builds every Dev Container as a multi-arch (`linux/amd64,linux/arm64`) `buildx` job with registry-backed caches, smoke-tests the loaded images, and gates on Trivy CRITICAL findings plus `hadolint`.
-- `lint.yml` – lightweight watcher that reuses the same `uvx pre-commit` pipeline when YAML or Ansible content changes.
+- `ci.yml` – runs repository-wide `uvx pre-commit run --all-files`, lints shell and PowerShell scripts, keeps Go/Terraform checks, builds the Dev Container images whose inputs changed (`linux/amd64`), gates them on the size budgets in `.github/image-size-budgets.json`, smoke-tests them, and scans them with Grype (`.grype.yaml`: fixable high/critical findings block), plus `hadolint`. Publishing is not done here: see `build-containers.yml`.
+- `build-containers.yml` – the only workflow that publishes `latest`, `main` and the Python stream tag: daily and on pushes to `main`, uncached, Grype-gated, signed and attested.
 - `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
 
-All jobs use Python 3.12 on `ubuntu-latest`. The shared toolchain mirrors the Dev Container ensuring parity between local development and CI.
+CI takes its Python, Go and Terraform versions from the Dockerfiles (`scripts/derive-toolchain-versions.sh`), so it tests the toolchain the images ship.
 
 ## Repository Layout
 
@@ -247,7 +250,7 @@ All jobs use Python 3.12 on `ubuntu-latest`. The shared toolchain mirrors the De
 
 | Role                    | Purpose                                                                                      | Key variables                                                                                                                                                              |
 | ----------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `devcontainer_base`     | System packages, user creation, sudoers hardening, timezone                                  | `devcontainer_base_user`, `devcontainer_base_timezone`                                                                                                                     |
+| `devcontainer_base`     | System packages, user creation, a NOPASSWD sudo rule for that user, timezone (host provisioning; no image runs this role)                            | `devcontainer_base_user`, `devcontainer_base_timezone`                                                                                                                     |
 | `ansible_environment`   | Installs uv, Python requirements, Ansible collections, drops `ansible.cfg` & `.ansible-lint` | `ansible_environment_config_dir`, `ansible_environment_python_requirements_file`, `ansible_environment_collection_requirements_file`, `ansible_environment_uv_binary_path` |
 | `python_tools`          | Shell PATH tweaks and pytest config                                                          | `python_tools_devcontainer_user`, `python_tools_ansible_config_dir`                                                                                                        |
 | `vscode_config`         | VS Code settings, extensions, tasks                                                          | `vscode_config_workspace_dir`, `vscode_config_python_interpreter_path`                                                                                                     |
@@ -289,14 +292,12 @@ add tools at build time, or layer extra VS Code settings — recipes in
 
 ## Dependency Management
 
-- Dependencies are defined in `pyproject.toml` and locked via `uv.lock`. Run `uv lock` whenever you add or upgrade packages.
-- Installations in the Dev Container and CI use `uv pip install --system .` directly from `pyproject.toml`, letting `uv` handle dependency resolution automatically.
+- Dependencies are defined in `pyproject.toml` and locked via `uv.lock`. Run `uv lock` whenever you add or upgrade packages. The `requirements*.txt` files are generated from the lock (hashed), and the image builds install those with `uv pip install --require-hashes`.
 - To test upgrades locally:
   ```bash
   uv lock --upgrade package_name
-  uv pip install --system .
   ```
-  Commit `uv.lock` and the updated `pyproject.toml`.
+  Commit `uv.lock` and the updated `pyproject.toml`, then regenerate the `requirements*.txt` exports (`renovate-postprocess.yml` does it for Renovate's PRs). `uv pip install --system` cannot write to `/usr/local` as `vscode` inside a published image.
 - You can automate the lock refresh with `ansible-playbook playbooks/update-dependencies.yml`. Pass `uv_http_proxy`, `uv_https_proxy`, `uv_index_url`, or `uv_no_proxy` as extra vars when running behind a corporate proxy.
 
 ## Testing
@@ -306,10 +307,10 @@ add tools at build time, or layer extra VS Code settings — recipes in
 - `ansible-playbook playbooks/setup-workspace.yml --check` – dry-run validation of the provisioning playbook.
 - `./scripts/run-smoke-tests.sh` – convenience wrapper around `playbooks/test-environment.yml`; pass extra args to forward flags (e.g. `--check`).
 - `./scripts/run-terraform-tests.sh` – formats (`terraform fmt -check`) and validates every Terraform module under `infrastructure/` (skips gracefully when no configs exist). Modules that depend on private providers (for example `infrastructure/proxmox_lab`) are skipped automatically in CI so they can be tested manually when the provider binaries are available.
-- `.trivyignore` documents the temporary CVE allowlist applied to vendor-supplied Terraform tooling (age/sops/terragrunt/tflint). We keep the list short and revisit it whenever upstream ships patched binaries.
+- `.grype.yaml` holds the justified CVE exceptions for the image scan gate (for example the CPython bundled by the AWS CLI). Each entry carries its reason, and the list is kept short.
 - `ansible-playbook playbooks/update-dependencies.yml` – regenerates `uv.lock` from `pyproject.toml`.
 - `molecule test` – full integration verification.
-  Run `molecule test --scenario-name latex` to exercise the MiKTeX ↔ TeX Live toggle specifically.
+  Run `molecule test --scenario-name latex` to exercise the latex template copy.
 - `tflint --init && tflint` – optional Terraform lint (configure rules in `infrastructure/.tflint.hcl`).
 - `checkov -d infrastructure/` – run policy-as-code scans locally; Checkov is not in the images, install it with `uv tool install checkov`.
 
@@ -329,7 +330,7 @@ add tools at build time, or layer extra VS Code settings — recipes in
 
 This repository implements comprehensive security scanning and automated alert management:
 
-- 🔒 **Trivy Scanning**: All container images scanned for CVEs during build
+- 🔒 **Grype Scanning**: Every published image is scanned for CVEs before it is tagged (`build-containers.yml`), and again at release
 - 📊 **SARIF Upload**: Security findings integrated into GitHub Security tab
 - 🤖 **Automated Alert Management**: Weekly cleanup of stale/false-positive alerts
 
@@ -356,7 +357,7 @@ Recent optimizations have significantly improved DevContainer startup times:
 
 Want to use these production-ready containers in your own Ansible or Terraform projects? See:
 
-- **[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)** - Complete integration guide with setup instructions, pre-commit hooks explanation, and troubleshooting
+- **[INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md)** - Complete integration guide with setup instructions, pre-commit hooks explanation, and troubleshooting
 - **[examples/](examples/)** - Ready-to-use templates for Ansible collections and Terraform projects
   - [Ansible Collection Template](examples/ansible-collection/) - Includes [PROMPT_FOR_LLM.md](examples/ansible-collection/PROMPT_FOR_LLM.md) (copy-paste prompt for Claude/ChatGPT)
   - [Terraform Project Template](examples/terraform-project/) - Includes [PROMPT_FOR_LLM.md](examples/terraform-project/PROMPT_FOR_LLM.md) (copy-paste prompt for Claude/ChatGPT)

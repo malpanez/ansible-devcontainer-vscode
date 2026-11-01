@@ -91,7 +91,7 @@ All commands should succeed without additional configuration.
 | Format & lint everything | `pre-commit run --all-files` |
 | Check playbook syntax | `ansible-playbook playbooks/*.yml --syntax-check` |
 | Run smoke test | `ansible-playbook playbooks/test-environment.yml` |
-| Install new Python dependencies (Ansible stack) | `uv pip install --system --requirement requirements-ansible.txt` |
+| Try a Python package in the Ansible stack | `uv venv .venv && uv pip install <package>` (`/usr/local` is root-owned, so `--system` fails as `vscode`; to add one for good, change `pyproject.toml`, run `uv lock`, regenerate the exports and rebuild the image) |
 | Install new collections | `ansible-galaxy collection install -r requirements.yml` |
 | Validate Terraform modules | `./scripts/run-terraform-tests.sh` |
 
@@ -104,7 +104,7 @@ You can also use VS Code tasks (`Ctrl+Shift+B`) to run the most common lint/test
 ## 8. Troubleshooting
 
 - **Container rebuilds are slow** – run `Dev Containers: Rebuild Without Cache` only after dependency changes; otherwise `Dev Containers: Rebuild Container` reuses cached layers.
-- **Missing binaries** – ensure `uv` is on the PATH (`which uv`). If not, rerun `curl -LsSf https://astral.sh/uv/install.sh | sh` inside the container.
+- **Missing binaries** – `uv` is baked into `/usr/local/bin` (`which uv`). If it is missing the image is broken: pull it again or rebuild the container.
 - **Ansible collections out of date** – rerun `ansible-galaxy collection install -r requirements.yml`.
 - **WSL cannot access Docker** – open Docker Desktop and ensure the Ubuntu distribution is enabled under Settings → Resources → WSL Integration.
 - **VS Code cannot talk to Podman** – verify `podman machine start` succeeds, then ensure `dev.containers.dockerPath` is set to `podman` and the Podman Desktop Docker API is enabled under Settings → Connections.
@@ -123,6 +123,6 @@ You can also use VS Code tasks (`Ctrl+Shift+B`) to run the most common lint/test
 ## 10. Next steps
 
 - Customise VS Code defaults by editing the templates in `roles/vscode_config/templates/` and re-running `ansible-playbook playbooks/setup-workspace.yml --tags vscode`.
-- Extend the Ansible Python toolchain by appending to `requirements-ansible.txt` and running `uv pip install --system --requirement requirements-ansible.txt`.
+- Extend the Ansible Python toolchain by changing `pyproject.toml`, running `uv lock`, regenerating `requirements-ansible.txt` and rebuilding the image (`uv pip install --system` cannot write to `/usr/local` as `vscode`).
 - Hook this repository into your own projects by adding additional roles or playbooks.
 - Review `docs/DEVCONTAINER_DEBUG.md` for tips when a container build misbehaves or you need to verify Podman vs Docker behaviour.

@@ -30,6 +30,25 @@ fileExistenceTests:
     path: '/workspace'
     shouldExist: true
 
+  # The Dev Containers extension copies the user's .gitconfig only when the
+  # container's has nothing but [filter] and [safe] sections, so what the image
+  # configures goes in the system file.
+  - name: 'No .gitconfig in the home directory'
+    path: '/home/vscode/.gitconfig'
+    shouldExist: false
+
+  # The template mounts named volumes on these. A new volume takes the owner of
+  # the directory it lands on, and one the image lacks is created for root.
+  - name: 'uv cache owned by vscode'
+    path: '/home/vscode/.cache/uv'
+    shouldExist: true
+    uid: 1000
+
+  - name: 'Ansible directory owned by vscode'
+    path: '/home/vscode/.ansible'
+    shouldExist: true
+    uid: 1000
+
 commandTests:
   # Python version: any 3.x, as the other tests match names, not versions
   - name: 'Python 3 available'
@@ -204,6 +223,30 @@ commandTests:
     command: 'pre-commit'
     args: ['--version']
     expectedOutput: ['pre-commit']
+
+  # In the system file: see 'No .gitconfig in the home directory'.
+  - name: 'Default branch set in the system git config'
+    command: 'git'
+    args: ['config', '--system', '--get', 'init.defaultBranch']
+    expectedOutput: ['main']
+    exitCode: 0
+
+  # The login shell, the world-writable uv lock and LANG are checked in base.yaml
+  # and ansible-podman.yaml, where they come from. test-containers builds this
+  # image on the BASE_IMAGE pin, which trails the base Dockerfile until main
+  # publishes it, so a check here could not pass in the pull request that fixes
+  # base.
+  # The same goes for the absence of sudo: it is checked in base.yaml,
+  # ansible-podman.yaml, terraform.yaml, golang.yaml and latex.yaml.
+  # And for the Debian release, checked in base.yaml, terraform.yaml and
+  # latex.yaml: this image follows base, so it moves when the pin does.
+
+  # git needs it for every git@ remote: "error: cannot run ssh".
+  - name: 'ssh client runs'
+    command: 'ssh'
+    args: ['-V']
+    expectedError: ['OpenSSH_']
+    exitCode: 0
 
   # Workspace writable
   - name: 'Workspace writable'

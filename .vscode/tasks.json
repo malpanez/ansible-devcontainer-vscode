@@ -137,17 +137,6 @@
       }
     },
     {
-      "label": "Security Scan (Trivy)",
-      "type": "shell",
-      "command": "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):/workspace aquasec/trivy:latest fs --scanners vuln,secret --severity CRITICAL,HIGH /workspace",
-      "problemMatcher": [],
-      "group": "test",
-      "presentation": {
-        "reveal": "always",
-        "panel": "new"
-      }
-    },
-    {
       "label": "Run All Quality Checks",
       "type": "shell",
       "command": "uvx pre-commit run --all-files && ansible-lint && yamllint .",
@@ -252,17 +241,6 @@
       "command": "for stack in ansible terraform golang latex; do echo \"Building $stack...\"; ./scripts/smoke-devcontainer-image.sh --stack $stack --build; done",
       "problemMatcher": [],
       "group": "build",
-      "presentation": {
-        "reveal": "always",
-        "panel": "new"
-      }
-    },
-    {
-      "label": "Update Tool Versions in README",
-      "type": "shell",
-      "command": "echo 'Check and update tool versions in README.md:' && grep -E '(Terraform|Python|Go|Ansible|uv).*badge' README.md",
-      "problemMatcher": [],
-      "group": "none",
       "presentation": {
         "reveal": "always",
         "panel": "new"

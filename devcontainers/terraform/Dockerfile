@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-ARG DEBIAN_VERSION=bookworm-slim
+ARG DEBIAN_VERSION=trixie-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.17.0
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
@@ -13,7 +13,7 @@ ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
 ARG UV_VERSION=0.13.6
 
-FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS fetch
+FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS fetch
 ARG TARGETARCH
 ARG TERRAFORM_VERSION TFLINT_VERSION TERRAGRUNT_VERSION SOPS_VERSION AGE_VERSION
 
@@ -70,7 +70,7 @@ RUN set -eux; \
 
 # devcontainer-terraform. Not the last stage: the empty one at the end of
 # this file, which repeats it, is.
-FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS terraform
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS terraform
 
 ARG IMAGE_VENDOR="malpanez"
 
@@ -79,7 +79,10 @@ LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devco
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
+# LANG: debian-slim sets none, so `locale charmap` printed ANSI_X3.4-1968 and
+# tools that ask the locale treated everything as ASCII.
 ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
     UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     TF_PLUGIN_CACHE_DIR=/workspaces/.terraform.d/plugin-cache \
@@ -89,6 +92,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install system dependencies + GitHub CLI (gh) to avoid DevContainer features rebuild
 # https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+# openssh-client: without it `git ls-remote git@...` stopped at "error: cannot
+# run ssh" and `terraform init` could not fetch a git::ssh:// module.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -98,19 +103,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       ca-certificates \
       curl \
       git \
-      sudo \
+      openssh-client \
       unzip \
     && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
       > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends gh \
     # Upgrade AFTER the installs, never before: the stale packages here
     # arrive as dependencies of the list above (libpcre2-8-0 comes in with
-    # git and grep), so an upgrade placed first never reaches them. The
-    # pinned bookworm digest ships libpcre2-8-0 10.42-1 while bookworm
-    # has 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
+    # git and grep), so an upgrade placed first never reaches them. On
+    # Debian 12 that kept libpcre2-8-0 at 10.42-1 while the archive had
+    # 10.42-1+deb12u1, which left 2 HIGH alerts open per image.
     && apt-get full-upgrade -y \
     && apt-get autoremove -y --purge \
     && apt-get clean \
@@ -157,9 +163,9 @@ COPY --from=fetch --link --chmod=0755 /tmp/bin/age-keygen /usr/local/bin/age-key
 #
 # The interpreter is the CPython version devcontainer-base runs, installed by
 # the pinned uv, which carries the sha256 of every Python build it can
-# install and refuses a download that does not match. Debian's python3 is no
-# option: bookworm ships 3.11, below the lock's requires-python (>=3.12), so
-# the export has no wheel it could verify.
+# install and refuses a download that does not match. Debian's python3 is not
+# used: trixie's 3.13 meets the lock's requires-python (>=3.12), but it is not
+# the version the base runs, and it would put a python3 on every user's PATH.
 #
 # Then it is trimmed of what nothing here loads: libpython3.14.so* (the
 # python executable is linked statically) and Tcl/Tk with tkinter, idlelib
@@ -206,7 +212,9 @@ ARG USER_UID=1000
 ARG USER_GID=${USER_UID}
 
 RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
-    && useradd --uid "${USER_UID}" --gid "${USER_GID}" -m "${USERNAME}" \
+    # --shell: useradd's default is /bin/sh, and VS Code opens its terminals
+    # in the account's login shell when SHELL is not set.
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --shell /bin/bash -m "${USERNAME}" \
     # useradd stamps today's day number into the shadow entry's
     # last-change field, so the image changed with the build date even
     # when nothing else did. An empty field disables password aging,
@@ -216,7 +224,10 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
     # terraform init failed with "mkdir /workspaces: permission denied" while
     # this directory did not exist. Owned by vscode here, it is also the owner
     # Docker gives the empty terraform-plugin-cache volume mounted on it.
-    && install -d -o "${USERNAME}" -g "${USERNAME}" "${TF_PLUGIN_CACHE_DIR}" \
+    # Sticky and open to everyone because that owner is not enough: on a host
+    # whose uid is not 1000, updateRemoteUserUID gives vscode the host's uid and
+    # chowns only its home, and this is outside it, so the volume stayed 1000's.
+    && install -d -m 1777 -o "${USERNAME}" -g "${USERNAME}" "${TF_PLUGIN_CACHE_DIR}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/share/uv" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
@@ -233,9 +244,13 @@ COPY --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensur
 
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 

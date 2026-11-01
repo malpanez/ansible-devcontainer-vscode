@@ -6,7 +6,9 @@
     "--privileged"
   ],
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:4.1.3": {
+      "moby": false
+    }
   },
   "customizations": {
     "vscode": {
@@ -58,11 +60,12 @@
     "PRE_COMMIT_HOME": "/workspace/.cache/pre-commit",
     "ANSIBLE_LOCAL_TEMP": "/workspace/.cache/ansible/tmp"
   },
+  "containerUser": "root",
   "remoteUser": "vscode",
   "postCreateCommand": [
     "/bin/bash",
     "-lc",
-    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && (test -f requirements.yml && ansible-galaxy collection install -r requirements.yml || echo 'No requirements.yml found, skipping collection install')"
+    "mkdir -p /workspace/.cache/pre-commit /workspace/.cache/ansible/tmp && ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi"
   ],
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

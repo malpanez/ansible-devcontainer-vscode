@@ -36,7 +36,7 @@
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
   ],
 
-  "postCreateCommand": "uvx pre-commit install --install-hooks && terraform init || true",
+  "postCreateCommand": "pre-commit install --install-hooks && terraform init || true",
 
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

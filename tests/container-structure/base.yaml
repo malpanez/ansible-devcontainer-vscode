@@ -26,7 +26,43 @@ fileExistenceTests:
     path: '/usr/bin/yamllint'
     shouldExist: false
 
+  # The Dev Containers extension copies the user's .gitconfig only when the
+  # container's has nothing but [filter] and [safe] sections, so what the image
+  # configures goes in the system file.
+  - name: 'No .gitconfig in the home directory'
+    path: '/home/vscode/.gitconfig'
+    shouldExist: false
+
+  # Created for the stacks built on this image: their templates mount
+  # named volumes on them, and a new volume takes the directory's owner.
+  - name: 'pre-commit cache owned by vscode'
+    path: '/home/vscode/.cache/pre-commit'
+    shouldExist: true
+    uid: 1000
+
+  - name: 'Ansible directory owned by vscode'
+    path: '/home/vscode/.ansible'
+    shouldExist: true
+    uid: 1000
+
+  # sudo has had no rules since 1a62ea6, so the package is not installed: a
+  # setuid root binary that only ever answered "a password is required".
+  - name: 'No sudo binary'
+    path: '/usr/bin/sudo'
+    shouldExist: false
+
 commandTests:
+  # Debian 13. Fails on a revert, or on a digest of another release.
+  - name: 'Debian 13'
+    command: 'cat'
+    args: ['/etc/os-release']
+    expectedOutput: ['ID=debian', 'VERSION_ID="13"', 'VERSION_CODENAME=trixie']
+
+  - name: 'sudo is not on the PATH'
+    command: 'sh'
+    args: ['-c', '! command -v sudo']
+    exitCode: 0
+
   # Python version: any 3.x, as the other tests match names, not versions
   - name: 'Python 3 available'
     command: 'python3'
@@ -68,6 +104,27 @@ commandTests:
       - 'find / -xdev \( -name "pre_commit-*-info" -o -name "yamllint-*-info" \) 2>/dev/null | sort'
     expectedOutput:
       - '\A/usr/local/lib/python3\.[0-9]+/site-packages/pre_commit-[0-9.]+\.dist-info\n/usr/local/lib/python3\.[0-9]+/site-packages/yamllint-[0-9.]+\.dist-info\n\z'
+
+  # useradd's default is /bin/sh, which VS Code would open terminals in.
+  - name: 'Login shell is bash'
+    command: 'sh'
+    args: ['-c', 'grep "^vscode:" /etc/passwd']
+    expectedOutput: ['(?m)^vscode:.*:/bin/bash$']
+    exitCode: 0
+
+  # git needs it for every git@ remote: "error: cannot run ssh".
+  - name: 'ssh client runs'
+    command: 'ssh'
+    args: ['-V']
+    expectedError: ['OpenSSH_']
+    exitCode: 0
+
+  # uv leaves /tmp/uv-<hash>.lock behind, mode 0666, after an install into a
+  # system environment; the build removes it (devcontainers/base/Dockerfile).
+  - name: 'No world-writable file in /tmp'
+    command: 'sh'
+    args: ['-c', '! find /tmp -xdev -type f -perm -0002 | grep .']
+    exitCode: 0
 
   # Workspace writable
   - name: 'Workspace writable'
@@ -114,9 +171,11 @@ metadataTest:
     - key: 'org.opencontainers.image.source'
       value: 'https://github.com/malpanez/ansible-devcontainer-vscode'
 
-  # Users' own installs keep uv's bytecode; only the build compiles
-  # checked-hash (devcontainers/base/Dockerfile).
+  # Users' own installs keep uv's bytecode; only the build compiles checked-hash
+  # (devcontainers/base/Dockerfile).
   envVars:
+    - key: 'LANG'
+      value: 'C.UTF-8'
     - key: 'UV_COMPILE_BYTECODE'
       value: '1'
 

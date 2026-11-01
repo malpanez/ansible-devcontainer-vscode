@@ -165,10 +165,9 @@ See the [Makefile](../Makefile) for the complete list of available commands.
   # Add a new dependency
   # Edit pyproject.toml to add the package with version constraint
   uv lock
-  uv pip install --system .
   ```
 
-  Commit both `pyproject.toml` and `uv.lock`. You can also run `ansible-playbook playbooks/update-dependencies.yml` to refresh the lockfile in one step (supports proxy overrides via `uv_http_proxy`, `uv_https_proxy`, etc.).
+  Commit both `pyproject.toml` and `uv.lock`, and regenerate the `requirements*.txt` exports (the images install those, hashed; see `docs/ARCHITECTURE.md`). You can also run `ansible-playbook playbooks/update-dependencies.yml` to refresh the lockfile in one step (supports proxy overrides via `uv_http_proxy`, `uv_https_proxy`, etc.).
 
 - Python formatting and linting are managed by `ruff` and `black`. Ansible/YAML files must stay compliant with the repo’s `.ansible-lint` and `.yamllint` configs.
 
@@ -258,9 +257,9 @@ pre-commit install --install-hooks
 
 ### "Permission denied" errors with cache directories
 
-The devcontainer should handle this automatically. If you see permission errors:
+The devcontainer should handle this automatically. If you see permission errors, fix the owner from the host, because the images carry no `sudo`:
 ```bash
-sudo chown -R vscode:vscode /workspace/.cache /home/vscode/.cache
+docker exec -u 0 <container> chown -R vscode:vscode /workspace/.cache /home/vscode/.cache
 ```
 
 ### Devcontainer build is slow

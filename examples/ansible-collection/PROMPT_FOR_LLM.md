@@ -122,11 +122,11 @@ git commit -m "feat: add CIS compliance checks"
 
 | Feature | Oficial Ansible | malpanez/devcontainer-ansible |
 |---------|----------------|--------------------------------|
-| Python | 3.11 | 3.12.12 (latest) |
+| Python | 3.11 | 3.14 (`python:3.14-slim-trixie`) |
 | Package Manager | pip | uv (10-100x faster) |
 | Pre-commit | ❌ No | ✅ Si (configurado) |
-| Security Tools | ❌ Básico | ✅ Trivy, gitleaks |
-| OpenSSF Scorecard | N/A | ✅ 6.1/10 |
+| Security Tools | ❌ Básico | ✅ gitleaks vía hook de pre-commit (no viene en la imagen) |
+| OpenSSF Scorecard | N/A | ✅ 8.1/10 (2026-10-30) |
 | Automation | ❌ No | ✅ 90% automatizado |
 | Maintenance | Manual | Renovate bot |
 
@@ -134,7 +134,7 @@ git commit -m "feat: add CIS compliance checks"
 - ✅ Pinned dependencies (SHA256) - reproducible
 - ✅ Multi-arch (amd64/arm64) - funciona en Apple Silicon
 - ✅ Automated updates (Renovate bot) - siempre actualizado
-- ✅ Security scanning built-in (Trivy) - detecta vulnerabilidades
+- ✅ Cada imagen publicada se escanea con Grype antes de etiquetarse
 - ✅ 90% maintenance automated - casi cero mantenimiento
 
 **Recursos adicionales**:
@@ -158,17 +158,19 @@ git commit -m "feat: add CIS compliance checks"
 
 **Causa**: Permisos incorrectos en ~/.cache/pre-commit
 
-**Solución**: Asegúrate que el devcontainer.json incluye:
+**Solución**: Las imágenes ya crean `/home/vscode/.cache/pre-commit` con `vscode` como dueño. Si falla es porque un volumen o un bind mount la tapó con un dueño root. Quita ese mount, o cambia el dueño desde el host (las imágenes no incluyen `sudo`, y los comandos de ciclo de vida corren como `remoteUser`, no como root):
+
+```bash
+docker exec -u 0 <contenedor> chown -R vscode:vscode /home/vscode/.cache
+```
+
+Con el directorio en orden, basta con:
 
 ```json
 {
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
   },
-  "updateContentCommand": [
-    "bash", "-c",
-    "mkdir -p /home/vscode/.cache/pre-commit && chown -R vscode:vscode /home/vscode/.cache"
-  ],
   "postCreateCommand": [
     "bash", "-c",
     "pre-commit install --install-hooks || true"
@@ -176,7 +178,7 @@ git commit -m "feat: add CIS compliance checks"
 }
 ```
 
-**IMPORTANTE**: Usa `updateContentCommand` (ejecuta como root) en lugar de `postCreateCommand` con sudo, para evitar problemas de permisos en diferentes entornos.
+**IMPORTANTE**: No uses `sudo` en `postCreateCommand` ni esperes root en `updateContentCommand`: ambos corren como `vscode` y las imágenes no tienen `sudo`.
 
 ### "Pre-commit hooks not running"
 
@@ -205,10 +207,10 @@ docker pull ghcr.io/malpanez/devcontainer-ansible:latest
 
 ## 📊 Métricas de Producción
 
-- **OpenSSF Scorecard**: 6.1/10
+- **OpenSSF Scorecard**: 8.1/10 (2026-10-30)
 - **Automation**: 90%
 - **Maintenance**: 5 min/semana (review), 2 horas/trimestre (comprehensive)
-- **Security**: Renovate bot + weekly alert cleanup + Trivy scanning
+- **Security**: Renovate bot + weekly alert cleanup + Grype scan gate
 
 ---
 
@@ -219,7 +221,7 @@ docker pull ghcr.io/malpanez/devcontainer-ansible:latest
 ```
 👋 Bienvenido al equipo!
 
-Usamos devcontainers de malpanez para Ansible (production-ready, OpenSSF 6.1/10).
+Usamos devcontainers de malpanez para Ansible (production-ready, OpenSSF 8.1/10 (2026-10-30)).
 
 **Setup rápido (2 minutos)**:
 1. Instala Docker Desktop + VS Code

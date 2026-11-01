@@ -6,13 +6,13 @@ This document provides visual architecture diagrams and explanations for the dev
 
 ```mermaid
 graph TD
-    A[python:3.14-slim-bookworm] --> B[devcontainer-base]
+    A[python:3.14-slim-trixie] --> B[devcontainer-base]
     B --> C[devcontainer-ansible]
     C --> L[devcontainer-ansible-aws]
 
     K[python:3.14-slim-trixie] --> D[devcontainer-ansible-podman]
 
-    E[debian:bookworm-slim] --> F[devcontainer-terraform]
+    E[debian:trixie-slim] --> F[devcontainer-terraform]
     F --> M[devcontainer-terraform-aws]
     E --> G[devcontainer-latex]
 
@@ -43,7 +43,7 @@ graph TD
   - Runs as `vscode`, not root, like every stack built on it
 
 - **Ansible Stacks**
-  - `devcontainer-ansible`: extends `devcontainer-base`
+  - `devcontainer-ansible`: built `FROM` `devcontainer-base` (a Dockerfile base, not a devcontainer `extends`)
   - `devcontainer-ansible-podman`: **does not** extend the base. It builds from
     `python:3.14-slim-trixie` and installs Podman from Debian, because the
     Debian build is ABI-coherent with the rest of the image. Copying binaries
@@ -56,7 +56,7 @@ graph TD
   - `devcontainer-terraform`: Debian-based with HashiCorp tools
   - `devcontainer-terraform-aws`: `devcontainer-terraform` plus AWS CLI v2,
     the `terraform-aws` stage of `devcontainers/terraform/Dockerfile`
-  - `devcontainer-golang`: Alpine-based Go development
+  - `devcontainer-golang`: Alpine-based Go development (musl). VS Code supports Alpine only as "Alpine Linux 64-bit x86 containers or WSL hosts" and warns that extensions may not work due to `glibc` dependencies in native code; it calls AArch64 "preview" (https://code.visualstudio.com/docs/remote/linux). The image is still published for arm64
   - `devcontainer-latex`: Debian-based with Tectonic engine
 
 ## Python Dependency Management Flow
@@ -64,7 +64,8 @@ graph TD
 ```mermaid
 graph LR
     A[pyproject.toml] -->|uv lock| B[uv.lock]
-    B -->|uv pip install --system .| C[Container Runtime]
+    B -->|uv export, hashed| R[requirements-*.txt]
+    R -->|uv pip install --require-hashes| C[Container Runtime]
 
     D[Developer adds dependency] --> A
     E[Renovate] --> A
@@ -80,28 +81,12 @@ graph LR
 
 1. **Define dependencies** in `pyproject.toml` with version constraints
 2. **Lock versions** with `uv lock` (generates `uv.lock`)
-3. **Install in container** with `uv pip install --system .` during build
-4. **No manual requirements.txt** - uv handles dependency resolution automatically
+3. **Export** the lock to hashed `requirements-*.txt` (`uv export`); these are generated, never edited by hand
+4. **Install in the image** with `uv pip install --system --require-hashes -r requirements-ansible.txt` during build
 
-### Migration from requirements.txt
+### requirements files
 
-**Before (PR #85 and earlier):**
-```bash
-# Manual dependency management
-uv pip install -r requirements-ansible.txt
-```
-
-**After (PR #86+):**
-```bash
-# Automated dependency resolution
-cd /tmp && uv pip install --system .
-```
-
-Benefits:
-- Single source of truth (`pyproject.toml`)
-- Automatic conflict resolution
-- No manual lockfile maintenance
-- Standard Python packaging format
+`requirements-ansible.txt`, `requirements-aws.txt`, `requirements-devcontainer-tools.txt` and `requirements.txt` are generated from `uv.lock` with `uv export` (hashed). The Dockerfiles install them with `--require-hashes`, so a build installs what the lock says and nothing else. Do not edit them by hand: change `pyproject.toml`, run `uv lock`, and regenerate.
 
 ## Pre-commit Architecture
 
@@ -147,12 +132,12 @@ graph TD
     B -->|PR| C[CI Pipeline]
     B -->|Push to main| D[Build & Publish]
     B -->|Tag push| E[Release Pipeline]
-    B -->|Schedule: Weekly| F[Security Refresh]
+    B -->|Schedule: Daily| F[Security Refresh]
 
     C --> C1[Pre-commit Checks]
     C --> C2[Build Devcontainers]
     C --> C3[Run Tests]
-    C --> C4[Security Scan]
+    C --> C4[Grype Scan]
 
     C1 & C2 & C3 & C4 --> C5{All Pass?}
     C5 -->|Yes| C6[Ready to Merge]
@@ -197,9 +182,9 @@ The `build-containers.yml` workflow builds:
 ### Image Tags
 
 - **On PR**: Build only, no push
-- **On push to main**: `:latest` + `:sha-<commit>`
+- **On push to main** (and the daily run): `:latest`, `:main` and `:sha-<commit>` (the base also gets the derived `py<major><minor>` tag)
 - **On tag push**: `:<tag>` only (e.g., `:v1.2.3`; `:py<major><minor>-<tag>` for the base), added to the digest build-containers already gated and signed -- a release rebuilds nothing and never moves `:latest`
-- **Weekly schedule**: Refreshes `:latest` with security updates
+- **Daily schedule** (`0 3 * * *`, uncached): Refreshes `:latest` and `:main` with security updates, only for images that pass the scan gate
 
 ## Container Variant Comparison
 
@@ -208,8 +193,8 @@ graph LR
     A[ansible] -->|Use Case| B[Standard Ansible<br/>automation]
     C[ansible-podman] -->|Use Case| D[Ansible + Container<br/>Execution Environments]
 
-    A -->|Size| E[~650 MB]
-    C -->|Size| F[~780 MB<br/>+Podman binaries]
+    A -->|Size| E[436 MiB]
+    C -->|Size| F[518 MiB<br/>+Podman]
 
     A -->|Capabilities| G[Ansible playbooks<br/>Molecule tests<br/>Collections]
     C -->|Capabilities| H[Everything in ansible<br/>+ Podman rootless<br/>+ ansible-navigator<br/>+ ansible-builder]
@@ -238,15 +223,13 @@ graph LR
 
 ```mermaid
 graph TD
-    A[Renovate Bot] -->|Weekly scan| B{New Version?}
+    A[Renovate Bot] -->|Weekly scan, Mondays| B{New Version?}
     B -->|Yes| C[Create PR]
     B -->|No| D[Skip]
 
     C --> E[Update Dockerfile ARGs]
-    C --> F[Update README badges]
-    C --> G[Update version table]
 
-    E & F & G --> H[CI Builds & Tests]
+    E --> H[CI Builds & Tests]
     H -->|Pass| I[Auto-merge enabled]
     H -->|Fail| J[Manual review]
 
@@ -258,63 +241,43 @@ graph TD
     style J fill:#fff3e0
 ```
 
-### Current Versions (as of December 2025)
+### Where each version lives
 
-| Tool | Version | Update Strategy |
-|------|---------|----------------|
-| Python | 3.12.12 | Patch version pinned in base image |
-| Go | 1.25 | Minor version pinned, patch auto-update |
-| Terraform | 1.14.0 | Patch version pinned, manual minor updates |
-| Terragrunt | 0.93.11 | Minor auto-update via Renovate |
-| TFLint | 0.60.0 | Minor auto-update via Renovate |
-| SOPS | 3.11.0 | Minor auto-update via Renovate |
-| age | 1.2.1 | Minor auto-update via Renovate |
-| Tectonic | 0.15.0 | Minor auto-update via Renovate |
-| Ansible | 9.14.0 | Locked via pyproject.toml + uv.lock |
-| uv | 0.9.13 | Pinned in base image |
-| AWS CLI | v2, `-aws` images only | Pinned with its sha256 in `devcontainers/scripts/install-aws-cli.sh`, bumped by Renovate |
-| github-cli (gh) | latest | Auto-update from apt repository |
-| Podman | 5.7.0 | From official Podman image |
+Versions are not restated here: a copy rots. Read them at the source.
+
+| Tool | Source of truth | Update strategy |
+|------|-----------------|-----------------|
+| Python (images) | `FROM python:` in `devcontainers/base/Dockerfile` and `Dockerfile.podman`; `TOOLS_PYTHON_VERSION` where the image has no Python | Renovate, held at 3.14 patches |
+| Go | `FROM golang:` in `devcontainers/golang/Dockerfile` | Renovate |
+| Terraform, Terragrunt, TFLint, SOPS, age | `ARG *_VERSION` in `devcontainers/terraform/Dockerfile`, each download checksum-verified | Renovate |
+| Tectonic | `ARG TECTONIC_VERSION` and the per-architecture sha256 in `devcontainers/latex/Dockerfile` | Renovate |
+| ansible-core and the rest of the Python stack | `uv.lock` (exported to `requirements-ansible.txt`) | Renovate lock maintenance |
+| uv | `ARG UV_VERSION` in the Dockerfiles | Renovate |
+| AWS CLI | v2, `-aws` images only; pinned with its sha256 in `devcontainers/scripts/install-aws-cli.sh` | Renovate |
+| GitHub CLI (`gh`) | Not pinned: the latest from GitHub's apt repository at build time | Rebuilt daily |
+| Podman | Debian 13's `podman` package, installed in `Dockerfile.podman` | Daily rebuild |
 
 ## Security Scanning Flow
 
 ```mermaid
 graph LR
-    A[Container Built] --> B[Trivy Scan]
-    B --> C{Findings?}
+    A[Image built] --> B[Pushed untagged, by digest]
+    B --> C[Grype scan, every platform]
+    C --> D{Fixable high/critical?}
 
-    C -->|CRITICAL| D[Block Build]
-    C -->|HIGH| E[Review .trivyignore]
-    C -->|MEDIUM/LOW| F[Allow & Track]
+    D -->|Yes| E[No tags, no signature: run goes red]
+    D -->|No| F[Attest, sign with cosign, tag]
 
-    E -->|Documented exception| G[Allow with tracking]
-    E -->|New CVE| H[Update tool version]
+    F --> G[release.yml re-scans at release]
+    G --> H[scan-release-images.yml rescans the newest release nightly]
 
-    H --> I[Vendor releases patch?]
-    I -->|Yes| J[Bump version]
-I -->|No| K[Document in .trivyignore<br/>with tracking URL]
-
-    style D fill:#ffebee
+    style E fill:#ffebee
     style F fill:#e8f5e9
-    style G fill:#fff3e0
-    style J fill:#e3f2fd
 ```
 
-### Trivy Exception Policy
+### Exception Policy
 
-`.trivyignore` documents CVEs with:
-- Affected tool and version
-- CVE identifier
-- Upstream tracking URL
-- Justification for temporary exception
-- Review date
-
-**Example:**
-```
-# Terragrunt v0.93.11 - Waiting for upstream fix
-# https://github.com/gruntwork-io/terragrunt/issues/XXXX
-CVE-2024-XXXXX
-```
+`.grype.yaml` holds the exceptions, each with its reason. Third-party Go binaries (terraform, terragrunt, tflint, sops, age, gh, podman) are ignored only for the Go stdlib and `golang.org/x` modules embedded in them, scoped by package and binary location; the golang image's own toolchain is deliberately not covered. A CVE that needs an exception gets a single-CVE entry, never a blanket rule (see the AWS CLI's bundled CPython there).
 
 ## Workflow: Adding a New Dependency
 
@@ -329,12 +292,12 @@ sequenceDiagram
     Dev->>PY: Add package to dependencies
     Dev->>UV: Run 'uv lock'
     UV->>Lock: Generate lockfile
-    Dev->>UV: Test locally: 'uv pip install --system .'
+    Dev->>UV: Export hashed requirements-*.txt
     UV->>Dev: ✓ Dependencies resolved
 
     Dev->>CI: git push
     CI->>Lock: Read lockfile
-    CI->>UV: uv pip install --system .
+    CI->>UV: uv pip install --require-hashes -r requirements-*.txt
     UV->>CI: Build containers
     CI->>CI: Run tests
     CI->>Dev: ✓ All checks pass
@@ -439,7 +402,8 @@ graph LR
 | ansible-podman | ✅ | ✅ | |
 | terraform | ✅ | ✅ | |
 | golang | ✅ | ✅ | |
-| latex | ✅ | ❌ | Tectonic binaries currently amd64-only |
+| latex | ✅ | ❌ | The Dockerfile pins an aarch64 Tectonic too, but `build-containers.yml` builds and publishes latex for `linux/amd64` only |
+| ansible-aws, terraform-aws | ✅ | ✅ | Stages of the ansible and terraform Dockerfiles |
 
 ## Summary
 
@@ -447,10 +411,10 @@ This architecture provides:
 
 1. **Layered container strategy** - Shared base for Python stacks, standalone for others
 2. **Modern Python packaging** - pyproject.toml + uv for fast, reproducible builds
-3. **Lazy-loaded tooling** - Pre-commit installed on-demand, not baked into images
-4. **Security-first CI/CD** - Trivy scanning, provenance attestation, SBOM generation
+3. **Baked-in tooling** - pre-commit and yamllint ship in every image at the versions `uv.lock` pins; nothing is installed when the container starts
+4. **Security-first CI/CD** - Grype scan gate before any tag, cosign signatures, provenance attestation, SBOM generation
 5. **Multi-arch support** - amd64 + arm64 for all stacks (except latex)
-6. **Automated maintenance** - Renovate for dependencies, weekly security refreshes
+6. **Automated maintenance** - Renovate for dependencies, daily security refreshes
 
 For implementation details, see:
 - [README.md](../README.md) - General usage and setup

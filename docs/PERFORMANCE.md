@@ -1,6 +1,6 @@
 # Performance Optimization Guide
 
-**Last Updated**: 2025-12-04
+**Last Updated**: 2025-12-04 (image sizes corrected 2026-11 to the CI measurements; build, startup and cache-hit figures were not re-measured)
 
 This guide documents performance characteristics, benchmarks, and optimization strategies for the ansible-devcontainer-vscode project.
 
@@ -25,15 +25,15 @@ Measured on GitHub Actions runners (ubuntu-latest, 2-core, 7GB RAM):
 
 | Stack     | Build Time | Image Size | Startup Time | Layers | Cache Hit Rate |
 |-----------|------------|------------|--------------|--------|----------------|
-| Ansible   | 3m 45s     | 650 MB     | 8s           | 12     | ~75%           |
-| Terraform | 2m 10s     | 240 MB     | 4s           | 8      | ~80%           |
-| Golang    | 1m 30s     | 210 MB     | 3s           | 6      | ~85%           |
-| LaTeX     | 2m 45s     | 320 MB     | 5s           | 9      | ~70%           |
+| Ansible   | 3m 45s     | 436 MiB    | 8s           | 12     | ~75%           |
+| Terraform | 2m 10s     | 669 MiB    | 4s           | 8      | ~80%           |
+| Golang    | 1m 30s     | 376 MiB    | 3s           | 6      | ~85%           |
+| LaTeX     | 2m 45s     | 335 MiB    | 5s           | 9      | ~70%           |
 
 **Notes**:
 - Build times include layer caching (warm cache scenario)
 - Cold cache builds are 2-3x slower
-- Image sizes are for `linux/amd64` platform
+- Image sizes are the uncompressed `linux/amd64` figures CI measures (`docker image inspect` `.Size`); the enforced limits are in `.github/image-size-budgets.json`
 - Startup time = container ready to time when shell prompt appears
 
 ### Build Time Breakdown (Ansible Stack Example)
@@ -255,13 +255,13 @@ RUN --mount=type=cache,target=/var/cache/apt \
 **Example** (Terraform stack):
 ```dockerfile
 # Stage 1: Build tools
-FROM debian:bookworm-slim AS builder
+FROM debian:trixie-slim AS builder
 RUN apt-get update && apt-get install -y wget unzip
 RUN wget https://releases.hashicorp.com/terraform/1.9.6/terraform_1.9.6_linux_amd64.zip
 RUN unzip terraform*.zip
 
 # Stage 2: Runtime (smaller)
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 COPY --from=builder /terraform /usr/local/bin/
 ```
 
@@ -282,8 +282,8 @@ COPY --from=builder /terraform /usr/local/bin/
 ```json
 "mounts": [
   "source=${localWorkspaceFolder},target=/workspace,type=bind",
-  "source=uv-cache,target=/root/.cache/uv,type=volume",
-  "source=ansible-galaxy-cache,target=/root/.ansible/collections,type=volume"
+  "source=uv-cache,target=/home/vscode/.cache/uv,type=volume",
+  "source=ansible-galaxy-cache,target=/home/vscode/.ansible,type=volume"
 ]
 ```
 
@@ -385,7 +385,7 @@ Alert on:
 |---------------------------|---------|---------|----------|
 | Ansible first-open        | 5m 20s  | < 1m    | GHCR prebuilds |
 | CI pipeline duration      | 12m     | < 8m    | Better parallelism |
-| Image size (Ansible)      | 650 MB  | < 500 MB | Multi-stage + cleanup |
+| Image size (Ansible)      | 436 MiB | < 500 MB | Met; limit now enforced by `.github/image-size-budgets.json` |
 | Pre-commit (all files)    | 28.6s   | < 20s   | Selective linting |
 | Cache hit rate            | 75%     | > 90%   | Better cache keys |
 

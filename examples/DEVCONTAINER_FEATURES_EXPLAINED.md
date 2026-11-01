@@ -96,33 +96,11 @@ Cada feature es un script que instala y configura herramientas adicionales.
 
 ---
 
-## ¿Por qué nuestros templates usan features?
+## ¿Nuestros templates usan features?
 
-Nuestros templates incluyen estas features por defecto:
+No. Los templates de `devcontainers/` solo usan `image`: git, `gh` y (en las imágenes `-aws`) el AWS CLI ya vienen en la imagen. Las únicas features están en los perfiles `devcontainer.dind.json` (`docker-in-docker`) y `devcontainer.docker-socket.json` (`docker-outside-of-docker`), que necesitan además `"moby": false` (Debian 13 no tiene Moby) y `"containerUser": "root"` (el entrypoint de la feature arranca `dockerd` con `sudo`, que las imágenes no tienen).
 
-### Ansible
-```json
-"features": {
-  "ghcr.io/devcontainers/features/git:1": {},
-  "ghcr.io/devcontainers/features/github-cli:1": {}
-}
-```
-
-### Terraform
-```json
-"features": {
-  "ghcr.io/devcontainers/features/git:1": {},
-  "ghcr.io/devcontainers/features/github-cli:1": {},
-  "ghcr.io/devcontainers/features/aws-cli:1": {}
-}
-```
-
-**Razones**:
-1. **git** - Control de versiones (99% de proyectos lo necesitan)
-2. **github-cli** - `gh` commands para PRs, issues, releases
-3. **aws-cli** (Terraform) - AWS credentials y comandos
-
-**Pero**... estas herramientas **YA ESTÁN en la base image** en muchos casos.
+Versiones antiguas de los templates sí incluían `git`, `github-cli` y `aws-cli`; ya no son necesarias.
 
 ---
 
@@ -171,7 +149,7 @@ Si el comando retorna una ruta (`/usr/bin/git`), **ya está instalado**.
 
   "postCreateCommand": [
     "bash", "-lc",
-    "set -euo pipefail; sudo mkdir -p /home/vscode/.cache/pre-commit; sudo chown -R vscode:vscode /home/vscode/.cache; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "set -euo pipefail; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
   ],
 
   "remoteUser": "vscode"
@@ -210,10 +188,14 @@ Ejemplo: Proyecto que necesita Docker-in-Docker:
 {
   "image": "ghcr.io/malpanez/devcontainer-ansible:latest",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  }
+    "ghcr.io/devcontainers/features/docker-in-docker:4": { "moby": false }
+  },
+  "containerUser": "root",
+  "remoteUser": "vscode"
 }
 ```
+
+Sin `"containerUser": "root"` el daemon no arranca: el entrypoint de la feature usa `sudo` y las imágenes no lo traen. Mira `devcontainers/ansible/devcontainer.dind.json`.
 
 ### Caso 3: Versión específica de una herramienta
 
@@ -256,9 +238,9 @@ Ejemplo: Necesitas Node.js 20 para Ansible + Terraform:
 - `ansible.posix`, `community.general`, `community.docker` (see `devcontainers/ansible/collections.txt`)
 - ✅ **git** (ya instalado)
 - ✅ **github-cli (gh)** (ya instalado)
-- gitleaks
-- trivy
 - Pre-commit
+
+(`gitleaks` y `trivy` no vienen en la imagen.)
 
 **Features que PUEDES ELIMINAR**: git, github-cli (ya están)
 
@@ -269,9 +251,9 @@ Ejemplo: Necesitas Node.js 20 para Ansible + Terraform:
 - ✅ **git** (ya instalado)
 - ✅ **github-cli (gh)** (ya instalado)
 - ❌ **AWS CLI**: solo en `devcontainer-terraform-aws` (y `devcontainer-ansible-aws`)
-- gitleaks
-- trivy
 - Pre-commit
+
+(`gitleaks` y `trivy` no vienen en la imagen.)
 
 **Features que PUEDES ELIMINAR**: git, github-cli (ya están). aws-cli solo si usas la imagen `-aws`
 
@@ -356,7 +338,7 @@ docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest bash -c "
 
   "postCreateCommand": [
     "bash", "-lc",
-    "sudo mkdir -p /home/vscode/.cache/pre-commit && sudo chown -R vscode:vscode /home/vscode/.cache && pre-commit install --install-hooks || true"
+    "pre-commit install --install-hooks || true"
   ],
 
   "remoteUser": "vscode"
@@ -398,7 +380,7 @@ docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest bash -c "
 
   "postCreateCommand": [
     "bash", "-lc",
-    "sudo mkdir -p /home/vscode/.cache/pre-commit && sudo chown -R vscode:vscode /home/vscode/.cache && pre-commit install --install-hooks || true && terraform init || true"
+    "pre-commit install --install-hooks || true && terraform init || true"
   ],
 
   "remoteUser": "vscode"

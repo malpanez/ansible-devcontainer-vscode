@@ -28,18 +28,27 @@ LABEL org.opencontainers.image.source="https://github.com/malpanez/ansible-devco
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 
-ENV UV_INSTALL_DIR=/usr/local/bin \
+# LANG: the golang base sets none. musl itself is UTF-8 regardless; tools that
+# read LANG are not.
+ENV LANG=C.UTF-8 \
+    UV_INSTALL_DIR=/usr/local/bin \
     UV_LINK_MODE=copy \
     WORKSPACE=/workspace \
     DEVCONTAINER_STACK=golang \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel \
     GOPATH=/home/vscode/go
 
+# libstdc++ (it brings libgcc) is on VS Code's list of prerequisites for
+# Alpine; without it the Dev Containers extension runs `apk update && apk add
+# libstdc++` itself when it starts. openssh-client-default is the package
+# behind Alpine's virtual openssh-client: without it `git ls-remote git@...`
+# stopped at "error: cannot run ssh".
 RUN apk add --no-cache \
       bash=~5 \
       curl=~8 \
       git=~2 \
-      sudo=~1 \
+      libstdc++=~15 \
+      openssh-client-default=~10 \
     && rm -f /var/log/apk.log
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -127,21 +136,34 @@ RUN addgroup -g "${USER_GID}" "${USERNAME}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "${WORKSPACE}" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.local/bin" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/uv" \
-    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/go" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/pre-commit" \
+    # The template mounts named volumes on these two. A new volume takes the
+    # owner of the directory it lands on, and a directory the image does not
+    # have is created for root: `go build` and `go get` both died with
+    # permission denied.
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/.cache/go-build" \
+    && install -d -o "${USERNAME}" -g "${USERNAME}" "/home/${USERNAME}/go/pkg/mod" \
     && install -d -o "${USERNAME}" -g "${USERNAME}" /usr/local/share/devcontainer-skel/golang \
-    # install -d creates parents as root; hand ~/.cache and ~/.local to vscode
+    # install -d creates parents as root; hand ~/.cache, ~/.local and the Go
+    # tree above the module cache to vscode
     && chown "${USERNAME}:${USERNAME}" \
          "/home/${USERNAME}/.cache" \
-         "/home/${USERNAME}/.local"
+         "/home/${USERNAME}/.local" \
+         "/home/${USERNAME}/go" \
+         "/home/${USERNAME}/go/pkg"
 
 COPY --link --chmod=0444 templates/pre-commit/golang/.pre-commit-config.yaml /usr/local/share/devcontainer-skel/golang/.pre-commit-config.yaml
 COPY --link --chmod=0555 devcontainers/scripts/ensure-precommit.sh /usr/local/bin/ensure-precommit
 
 ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/go/bin:${PATH}"
 
-USER ${USERNAME}
+# The system file, not ~/.gitconfig. The Dev Containers extension copies the
+# user's .gitconfig into the container only when the one already there has
+# nothing but [filter] and [safe] sections, so the [init] section this line
+# wrote with --global kept the user's name, email and aliases out.
+RUN git config --system init.defaultBranch main
 
-RUN git config --global init.defaultBranch main
+USER ${USERNAME}
 
 WORKDIR ${WORKSPACE}
 
