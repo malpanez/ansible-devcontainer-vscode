@@ -32,7 +32,7 @@ This guide helps you resolve common issues when using the devcontainer environme
    ```bash
    docker pull debian:trixie-slim
    docker pull python:3.14-slim-trixie
-   docker pull golang:1.23-alpine
+   docker pull golang:1.27-alpine3.23
    ```
 
 3. **Check network connectivity**:
@@ -91,7 +91,7 @@ newgrp docker
 2. **Create Personal Access Token**:
    - Go to: https://github.com/settings/tokens
    - Generate new token (classic)
-   - Select scopes: `read:packages`, `write:packages`, `delete:packages`
+   - Select the scope `read:packages` (pulling needs no more; the images are public)
    - Save token and use it to login
 
 3. **Check token permissions**:
@@ -185,14 +185,14 @@ ruff format .
 
 1. **Check plugin cache**:
    ```bash
-   ls -la ~/.terraform.d/plugin-cache
-   export TF_PLUGIN_CACHE_DIR="${HOME}/.terraform.d/plugin-cache"
+   ls -la /workspaces/.terraform.d/plugin-cache
+   echo "${TF_PLUGIN_CACHE_DIR}"   # the template sets /workspaces/.terraform.d/plugin-cache (a named volume)
    ```
 
 2. **Clear provider cache**:
    ```bash
    rm -rf .terraform/
-   rm -rf ~/.terraform.d/plugin-cache/*
+   rm -rf "${TF_PLUGIN_CACHE_DIR:?}"/*
    terraform init -upgrade
    ```
 
@@ -224,10 +224,10 @@ grep TERRAFORM_VERSION devcontainers/terraform/Dockerfile
 **Solution**:
 ```bash
 # Clear cache
-rm -rf ~/.terragrunt-cache
+rm -rf .terragrunt-cache
 
 # Run with debug
-terragrunt plan --terragrunt-debug
+terragrunt run plan --inputs-debug
 ```
 
 ---
@@ -342,10 +342,8 @@ tectonic -X compile document.tex
 # Clear cache
 rm -rf ~/.cache/uv
 
-# Reinstall
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Verify
+# uv is baked into the image (/usr/local/bin, checksum-verified at build time).
+# If it is missing or broken the image is broken: pull the image again.
 uv --version
 ```
 

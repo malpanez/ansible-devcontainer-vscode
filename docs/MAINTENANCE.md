@@ -129,7 +129,7 @@ gh api repos/OWNER/REPO/dependabot/alerts \
 - **Generates weekly reports** with statistics
 
 #### Workflow
-- File: [`.github/workflows/security-alert-management.yml`](.github/workflows/security-alert-management.yml)
+- File: [`.github/workflows/security-alert-management.yml`](../.github/workflows/security-alert-management.yml)
 - Schedule: Weekly (Mondays 9 AM UTC)
 - Manual trigger: Available via GitHub Actions UI
 
@@ -173,7 +173,7 @@ MAX_ALERT_AGE_DAYS=60 bash .github/scripts/manage-code-scanning-alerts.sh
 - Keeps develop up-to-date
 
 #### Workflow
-- File: [`.github/workflows/sync-main-to-develop.yml`](.github/workflows/sync-main-to-develop.yml)
+- File: [`.github/workflows/sync-main-to-develop.yml`](../.github/workflows/sync-main-to-develop.yml)
 - Trigger: Every push to `main` branch
 - Conflict handling: Creates PR for manual review
 
@@ -326,7 +326,7 @@ gh run list --workflow token-health.yml --limit 1
 #### 2. Dependency Audit
 - [ ] Review major version updates waiting for approval
 - [ ] Test containers with latest tool versions
-- [ ] Update pinned tool versions in README.md
+- [ ] Read the pinned tool versions from the Dockerfile `ARG`s and `uv.lock` (README.md no longer restates them)
 
 #### 3. Docker Base Images
 - [ ] Check for new Python/Golang/Debian releases
@@ -336,11 +336,11 @@ gh run list --workflow token-health.yml --limit 1
 ```bash
 # Get latest digests
 docker manifest inspect python:3.14.10-slim-trixie | jq -r '.config.digest'
-docker manifest inspect golang:1.25.4-alpine3.21 | jq -r '.config.digest'
+docker manifest inspect golang:1.27.3-alpine3.23 | jq -r '.config.digest'
 ```
 
 #### 4. Documentation Review
-- [ ] Update README.md tool versions
+- [ ] Check README.md still matches the Dockerfiles (stack table sizes, badges)
 - [ ] Review SECURITY.md for accuracy
 - [ ] Update this MAINTENANCE.md if procedures changed
 
@@ -420,21 +420,13 @@ When a new CVE alert appears:
 
 #### 3. OpenSSF Scorecard Improvements
 
-Current score: **6.1/10**
+**8.1/10** on 2026-10-30; the README badge shows the live value. What keeps it below 10, from the public API:
 
-To improve score:
-
-**Code-Review (currently 0/10)**:
-- Score will improve automatically after PR template usage
-- Scorecard cache refreshes weekly
-
-**Maintained (currently 0/10)**:
-- Requires consistent activity over 90 days
-- Improves naturally with regular contributions
-
-**Fuzzing (currently 0/10)**:
-- Not applicable for infrastructure project
-- No action needed
+- **Code-Review 0:** a one-person repository has nobody else to approve its changes.
+- **CII-Best-Practices 0:** needs the owner to register the project.
+- **Fuzzing 0:** not applicable to an infrastructure project.
+- **Contributors 3, Signed-Releases 8:** Signed-Releases counts the last releases, so it moves on its own.
+- **Branch-Protection -1:** the public API cannot read it without a token.
 
 ---
 
@@ -443,10 +435,7 @@ To improve score:
 ### Key Metrics
 
 #### Security
-- **Open Alerts**: ~5 (4 Scorecard + 1 vendor CVE)
-- **OpenSSF Score**: 6.1/10
-- **Last Review**: 2025-12-04
-- **Next Review**: 2026-03-04
+- **OpenSSF Score**: 8.1/10 (2026-10-30)
 
 #### Automation Health
 - **Renovate**: Active (weekly scans)
@@ -459,7 +448,7 @@ To improve score:
 - **Python Packages**: Auto-updated by Renovate
 - **GitHub Actions**: Pinned by SHA, auto-updated by Renovate
 - **Docker Base Images**: Pinned by SHA256 digest
-- **Tool Versions**: Documented in README.md
+- **Tool Versions**: `ARG *_VERSION` in `devcontainers/*/Dockerfile` and `uv.lock`
 
 ---
 

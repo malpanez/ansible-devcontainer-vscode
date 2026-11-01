@@ -85,9 +85,9 @@ This template uses **direct pull** (no build) for maximum speed (~30 seconds).
 On every commit, these run automatically:
 1. terraform fmt (auto-format)
 2. terraform validate
-3. terraform-docs (auto-updates README)
+3. terraform-docs (auto-updates README) - the binary is not in the image; install it or `SKIP=terraform_docs`
 4. tflint (linting)
-5. trivy (security scan for CRITICAL/HIGH)
+5. trivy (security scan for CRITICAL/HIGH) - the binary is not in the image; install it or `SKIP=terraform_trivy`
 6. gitleaks (secret detection)
 
 ## Development Workflow

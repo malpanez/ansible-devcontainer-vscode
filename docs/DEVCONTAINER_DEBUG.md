@@ -26,7 +26,7 @@ The script:
 2. Starts the container (`devcontainer up`).
 3. Runs the provided command (or opens a shell if omitted).
 
-For the LaTeX stack, use `-b LATEX_DISTRO=texlive` to override build args while testing toggles. Swap `--stack` to `ansible`, `golang`, or `terraform` to target other templates.
+Swap `--stack` to `ansible`, `golang`, `latex` or `terraform` to target other templates. `-b NAME=value` passes a build arg, but only to a Dockerfile that declares it: the LaTeX Dockerfile takes `TECTONIC_VERSION` and `UV_VERSION`, not a TeX distribution (there is no MiKTeX/TeX Live switch).
 
 ## 3. Validate template metadata
 

@@ -2,7 +2,9 @@
 
 
 - Switch Dev Container stacks with `./scripts/use-devcontainer.sh [--prune] <ansible|golang|latex|terraform>` (or the PowerShell variant, `-Prune`). The script copies the chosen template from `devcontainers/<stack>` into `.devcontainer/`; add the prune flag to remove stopped containers and volumes tied to the workspace before reopening in VS Code.
-- The LaTeX stack defaults to MiKTeX but accepts build args in `devcontainers/latex/devcontainer.json` (`LATEX_DISTRO`/`LATEX_IMAGE`). Set them to `texlive` and a TeX Live image (e.g. `ghcr.io/xu-cheng/texlive-full:latest`) to switch distributions without editing the Dockerfile.
+- The LaTeX stack compiles with Tectonic only. `devcontainers/latex/devcontainer.json` opens the published image and has no build args or distribution switch; to use TeX Live or MiKTeX, build your own image and point `"image"` (or `build`) at it. The Dockerfile's own args are `TECTONIC_VERSION` and `UV_VERSION`.
+- Dev Container configuration has no `extends`: the reference at https://containers.dev/implementors/json_reference/ defines none. Copy a template into `.devcontainer/` and edit it, build your own image `FROM` a published one, or add `features`. The properties that matter for the user are `remoteUser` (the templates set `vscode`), `containerUser` (overrides the user for all operations in the container; defaults to `root` or the image's last `USER`) and `updateRemoteUserUID` (on Linux, when `containerUser` or `remoteUser` is set, it changes that user's UID/GID to the host user's to avoid bind-mount permission problems; defaults to `true`).
+- Git inside the container: the Dev Containers extension copies the host's `.gitconfig` in on start, and sharing credentials is by SSH agent forwarding (run `ssh-add` on the host, with the agent running; on Windows start the OpenSSH Authentication Agent service) or the host's credential helper, per https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials. Prefer that to bind-mounting `~/.ssh`. This repository's CI checks the `.gitconfig` copy (`scripts/check-devcontainer-workload.sh`) because the extension skips it when `~/.gitconfig` has sections other than `filter` and `safe` (observed on extension 0.471.0).
 - Add workspace-specific mounts or environment overrides in `.devcontainer/devcontainer.json`. For example, mount a host inventory and tweak Ansible caches:
   ```jsonc
   {
@@ -19,7 +21,7 @@
   }
   ```
 - Use `inventory/cloud-example.yml` as a starting point for remote or cloud inventories; copy it, replace the placeholder host data, and point `ANSIBLE_INVENTORY` (or update `ansible.cfg`) to the new file.
-- Update `pyproject.toml` dependencies and re-run `uv lock && uv pip install --system .` to add Python tooling (Molecule/Testinfra depends on `pytest-testinfra`, already included).
+- Update `pyproject.toml` dependencies and re-run `uv lock` to add Python tooling to the lock (Molecule/Testinfra depends on `pytest-testinfra`, already included). The images install the hashed `requirements*.txt` exports of the lock at build time; inside a running container `/usr/local` is root-owned, so try an addition in a virtual environment (`uv venv .venv && uv pip install <package>`).
 - Add collections to `requirements.yml` and rerun `ansible-galaxy collection install -r requirements.yml`.
 - Adjust VS Code defaults by editing the templates under `roles/vscode_config/templates/` so the changes apply to every workspace bootstrap.
 - Use `playbooks/setup-workspace.yml --tags …` to run only selected roles (e.g. `--tags vscode` to refresh editor settings).
