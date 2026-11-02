@@ -280,14 +280,17 @@ jobs:
           # permission. Probe first -- buildx aborts on a missing cache-from
           # ref rather than warning.
           #
-          # This still measures a genuine warm build: the cache it reads is
-          # the one the published images were actually built from.
+          # .devcontainer/ is a copy of one stack's template, named in its
+          # metadata (Devcontainer State fails when the copy drifts), so the
+          # cache is that stack's. This job has no matrix: it used to take the
+          # name from one, which came out empty, so every run probed
+          # devcontainer-:buildcache-publish, found nothing and built uncached.
+          STACK="$(jq -er '.stack' .devcontainer/.template-metadata.json)"
+          CACHE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${STACK}:buildcache-publish"
           if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
             echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
-            echo "args=--cache-from type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
           else
             echo "from=" >> "$GITHUB_OUTPUT"
-            echo "args=" >> "$GITHUB_OUTPUT"
             echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
           fi
 
@@ -313,7 +316,9 @@ jobs:
           # Get resource stats
           STATS=$(docker stats --no-stream --format "{{.MemUsage}}\t{{.CPUPerc}}" "$CONTAINER_ID")
           MEM_USAGE=$(echo "$STATS" | awk '{print $1}')
-          CPU_USAGE=$(echo "$STATS" | awk '{print $3}')
+          # The memory field holds spaces ("15MiB / 15.6GiB"), so the third
+          # whitespace-separated field was the total memory, not the CPU.
+          CPU_USAGE=$(echo "$STATS" | awk -F'\t' '{print $2}')
 
           # Stop container
           docker stop "$CONTAINER_ID" > /dev/null
