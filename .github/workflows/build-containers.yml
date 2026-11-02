@@ -356,6 +356,10 @@ jobs:
                 "scan could not judge is not tagged. Check the Grype scan and 'Count fixable findings' steps."
               exit 1
               ;;
+            *)
+              # A positive count falls through on purpose: reported below, in
+              # the words the event calls for, and fails there.
+              ;;
           esac
           if [ "${EVENT_NAME}" = "push" ]; then
             echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s) on at least one platform," \
@@ -1094,6 +1098,10 @@ jobs:
               echo "::error::No usable Grype SARIF for ${IMAGE} on at least one platform: an image the" \
                 "scan could not judge is not tagged. Check the Grype scan and 'Count fixable findings' steps."
               exit 1
+              ;;
+            *)
+              # A positive count falls through on purpose: reported below, in
+              # the words the event calls for, and fails there.
               ;;
           esac
           if [ "${EVENT_NAME}" = "push" ]; then
