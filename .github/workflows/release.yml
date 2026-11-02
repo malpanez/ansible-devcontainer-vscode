@@ -333,8 +333,11 @@ jobs:
 
       # The released index is immutable, so the arm64 manifest it holds is
       # what the version tag will carry: it is scanned by its own digest.
-      # Not required: an image may be amd64-only (latex). Runs even when the
-      # amd64 scan failed, so one run reports the findings of both platforms.
+      # Required wherever build-containers builds arm64 (matrix.platforms, from
+      # scripts/release-images.py), so an index that lost it fails here: this
+      # used to be REQUIRED=false for every image because of latex, and such an
+      # index passed on amd64 alone. Runs even when the amd64 scan failed, so one
+      # run reports the findings of both platforms.
       - name: Resolve the arm64 manifest of ${{ matrix.name }}
         id: arm64
         if: always()
@@ -342,7 +345,7 @@ jobs:
           IMAGE: ${{ matrix.image }}
           DIGEST: ${{ matrix.digest }}
           PLATFORM: linux/arm64
-          REQUIRED: "false"
+          REQUIRED: ${{ contains(matrix.platforms, 'linux/arm64') }}
         run: bash scripts/resolve-platform-manifest.sh
 
       # registry: reads that manifest itself from GHCR, independent of the
