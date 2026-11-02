@@ -101,7 +101,7 @@ SKIPPED_COUNT=0
 ERROR_COUNT=0
 
 # Process each alert
-echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
+while read -r alert; do
     NUMBER=$(echo "${alert}" | jq -r '.number')
     CREATED_AT=$(echo "${alert}" | jq -r '.created_at')
     RULE_ID=$(echo "${alert}" | jq -r '.rule.id')
@@ -232,7 +232,9 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     fi
 
     echo ""
-done
+# Not a pipe into the loop: the loop would run in a subshell, and the summary
+# below would report 0 for every counter.
+done < <(echo "${ALERTS}" | jq -c '.[]')
 
 # Summary
 echo "========================================"
