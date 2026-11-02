@@ -164,6 +164,25 @@ jobs:
               # tests/test_check_image_size.py checks this file's shape: one
               # budget per published image, both limits positive integers.
               - '.github/image-size-budgets.json'
+              # tests/test_derive_toolchain_versions.py reads the versions in
+              # the Dockerfiles; tests/test_refresh_tool_pins.py its pin patterns
+              # in them and in the script, and that no Dockerfile pins the AWS
+              # CLI, .devcontainer's copy included.
+              - 'devcontainers/*/Dockerfile*'
+              - '.devcontainer/Dockerfile*'
+              - 'devcontainers/scripts/install-aws-cli.sh'
+              # tests/test_check_devcontainer_images.py runs the offline check
+              # on these; tests/test_test_devcontainer_profile.py renders the
+              # profiles among them.
+              - 'devcontainers/**/devcontainer*.json'
+              - '.devcontainer/**/devcontainer*.json'
+              - 'examples/*/.devcontainer/*.json'
+              # tests/test_check_hadolint_parity.py runs the guard on the
+              # repository's own pins (ci.yml is one, in the line below).
+              - 'Makefile'
+              - '.pre-commit-config.yaml'
+              # tests/test_workflow_contracts.py reads them all.
+              - '.github/workflows/*.yml'
 
       - name: Check Go module exists
         id: golang-check
@@ -540,6 +559,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
 
       # Each Dockerfile labels its own description; metadata-action's
       # repository-wide one would replace it.
