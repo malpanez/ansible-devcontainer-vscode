@@ -140,6 +140,13 @@
         ".devcontainer/**"
       ],
       "enabled": false
+    },
+    {
+      "description": "syft runs only in release.yml's publish job, and no pull request runs that job: a bad version would first fail during a real release. So its updates wait for a review and are not merged on green.",
+      "matchPackageNames": [
+        "anchore/syft"
+      ],
+      "automerge": false
     }
   ],
   "customManagers": [
