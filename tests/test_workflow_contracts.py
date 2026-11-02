@@ -403,7 +403,8 @@ def test_case_statements_state_their_default() -> None:
             elif stripped.startswith("*)") and open_cases:
                 open_cases[-1] = True
             elif re.match(r"esac\b", stripped):
-                assert open_cases.pop(), (name, job, step)
+                has_default = open_cases.pop()
+                assert has_default, (name, job, step)
         assert not open_cases, (name, job, step)
 
 
