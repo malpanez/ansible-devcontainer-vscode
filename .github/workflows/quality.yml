@@ -20,10 +20,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # renovate: datasource=github-releases depName=astral-sh/uv
-  UV_VERSION: "0.13.6"
-
 jobs:
   changes:
     name: Detect Quality-Relevant Changes
@@ -159,15 +155,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+      - name: Derive toolchain versions from the Dockerfiles
+        id: toolchain
+        run: bash scripts/derive-toolchain-versions.sh >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
-          version: ${{ env.UV_VERSION }}
+          python-version: ${{ steps.toolchain.outputs.python_version }}
+
+      - name: Install yamllint
+        run: |
+          # The version uv.lock pins, hash-verified: requirements-devcontainer-tools.txt
+          # is the export the images install from. `uvx yamllint` ran whatever
+          # PyPI served that day.
+          pip install --only-binary :all: --require-hashes -r requirements-devcontainer-tools.txt
 
       - name: YAML Lint Summary
         run: |
           echo "## YAML Lint Results" >> $GITHUB_STEP_SUMMARY
-          uvx yamllint -f parsable . >> $GITHUB_STEP_SUMMARY || echo "YAML issues found" >> $GITHUB_STEP_SUMMARY
+          yamllint -f parsable . >> $GITHUB_STEP_SUMMARY || echo "YAML issues found" >> $GITHUB_STEP_SUMMARY
         continue-on-error: true
 
   ansible-quality:
