@@ -158,7 +158,15 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ steps.stack.outputs.stack }}
           tags: ${{ steps.meta_tags.outputs.tags }}
           # The commit time, not metadata-action's clock: same config per commit.
-          labels: org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+          # The version is the commit too, the sha- tag this build gets: the
+          # action's default is the first tag it ranks, which is main, and
+          # release.yml only adds a version tag to this digest, so main is what
+          # a released image said (seen on devcontainer-terraform:v2.2.0). The
+          # build cannot know a version it never builds for. {{sha}} is the
+          # action's own expression, the 7 characters of the sha- tag.
+          labels: |
+            org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
 
       # Each Dockerfile labels its own description; metadata-action's
       # repository-wide one would replace it.
@@ -348,6 +356,10 @@ jobs:
                 "scan could not judge is not tagged. Check the Grype scan and 'Count fixable findings' steps."
               exit 1
               ;;
+            *)
+              # A positive count falls through on purpose: reported below, in
+              # the words the event calls for, and fails there.
+              ;;
           esac
           if [ "${EVENT_NAME}" = "push" ]; then
             echo "::error::${IMAGE} has ${COUNT} fixable high/critical finding(s) on at least one platform," \
@@ -486,7 +498,9 @@ jobs:
             type=sha
             type=ref,event=branch
           # See build-single.
-          labels: org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
 
       # See build-single.
       - name: Keep the Dockerfile's description label
@@ -895,7 +909,9 @@ jobs:
             type=sha
             type=ref,event=branch
           # See build-single.
-          labels: org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+          labels: |
+            org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
 
       # See build-single.
       - name: Keep the Dockerfile's description label
@@ -1082,6 +1098,10 @@ jobs:
               echo "::error::No usable Grype SARIF for ${IMAGE} on at least one platform: an image the" \
                 "scan could not judge is not tagged. Check the Grype scan and 'Count fixable findings' steps."
               exit 1
+              ;;
+            *)
+              # A positive count falls through on purpose: reported below, in
+              # the words the event calls for, and fails there.
               ;;
           esac
           if [ "${EVENT_NAME}" = "push" ]; then

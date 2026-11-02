@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         id: filter
         with:
           filters: |
@@ -67,6 +67,16 @@ jobs:
             context: devcontainers/ansible
           - name: devcontainer-terraform
             context: devcontainers/terraform
+          # The -aws images are a stage of the stack's Dockerfile, selected by
+          # stage; the entries above leave it empty and build the last stage,
+          # the plain image. devcontainer-ansible-aws builds on the BASE_IMAGE
+          # pin, as devcontainer-ansible does.
+          - name: devcontainer-terraform-aws
+            context: devcontainers/terraform
+            stage: terraform-aws
+          - name: devcontainer-ansible-aws
+            context: devcontainers/ansible
+            stage: ansible-aws
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -111,6 +121,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.target.context }}/Dockerfile
+          target: ${{ matrix.target.stage }}
           load: true
           tags: sbom-${{ matrix.target.name }}:latest
           cache-from: ${{ steps.rcache.outputs.from }}
@@ -119,7 +130,10 @@ jobs:
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
         with:
           image: sbom-${{ matrix.target.name }}:latest
-          artifact-name: sbom-${{ matrix.target.name }}.spdx.json
+          # The next step uploads it. The action's own upload made a second
+          # artifact that every `pattern: sbom-*` below also downloaded, so each
+          # SBOM was verified and scanned twice.
+          upload-artifact: false
           output-file: sbom-${{ matrix.target.name }}.spdx.json
           format: spdx-json
 
@@ -268,11 +282,7 @@ jobs:
         run: |
           echo "## 🔍 SBOM Vulnerability Scan Results" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Vulnerability scanning completed successfully." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "ℹ️ Scan runs in informational mode - findings don't block the workflow." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "For detailed vulnerability information, check the Security tab in GitHub." >> "$GITHUB_STEP_SUMMARY"
 
   verify-dependency-licenses:
     name: Verify Dependency Licenses

@@ -2,24 +2,19 @@
 name: Container Structure Tests
 
 on:
+  # No paths filter here on purpose, on either trigger. Test Summary is built
+  # to be a required check, and a required check that never appears blocks a
+  # pull request forever, so the workflow must always start. Push too: GitHub
+  # parks the pull_request runs of a bot-authored promotion until they are
+  # approved, the push run on develop reports on the same commit, and the same
+  # filter on quality.yml's push trigger deadlocked a Dockerfile-only promotion
+  # (#488) until every required workflow dropped it (#489). detect-changes
+  # gates the builds instead, exactly as ci.yml and sbom-verification.yml do
+  # it. A change touching nothing relevant runs one cheap filter job and a
+  # green summary.
   pull_request:
-    paths:
-      - 'devcontainers/**'
-      - 'templates/**'
-      - 'requirements-ansible.txt'
-      - 'requirements-aws.txt'
-      - 'requirements-devcontainer-tools.txt'
-      - 'tests/container-structure/**'
-      - '.github/workflows/test-containers.yml'
   push:
     branches: [main, develop]
-    paths:
-      - 'devcontainers/**'
-      - 'templates/**'
-      - 'requirements-ansible.txt'
-      - 'requirements-aws.txt'
-      - 'requirements-devcontainer-tools.txt'
-      - 'tests/container-structure/**'
   workflow_dispatch:
 
 concurrency:
@@ -33,6 +28,7 @@ jobs:
   detect-changes:
     name: Detect Changed Stacks
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -50,38 +46,54 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         id: filter
         with:
+          # Every filter lists this workflow, as ci.yml's devcontainer filter
+          # lists ci.yml: a change to how the images are built or tested must
+          # run the tests on every stack. Without it such a pull request came
+          # back green with nothing tested.
           filters: |
             golang:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/golang/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
               - 'templates/pre-commit/golang/**'
               # pre-commit and yamllint come from this uv.lock export
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/golang.yaml'
             ansible:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/ansible/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
               - 'devcontainers/base/**'
               - 'templates/pre-commit/ansible/**'
               # The ansible Dockerfiles install this uv.lock export
               - 'requirements-ansible.txt'
+              # Base, which this stack is built on here, installs this one
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/ansible.yaml'
               - 'tests/container-structure/no-aws.yaml'
             terraform:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/terraform/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
               - 'templates/pre-commit/terraform/**'
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/terraform.yaml'
               - 'tests/container-structure/no-aws.yaml'
             latex:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/latex/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
               - 'templates/pre-commit/latex/**'
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/latex.yaml'
             base:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/base/**'
               - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/base.yaml'
             # Tested with ansible.yaml too: see "Resolve the stack's files".
             ansible-podman:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/ansible/Dockerfile.podman'
               # Both ansible Dockerfiles install the pinned collections
               - 'devcontainers/ansible/collections*.txt'
@@ -95,6 +107,7 @@ jobs:
             # The -aws stages of the terraform and ansible Dockerfiles, tested
             # with their stack's file too: see "Resolve the stack's files".
             terraform-aws:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/terraform/**'
               - 'devcontainers/scripts/**'
               - 'templates/pre-commit/terraform/**'
@@ -102,12 +115,14 @@ jobs:
               - 'tests/container-structure/terraform.yaml'
               - 'tests/container-structure/terraform-aws.yaml'
             ansible-aws:
+              - '.github/workflows/test-containers.yml'
               - 'devcontainers/ansible/**'
               - 'devcontainers/base/**'
               - 'devcontainers/scripts/**'
               - 'templates/pre-commit/ansible/**'
               - 'requirements-ansible.txt'
               - 'requirements-aws.txt'
+              - 'requirements-devcontainer-tools.txt'
               - 'tests/container-structure/ansible.yaml'
               - 'tests/container-structure/ansible-aws.yaml'
 
@@ -144,7 +159,10 @@ jobs:
       # bytecode check), so they run it and <variant>.yaml for the layer,
       # instead of a copy. terraform and ansible, built without a target
       # (their Dockerfile's last stage), also run no-aws.yaml: it fails if
-      # that last stage ever became an -aws image.
+      # that last stage ever became an -aws image. base_from_run marks the
+      # stacks whose Dockerfile consumes BASE_IMAGE: only
+      # devcontainers/ansible/Dockerfile does. Dockerfile.podman starts from
+      # python:3.14-slim-trixie, and the others do not reference it at all.
       - name: Resolve the stack's files
         id: files
         env:
@@ -171,10 +189,19 @@ jobs:
               CONFIGS="${STACK}"
               ;;
           esac
+          case "${STACK}" in
+            ansible|ansible-aws)
+              BASE_FROM_RUN=true
+              ;;
+            *)
+              BASE_FROM_RUN=false
+              ;;
+          esac
           {
             echo "dockerfile=${DOCKERFILE}"
             echo "target=${TARGET}"
             echo "configs=${CONFIGS}"
+            echo "base_from_run=${BASE_FROM_RUN}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -202,6 +229,46 @@ jobs:
             echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
           fi
 
+      # For the base build below, read-only and probed: see ci.yml's
+      # devcontainer-build, whose steps these two are.
+      - name: Resolve the base build cache
+        id: base_cache
+        if: steps.files.outputs.base_from_run == 'true'
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF}; building base uncached."
+          fi
+
+      # The ansible Dockerfile pins BASE_IMAGE to the devcontainer-base that
+      # build-containers.yml last published, and only main publishes it. On
+      # that pin these tests never saw a change to devcontainers/base/: the
+      # filters ran them on such a pull request, against the base main already
+      # ships, and a bug in base showed up only after publishing. Built from
+      # this commit, base is what a merge would publish.
+      #
+      # Nothing is pushed. The base goes to an OCI layout on the runner and
+      # the next step reads it as a named build context. Loading it into
+      # Docker would not work: the docker-container builder setup-buildx-action
+      # creates does not see the daemon's images. Same epoch and timestamp
+      # rewrite as the stack, as build-base publishes it.
+      - name: Build base for ${{ matrix.stack }}
+        if: steps.files.outputs.base_from_run == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          # The repository root: the Dockerfile bind-mounts
+          # requirements-devcontainer-tools.txt.
+          context: .
+          file: devcontainers/base/Dockerfile
+          outputs: type=oci,dest=${{ runner.temp }}/devcontainer-base,tar=false,rewrite-timestamp=true
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          cache-from: ${{ steps.base_cache.outputs.from }}
+
       - name: Build ${{ matrix.stack }} container
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
@@ -215,7 +282,14 @@ jobs:
           # whose mtimes were rewritten.
           outputs: type=docker,rewrite-timestamp=true
           tags: test-${{ matrix.stack }}:latest
-          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          # BASE_IMAGE names the build context below, which a FROM resolves
+          # before any registry, so the stack sits on the base built in the
+          # step above. A stack without base_from_run gets neither line.
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+            ${{ steps.files.outputs.base_from_run == 'true' && 'BASE_IMAGE=devcontainer-base' || '' }}
+          build-contexts: |
+            ${{ steps.files.outputs.base_from_run == 'true' && format('devcontainer-base=oci-layout://{0}/devcontainer-base', runner.temp) || '' }}
           cache-from: ${{ steps.rcache.outputs.from }}
 
       - name: Install container-structure-test
@@ -230,9 +304,11 @@ jobs:
           set -euo pipefail
           base="https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}"
           tmp="$(mktemp -d)"
-          curl --proto '=https' --tlsv1.2 -fsSL "${base}/container-structure-test-linux-amd64" \
-            -o "${tmp}/container-structure-test-linux-amd64"
-          curl --proto '=https' --tlsv1.2 -fsSL "${base}/checksums.txt" -o "${tmp}/checksums.txt"
+          # --retry: a 504 from GitHub releases broke builds on 2026-09-14.
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${base}/container-structure-test-linux-amd64" -o "${tmp}/container-structure-test-linux-amd64"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${base}/checksums.txt" -o "${tmp}/checksums.txt"
           (cd "${tmp}" && grep " container-structure-test-linux-amd64$" checksums.txt | sha256sum -c -)
           install -m 0755 "${tmp}/container-structure-test-linux-amd64" /usr/local/bin/container-structure-test
           rm -rf "${tmp}"
@@ -291,15 +367,57 @@ jobs:
   summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: test-containers
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    # detect-changes is listed on purpose: when it fails, test-containers is
+    # skipped, and a skip passes, so without it this job stayed green with no
+    # test run at all.
+    needs:
+      - detect-changes
+      - test-containers
     if: always()
     steps:
-      - name: Generate summary
+      - name: Check results
         env:
+          # Through env, not expanded inside the script: needs carries the
+          # outputs of detect-changes, and a quote in one of them would end a
+          # single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
           TEST_RESULT: ${{ needs.test-containers.result }}
         run: |
-          echo "# Container Structure Tests" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "✅ All container structure tests completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Test Results**: ${TEST_RESULT}" >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          echo "Checking structure test results..."
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
+
+          # Allow-list, as CI Success in ci.yml: only "success" and "skipped"
+          # pass. A skipped job is a job the filter decided was irrelevant, and
+          # it has to stay green or every filtered pull request would be blocked
+          # if this check is ever required. "cancelled" fails with "failure": a
+          # job that hits its timeout-minutes ends as cancelled, and a cancelled
+          # job proved nothing. Any other result fails closed. A run superseded
+          # through cancel-in-progress therefore reports this as failed on the
+          # OLD commit. That is intended; the new commit gets its own run.
+          FAILED=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "${NEEDS_JSON}")
+
+          {
+            echo "# Container Structure Tests"
+            echo ""
+            if [ -n "${FAILED}" ]; then
+              echo "❌ Jobs that did not pass: ${FAILED}"
+            elif [ "${TEST_RESULT}" = "skipped" ]; then
+              echo "No stack changed, so no structure test ran."
+            else
+              echo "✅ All container structure tests passed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${FAILED}" ]; then
+            echo "::error::Jobs that did not pass: ${FAILED}"
+            exit 1
+          fi
