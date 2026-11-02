@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-FROM golang:1.27.3-alpine3.23@sha256:754d5200fc3edae76d3b6598a9a3fac7e74981ee6a5413ab955025f185753ef2
+FROM golang:1.27.3-alpine3.23@sha256:8a5046497cda39860b832ffdbe8dd66018a0f05bb01352f533a36e7e2ced66a0
 
 # Upgrade every package the pinned base ships, not a named list. The FROM
 # digest freezes the Alpine package set at the moment it was cut, so every
