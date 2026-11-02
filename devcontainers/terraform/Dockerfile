@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.28
 ARG DEBIAN_VERSION=trixie-slim
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.17.0
+ARG TERRAFORM_VERSION=1.17.1
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=1.2.1
 # renovate: datasource=github-releases depName=terraform-linters/tflint

@@ -4,11 +4,10 @@
 # and yamllint, vscode user), so the two stages and the base pulled beside
 # them share it. The digest below is NOT what published or gated images
 # are built on: build-containers.yml overrides BASE_IMAGE with the base
-# built in the same run, and ci.yml's Build Devcontainer with a base built
-# from the pull request. The pin is what local builds resolve, and the
-# workflows that build this file without gating it (test-containers,
-# sbom-verification, benchmark). Renovate refreshes it, so it never needs
-# bumping by hand.
+# built in the same run, and ci.yml's Build Devcontainer and test-containers.yml
+# with a base built from the pull request. The pin is what local builds resolve, and the
+# workflows that build this file without gating it (sbom-verification,
+# benchmark). Renovate refreshes it, so it never needs bumping by hand.
 #
 # BASE_IMAGE deliberately carries BOTH the :main tag and the @sha256
 # digest. The digest is what actually resolves (Docker ignores the tag
@@ -22,7 +21,7 @@
 # (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
 # ignores sonar.issue.ignore.*), so it must be deactivated in the
 # project's quality profile instead.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:24633a57eec8fd24067bd4772621f1b42975c1b465002461bfd87ea679a0f0a7
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:c479d7f24383ea8244e3137228f44872bb41ad4894b44e9f258e694d693cc0bf
 
 # Stage 1: install the locked Python stack. Build tools live only in this
 # stage: arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by

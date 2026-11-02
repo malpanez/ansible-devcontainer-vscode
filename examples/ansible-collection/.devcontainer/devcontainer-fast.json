@@ -1,6 +1,6 @@
 {
   "name": "Ansible Collection Development (Fast - No Build)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.0.0@sha256:9c1cccfe57b8cd90523f3dd18c13bda794791cc907b7d31b7f20dfa399489959",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.2.0@sha256:8930ae0631da894d22960921823a26e9c69d132b72b0fcc50ae77f664e77c199",
 
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
@@ -53,7 +53,7 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "set -euo pipefail; ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi"
   ],
 
   "remoteUser": "vscode"

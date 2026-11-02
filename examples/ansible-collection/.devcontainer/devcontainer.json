@@ -1,6 +1,6 @@
 {
   "name": "Ansible Collection Development",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.0.0@sha256:9c1cccfe57b8cd90523f3dd18c13bda794791cc907b7d31b7f20dfa399489959",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.2.0@sha256:8930ae0631da894d22960921823a26e9c69d132b72b0fcc50ae77f664e77c199",
   "remoteUser": "vscode",
 
   "customizations": {
@@ -47,7 +47,7 @@
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
   ],
 
-  "postCreateCommand": "pre-commit install --install-hooks && ansible-galaxy collection install -r requirements.yml || true",
+  "postCreateCommand": "ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi",
 
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

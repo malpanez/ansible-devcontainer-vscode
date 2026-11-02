@@ -100,7 +100,7 @@ graph TD
     D -->|copies template| F[.pre-commit-config.yaml]
     D -->|image's pre-commit install| G[Git hooks active]
 
-    H[CI Pipeline] -->|uvx pre-commit run --all-files| I[Validates PRs]
+    H[CI Pipeline] -->|yamllint, ansible-lint, hadolint, shellcheck| I[Validates PRs]
 
     style A fill:#e1f5ff
     style E fill:#e8f5e9
@@ -268,8 +268,8 @@ graph LR
     D -->|Yes| E[No tags, no signature: run goes red]
     D -->|No| F[Attest, sign with cosign, tag]
 
-    F --> G[release.yml re-scans at release]
-    G --> H[scan-release-images.yml rescans the newest release nightly]
+    F --> G[release.yml re-scans and runs them on amd64 and arm64 at release]
+    G --> H[scan-release-images.yml rescans the newest release and the pinned versions nightly]
 
     style E fill:#ffebee
     style F fill:#e8f5e9

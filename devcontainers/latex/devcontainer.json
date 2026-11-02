@@ -1,6 +1,6 @@
 {
   "name": "LaTeX Dev Container",
-  "image": "ghcr.io/malpanez/devcontainer-latex:v2.0.0@sha256:4427be67441d24b2ff3b64c273b5d33a11219b6eb5ca323aefcb9dd6b4251699",
+  "image": "ghcr.io/malpanez/devcontainer-latex:v2.2.0@sha256:c28d0dc7904eee1b97ee870263f68d58440f63d1417670b1cffcae046dc02709",
   "customizations": {
     "vscode": {
       "extensions": [

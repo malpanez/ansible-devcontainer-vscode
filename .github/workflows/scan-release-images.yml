@@ -5,10 +5,11 @@ name: Scan Release Images
 # release.yml and then never rebuilt or rescanned; build-containers.yml's
 # nightly gate judges only the rolling tags of main. On 2026-10-28 v1.3.29
 # still carried fixable criticals (golang brotli-libs CVE-2026-111497, among
-# others) that no scan anywhere had reported. The dev container templates pin
-# the newest release by digest, so that release is what users open: this
-# workflow scans it every night with the gate's policy and goes red when an
-# advisory published after the release makes it fail.
+# others) that no scan anywhere had reported. This workflow scans the newest
+# release every night with the gate's policy and goes red when an advisory
+# published after the release makes it fail. The dev container templates pin
+# their own version, by digest, and that is what users open; it can lag behind
+# the newest release, so what they pin is scanned too.
 
 on:
   schedule:
@@ -41,9 +42,8 @@ jobs:
     permissions:
       contents: read  # read the releases and the tagged base Dockerfile
     outputs:
-      tag: ${{ steps.release.outputs.tag }}
       latest: ${{ steps.release.outputs.latest }}
-      pytag: ${{ steps.pytag.outputs.pytag }}
+      targets: ${{ steps.targets.outputs.targets }}
 
     steps:
       - name: Checkout repository
@@ -97,8 +97,23 @@ jobs:
           echo "devcontainer-base of ${TAG} is tagged ${PYTAG}-${TAG}."
           echo "pytag=${PYTAG}" >> "${GITHUB_OUTPUT}"
 
+      # Every image of that release and, unless a dispatch asked for one release,
+      # every other image and tag the templates in this checkout pin.
+      - name: List what to scan
+        id: targets
+        env:
+          OWNER: ${{ github.repository_owner }}
+          LATEST: ${{ steps.release.outputs.latest }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+          PYTAG: ${{ steps.pytag.outputs.pytag }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release-images.py scan-targets --newest "${LATEST}" \
+            --requested "${REQUESTED_TAG}" --pytag "${PYTAG}" --owner "${OWNER}" \
+            | tee -a "${GITHUB_OUTPUT}"
+
   scan:
-    name: Scan ${{ matrix.name }}
+    name: Scan ${{ matrix.label }}
     needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -109,29 +124,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The images release.yml tags, with the platforms build-containers.yml
-        # builds each of them for. Every listed platform is required, as in
+        # Built by scripts/release-images.py: an image added to
+        # build-containers.yml must be added to the list there, or its releases
+        # are never rescanned. Every listed platform is required, as in
         # build-containers' gate: an index that lost its arm64 manifest fails
-        # instead of passing on amd64 alone. An image added there must be
-        # added here, or its releases are never rescanned.
-        include:
-          - name: base
-            platforms: linux/amd64,linux/arm64
-          - name: ansible
-            platforms: linux/amd64,linux/arm64
-          - name: ansible-podman
-            platforms: linux/amd64,linux/arm64
-          # First released in v2.0.0: a release before it has no such tag.
-          - name: ansible-aws
-            platforms: linux/amd64,linux/arm64
-          - name: terraform
-            platforms: linux/amd64,linux/arm64
-          - name: terraform-aws
-            platforms: linux/amd64,linux/arm64
-          - name: golang
-            platforms: linux/amd64,linux/arm64
-          - name: latex
-            platforms: linux/amd64
+        # instead of passing on amd64 alone. The -aws images were first released
+        # in v2.0.0: a release before it has no such tag. A template's pin goes
+        # red like any other leg, on purpose: it is what users open, and the fix
+        # is moving the pin.
+        include: ${{ fromJSON(needs.resolve.outputs.targets) }}
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.name }}
 
@@ -154,18 +155,12 @@ jobs:
       - name: Resolve the released index of ${{ matrix.name }}
         id: index
         env:
-          NAME: ${{ matrix.name }}
-          TAG: ${{ needs.resolve.outputs.tag }}
-          PYTAG: ${{ needs.resolve.outputs.pytag }}
+          VERSION_TAG: ${{ matrix.version_tag }}
         run: |
           set -euo pipefail
-          if [ -z "${TAG}" ] || [ -z "${PYTAG}" ]; then
-            echo "::error::The resolve job handed over no release tag ('${TAG}') or Python tag ('${PYTAG}')."
+          if [ -z "${VERSION_TAG}" ]; then
+            echo "::error::The resolve job handed over no version tag for ${IMAGE}."
             exit 1
-          fi
-          VERSION_TAG="${TAG}"
-          if [ "${NAME}" = "base" ]; then
-            VERSION_TAG="${PYTAG}-${TAG}"
           fi
           REF="${IMAGE}:${VERSION_TAG}"
           echo "ref=${REF}" >> "${GITHUB_OUTPUT}"
@@ -214,12 +209,12 @@ jobs:
 
       # Own categories: build-containers uploads main's rolling tags as
       # grype-<image>, and a shared category would let each workflow close
-      # the other's alerts. Only the newest release is uploaded, so a
-      # dispatch for an older one cannot replace its alerts.
+      # the other's alerts. Only the newest release is uploaded, so a dispatch
+      # for an older one, or a template's lagging pin, cannot replace its alerts.
       - name: Upload Grype SARIF for ${{ matrix.name }}
         if: >-
           always() && steps.sarif_amd64.outputs.exists == 'true'
-          && needs.resolve.outputs.tag == needs.resolve.outputs.latest
+          && matrix.tag == needs.resolve.outputs.latest
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
         with:
           sarif_file: ${{ steps.grype_amd64.outputs.sarif }}
@@ -273,7 +268,7 @@ jobs:
       - name: Upload Grype SARIF for ${{ matrix.name }} (arm64)
         if: >-
           always() && steps.sarif_arm64.outputs.exists == 'true'
-          && needs.resolve.outputs.tag == needs.resolve.outputs.latest
+          && matrix.tag == needs.resolve.outputs.latest
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
         with:
           sarif_file: ${{ steps.grype_arm64.outputs.sarif }}
@@ -294,13 +289,13 @@ jobs:
         run: GITHUB_STEP_SUMMARY=/dev/null bash scripts/count-fixable-findings.sh
 
       # Runs whatever failed above, so every image of the release gets a
-      # verdict. The release keeps a finding until a newer release replaces
-      # it: a version tag is never rebuilt or moved.
+      # verdict. A release keeps a finding until a newer release replaces it: a
+      # version tag is never rebuilt or moved.
       - name: Report ${{ matrix.name }} and fail on fixable findings
         if: always()
         env:
           NAME: devcontainer-${{ matrix.name }}
-          TAG: ${{ needs.resolve.outputs.tag }}
+          TAG: ${{ matrix.tag }}
           LATEST: ${{ needs.resolve.outputs.latest }}
           REF: ${{ steps.index.outputs.ref }}
           DIGEST: ${{ steps.index.outputs.digest }}
@@ -331,10 +326,16 @@ jobs:
                 ERROR="${REF} has ${COUNT} fixable high/critical finding(s) on at least one platform, listed"
                 ERROR="${ERROR} in the job summary and the 'Count fixable findings' step. A version tag is"
                 ERROR="${ERROR} never rebuilt or moved, so ${TAG} keeps them for everyone who pins it."
-                ERROR="${ERROR} Cut a patch release: when main's images pass"
-                ERROR="${ERROR} build-containers' scan gate, releasing main ships the fix; otherwise bump the"
-                ERROR="${ERROR} pinned component (or widen the Dockerfile's upgrade step) that ships the"
-                ERROR="${ERROR} vulnerable package first. Or record a justified exception in .grype.yaml."
+                if [ "${TAG}" = "${LATEST}" ]; then
+                  ERROR="${ERROR} Cut a patch release: when main's images pass"
+                  ERROR="${ERROR} build-containers' scan gate, releasing main ships the fix; otherwise bump the"
+                  ERROR="${ERROR} pinned component (or widen the Dockerfile's upgrade step) that ships the"
+                  ERROR="${ERROR} vulnerable package first. Or record a justified exception in .grype.yaml."
+                else
+                  ERROR="${ERROR} The newest release is ${LATEST}. If a template still pins ${TAG}, move the pin:"
+                  ERROR="${ERROR} merge Renovate's 'devcontainer template images' update. Or record a justified"
+                  ERROR="${ERROR} exception in .grype.yaml."
+                fi
                 ;;
             esac
           fi

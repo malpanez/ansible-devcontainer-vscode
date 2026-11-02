@@ -223,9 +223,10 @@ version tables rot:
 
 GitHub Actions workflows live under `.github/workflows/`:
 
-- `ci.yml` – runs repository-wide `uvx pre-commit run --all-files`, lints shell and PowerShell scripts, keeps Go/Terraform checks, builds the Dev Container images whose inputs changed (`linux/amd64`), gates them on the size budgets in `.github/image-size-budgets.json`, smoke-tests them, and scans them with Grype (`.grype.yaml`: fixable high/critical findings block), plus `hadolint`. Publishing is not done here: see `build-containers.yml`.
+- `ci.yml` – runs the test playbook, lints shell and PowerShell scripts, keeps Go/Terraform checks, runs Molecule, builds the Dev Container images whose inputs changed (`linux/amd64`), gates them on the size budgets in `.github/image-size-budgets.json`, smoke-tests them, and scans them with Grype (`.grype.yaml`: fixable high/critical findings block), plus `hadolint`. Publishing is not done here: see `build-containers.yml`.
 - `build-containers.yml` – the only workflow that publishes `latest`, `main` and the Python stream tag: daily and on pushes to `main`, uncached, Grype-gated, signed and attested.
-- `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
+- `quality.yml` – quality metrics: yamllint (pinned from `uv.lock`), ansible-lint, hadolint, radon, vulture and Bandit. No workflow runs `pre-commit`: the hooks run in the container and locally (`pre-commit run --all-files`).
+- `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, runs them on `linux/amd64` and `linux/arm64` runners, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
 
 CI takes its Python, Go and Terraform versions from the Dockerfiles (`scripts/derive-toolchain-versions.sh`), so it tests the toolchain the images ship.
 
@@ -265,7 +266,7 @@ Override defaults in `roles/*/defaults/main.yml` or pass extra vars (`-e variabl
 - `./scripts/smoke-devcontainer-image.sh` — builds a Dev Container image and runs per-stack smoke checks (compatible with Docker Desktop or Podman).
 - `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `ansible-aws`, `terraform`, `terraform-aws`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
 - `molecule test` — spins up Debian with all roles applied and verifies via Testinfra (`molecule/default/tests/test_default.py`).
-- GitHub Actions runs `uvx pre-commit`, targeted playbook/Molecule checks, Go/Terraform tests when relevant, and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
+- GitHub Actions does not run `pre-commit`; it runs targeted playbook/Molecule checks, yamllint and ansible-lint (`quality.yml`), Go/Terraform tests when relevant, and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
 - See [`docs/`](docs/README.md) for scenario walkthroughs (Terraform Proxmox, LaTeX résumé), corporate network tips, and the Windows bootstrap guide.
 
 ## Scenario Playbooks
