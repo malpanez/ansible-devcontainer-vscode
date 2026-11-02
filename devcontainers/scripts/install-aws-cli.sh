@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # renovate: datasource=github-tags depName=aws/aws-cli
-AWS_CLI_VERSION=2.38.5
+AWS_CLI_VERSION=2.39.3
 AWS_CLI_SHA256_X86_64=5def7d1b7e55d892f9a381bb2cb2081a685712464be0d36d5d706af0ac48d0d3
 AWS_CLI_SHA256_AARCH64=07711a936e9d271045ab937d2c2c5390c25f419e4ba9e25adb9e996031e3f6be
 
