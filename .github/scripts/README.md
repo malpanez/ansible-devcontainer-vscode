@@ -4,7 +4,7 @@ This directory contains automation scripts for managing GitHub Code Scanning ale
 
 ## Overview
 
-GitHub Code Scanning generates alerts for security vulnerabilities found by tools like Trivy. However, alerts don't automatically close when:
+GitHub Code Scanning generates alerts for security vulnerabilities found by tools like Grype. However, alerts don't automatically close when:
 - Vulnerabilities are fixed (you must manually dismiss them)
 - False positives are identified
 - Base image CVEs are accepted as risks
@@ -41,7 +41,7 @@ DRY_RUN=false MAX_ALERT_AGE_DAYS=90 ./manage-code-scanning-alerts.sh
 
 ## GitHub Actions Integration
 
-This script is integrated with GitHub Actions via the [security-alert-management.yml](../.github/workflows/security-alert-management.yml) workflow.
+This script is integrated with GitHub Actions via the [security-alert-management.yml](../workflows/security-alert-management.yml) workflow.
 
 **Automatic runs**: Every Monday at 9 AM UTC
 **Manual trigger**: Via GitHub Actions UI or CLI
@@ -211,7 +211,7 @@ When updating the script:
 
 For issues or questions:
 - Open an issue in the repository
-- Review the security review document: [SECURITY_REVIEW.md](../../SECURITY_REVIEW.md)
+- Read the security policy: [SECURITY.md](../../SECURITY.md)
 - Check GitHub Actions logs for detailed output
 
 ## License

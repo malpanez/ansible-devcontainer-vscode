@@ -101,7 +101,7 @@ SKIPPED_COUNT=0
 ERROR_COUNT=0
 
 # Process each alert
-echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
+while read -r alert; do
     NUMBER=$(echo "${alert}" | jq -r '.number')
     CREATED_AT=$(echo "${alert}" | jq -r '.created_at')
     RULE_ID=$(echo "${alert}" | jq -r '.rule.id')
@@ -131,24 +131,6 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
         DISMISS_REASON="won't fix"
         DISMISS_COMMENT="Alert is ${AGE_DAYS} days old and hasn't been re-detected. Auto-dismissing as stale."
         log_warning "  → Marked for dismissal: Stale alert (${AGE_DAYS} days old)"
-    fi
-
-    # Rule 2: Podman version detection mismatch
-    # If the alert is for Podman and we're using v5.7.0 in Dockerfile but Trivy detects older version
-    # This indicates either:
-    # - Trivy version detection issue (examining binary metadata vs actual runtime)
-    # - The v5.7.0 tag contains older binaries (upstream issue)
-    # - Build cache serving stale binaries
-    # Only CVEs individually verified as fixed in the pinned Podman version:
-    # CVE-2024-1753 (fixed 5.0.1), CVE-2024-9407 (5.2.4), CVE-2025-6032 (5.5.2),
-    # CVE-2025-9566 (5.6.1), CVE-2025-47914 / CVE-2025-58181 (golang.org/x/crypto)
-    if [[ "${LOCATION}" =~ usr/local/bin/podman ]] \
-      && [[ "${RULE_ID}" =~ ^CVE-(2024-1753|2024-9407|2025-6032|2025-9566|2025-47914|2025-58181)$ ]] \
-      && [[ "${AGE_DAYS}" -ge 14 ]]; then
-        SHOULD_DISMISS=true
-        DISMISS_REASON="false positive"
-        DISMISS_COMMENT="Dockerfile specifies Podman v5.7.0 which includes the fix for ${RULE_ID}. Trivy appears to be detecting version from binary metadata which may not reflect actual security patches. Verified via: devcontainers/ansible/Dockerfile.podman line 11."
-        log_warning "  → Marked for dismissal: Podman version detection mismatch"
     fi
 
     # Rule 3: Known false positives (configure based on your needs)
@@ -211,7 +193,7 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
             if [[ "${AGE_DAYS}" -ge 30 ]]; then
                 SHOULD_DISMISS=true
                 DISMISS_REASON="used in tests"
-                DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream. See SECURITY_REVIEW.md"
+                DISMISS_COMMENT="Go stdlib CVE in vendor binary. Dev env only. Risk accepted, awaiting upstream."
                 log_warning "  → Marked for dismissal: Go stdlib vendor binary CVE"
             fi
         fi
@@ -250,7 +232,9 @@ echo "${ALERTS}" | jq -c '.[]' | while read -r alert; do
     fi
 
     echo ""
-done
+# Not a pipe into the loop: the loop would run in a subshell, and the summary
+# below would report 0 for every counter.
+done < <(echo "${ALERTS}" | jq -c '.[]')
 
 # Summary
 echo "========================================"

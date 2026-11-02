@@ -46,6 +46,9 @@ jobs:
       packages: write
       contents: read
     strategy:
+      # Packages are independent: one failing must not stop the others from
+      # being pruned.
+      fail-fast: false
       matrix:
         # Every image build-containers.yml publishes. ansible-podman was
         # missing until 2026-10-29, so its untagged versions were never pruned.
@@ -91,6 +94,9 @@ jobs:
       contents: read
       packages: read
     strategy:
+      # A verification: every tag gets checked, so one broken tag does not
+      # hide whether the others resolve.
+      fail-fast: false
       matrix:
         include:
           - image: devcontainer-base

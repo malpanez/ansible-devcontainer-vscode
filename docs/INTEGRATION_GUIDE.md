@@ -196,7 +196,7 @@ and take its `Digest:` line.
     }
   },
 
-  "postCreateCommand": "pre-commit install --install-hooks && ansible-galaxy collection install -r requirements.yml || true",
+  "postCreateCommand": "ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi",
 
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"

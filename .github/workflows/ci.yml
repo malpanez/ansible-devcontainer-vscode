@@ -153,14 +153,36 @@ jobs:
             python:
               - '**/*.py'
               - 'requirements.txt'
+              # `uv run pytest` builds its environment from the lock, and
+              # pyproject.toml holds pytest's configuration.
+              - 'pyproject.toml'
+              - 'uv.lock'
               - 'tests/**'
-              - 'devcontainers/base/Dockerfile'
               # tests/ covers the shell scripts too (the scan gate's among
               # them), so a change to a script alone must run its tests.
               - 'scripts/**'
               # tests/test_check_image_size.py checks this file's shape: one
               # budget per published image, both limits positive integers.
               - '.github/image-size-budgets.json'
+              # tests/test_derive_toolchain_versions.py reads the versions in
+              # the Dockerfiles; tests/test_refresh_tool_pins.py its pin patterns
+              # in them and in the script, and that no Dockerfile pins the AWS
+              # CLI, .devcontainer's copy included.
+              - 'devcontainers/*/Dockerfile*'
+              - '.devcontainer/Dockerfile*'
+              - 'devcontainers/scripts/install-aws-cli.sh'
+              # tests/test_check_devcontainer_images.py runs the offline check
+              # on these; tests/test_test_devcontainer_profile.py renders the
+              # profiles among them.
+              - 'devcontainers/**/devcontainer*.json'
+              - '.devcontainer/**/devcontainer*.json'
+              - 'examples/*/.devcontainer/*.json'
+              # tests/test_check_hadolint_parity.py runs the guard on the
+              # repository's own pins (ci.yml is one, in the line below).
+              - 'Makefile'
+              - '.pre-commit-config.yaml'
+              # tests/test_workflow_contracts.py reads them all.
+              - '.github/workflows/*.yml'
 
       - name: Check Go module exists
         id: golang-check
@@ -537,6 +559,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
 
       # Each Dockerfile labels its own description; metadata-action's
       # repository-wide one would replace it.
@@ -1109,6 +1132,15 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    # security is left out on purpose. It scans the checkout against the Grype
+    # database of the day and fails on any fixable high, so an advisory
+    # published overnight for a package this repository already pins turns it
+    # red with nothing wrong in the pull request. On 2026-10-26 it failed 11
+    # pull requests within half an hour, a digest bump touching only
+    # devcontainers/latex/Dockerfile among them, and on 2026-08-10 it failed 12.
+    # As a need of this required check it would block every pull request but
+    # the fix itself, and with two advisories at once each fix stays red on the
+    # other, as the image scan did to Renovate on 2026-10-27.
     needs:
       - changes
       - test-playbooks
@@ -1116,6 +1148,7 @@ jobs:
       - terraform-ci
       - script-lint
       - dockerfile-lint
+      - devcontainer-state
       - devcontainer-build
       - devcontainer-cli-test
       - unit-tests

@@ -192,7 +192,7 @@ This persists the uv cache across container rebuilds for even faster installs.
 
 - [uv Documentation](https://github.com/astral-sh/uv)
 - [PEP 621 - pyproject.toml specification](https://peps.python.org/pep-0621/)
-- [Performance Benchmarks](../PERFORMANCE.md#python-dependencies)
+- [Performance Benchmarks](../PERFORMANCE.md)
 - [Python Package Manager Comparison (2024)](https://lincolnloop.com/insights/python-package-managers-2024/)
 
 ---

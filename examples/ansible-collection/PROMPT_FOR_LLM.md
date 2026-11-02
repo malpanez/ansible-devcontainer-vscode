@@ -111,7 +111,7 @@ git commit -m "feat: add CIS compliance checks"
   "postCreateCommand": [
     "bash",
     "-c",
-    "pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi"
   ],
 
   "remoteUser": "vscode"
@@ -173,7 +173,7 @@ Con el directorio en orden, basta con:
   },
   "postCreateCommand": [
     "bash", "-c",
-    "pre-commit install --install-hooks || true"
+    "ensure-precommit"
   ]
 }
 ```
