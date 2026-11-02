@@ -268,8 +268,8 @@ graph LR
     D -->|Yes| E[No tags, no signature: run goes red]
     D -->|No| F[Attest, sign with cosign, tag]
 
-    F --> G[release.yml re-scans at release]
-    G --> H[scan-release-images.yml rescans the newest release nightly]
+    F --> G[release.yml re-scans and runs them on amd64 and arm64 at release]
+    G --> H[scan-release-images.yml rescans the newest release and the pinned versions nightly]
 
     style E fill:#ffebee
     style F fill:#e8f5e9

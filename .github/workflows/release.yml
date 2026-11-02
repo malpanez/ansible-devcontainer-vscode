@@ -4,8 +4,9 @@ name: Release
 # A release promotes images, it never builds them. build-containers.yml is the
 # only workflow that builds, scans, attests and signs the devcontainer images;
 # this one picks the digest it gated for the tagged commit, checks that
-# build-containers signed it on main, scans it again with the same policy and
-# only then adds the version tag to that exact digest.
+# build-containers signed it on main, scans it again with the same policy, runs
+# it on every platform it has and only then adds the version tag to that exact
+# digest.
 #
 # Up to v1.3.29 this workflow rebuilt every image instead. Only an amd64
 # preflight build was scanned, for criticals only, and the pushed digests were
@@ -35,6 +36,7 @@ jobs:
       packages: read  # resolve tags and labels on GHCR
     outputs:
       images: ${{ steps.resolve.outputs.images }}
+      smoke_legs: ${{ steps.resolve.outputs.smoke_legs }}
 
     steps:
       - name: Checkout repository
@@ -161,7 +163,8 @@ jobs:
           IMAGE_INPUTS=(devcontainers/ templates/ requirements-ansible.txt requirements-aws.txt requirements-devcontainer-tools.txt .github/workflows/build-containers.yml)
           # Its negated path: the templates only name the published images.
           IMAGE_INPUTS_EXCLUDED=(':(exclude,glob)devcontainers/**/devcontainer*.json')
-          IMAGES=(base ansible ansible-podman ansible-aws terraform terraform-aws golang latex)
+          IMAGE_NAMES="$(python3 scripts/release-images.py names)"
+          mapfile -t IMAGES <<<"${IMAGE_NAMES}"
 
           RECORDS="[]"
           FAILED=0
@@ -259,7 +262,8 @@ jobs:
             echo "| --- | --- | --- | --- | --- |"
             jq -r '.[] | "| \(.image) | \(.version_tag) | \(.source) | \(.digest) | \(.revision) |"' <<<"${RECORDS}"
           } >> "${GITHUB_STEP_SUMMARY}"
-          echo "images=${RECORDS}" >> "${GITHUB_OUTPUT}"
+          # Each image's platforms, and one smoke leg per image and platform.
+          python3 scripts/release-images.py gate-outputs <<<"${RECORDS}" >> "${GITHUB_OUTPUT}"
 
   gate:
     name: Gate ${{ matrix.name }}
@@ -329,8 +333,11 @@ jobs:
 
       # The released index is immutable, so the arm64 manifest it holds is
       # what the version tag will carry: it is scanned by its own digest.
-      # Not required: an image may be amd64-only (latex). Runs even when the
-      # amd64 scan failed, so one run reports the findings of both platforms.
+      # Required wherever build-containers builds arm64 (matrix.platforms, from
+      # scripts/release-images.py), so an index that lost it fails here: this
+      # used to be REQUIRED=false for every image because of latex, and such an
+      # index passed on amd64 alone. Runs even when the amd64 scan failed, so one
+      # run reports the findings of both platforms.
       - name: Resolve the arm64 manifest of ${{ matrix.name }}
         id: arm64
         if: always()
@@ -338,7 +345,7 @@ jobs:
           IMAGE: ${{ matrix.image }}
           DIGEST: ${{ matrix.digest }}
           PLATFORM: linux/arm64
-          REQUIRED: "false"
+          REQUIRED: ${{ contains(matrix.platforms, 'linux/arm64') }}
         run: bash scripts/resolve-platform-manifest.sh
 
       # registry: reads that manifest itself from GHCR, independent of the
@@ -355,15 +362,91 @@ jobs:
           fail-build: "true"
           output-format: table
 
+  # Runs the gated digest before anything is tagged. The smoke test used to run
+  # after publish, on the version tag, where a failure could only report a broken
+  # version already published for good: version tags are immutable. A failure
+  # here tags nothing, and `gh run rerun --failed` is all a flake needs: it keeps
+  # resolve's outputs, runs publish once the leg passes, and needs no new git tag.
+  #
+  # One leg per platform (scripts/release-images.py, so latex has no arm64 leg).
+  # Nothing else executes an arm64 image: builds use QEMU and scans read the
+  # manifest. Measured 2026-11-01 on ubuntu-24.04-arm with the v2.2.0 images: 10
+  # to 37 s per image.
+  smoke:
+    name: Smoke ${{ matrix.name }} (${{ matrix.arch }})
+    needs: resolve
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read  # checkout for the smoke scripts
+      packages: read  # pull the gated digest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.resolve.outputs.smoke_legs) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # docker picks the runner's platform from the index, and fails when the
+      # index does not hold it. The comparison is what makes a green leg evidence
+      # about this platform: it would catch a runner label that stopped meaning
+      # arm64.
+      - name: Pull ${{ matrix.name }} (${{ matrix.arch }}) by digest
+        env:
+          REF: ${{ matrix.image }}@${{ matrix.digest }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          docker pull "${REF}"
+          PULLED="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${REF}")"
+          if [ "${PULLED}" != "${PLATFORM}" ]; then
+            echo "::error::${REF} pulled as ${PULLED} on the ${PLATFORM} leg, so it proves nothing about ${PLATFORM}."
+            exit 1
+          fi
+          echo "${REF} is ${PULLED}; the runner is $(uname -m)."
+
+      # The script has no podman stack; ansible-podman gets the ansible checks,
+      # which it ships the same tooling for, and the step below for podman. The
+      # -aws images have stacks of their own: the plain stack's checks plus the
+      # AWS ones.
+      - name: Smoke ${{ matrix.name }} (${{ matrix.arch }})
+        env:
+          NAME: ${{ matrix.name }}
+          REF: ${{ matrix.image }}@${{ matrix.digest }}
+        run: |
+          set -euo pipefail
+          bash scripts/smoke-devcontainer-image.sh --stack "${NAME%-podman}" --image "${REF}"
+
+      # Passed on amd64 and arm64 with the v2.2.0 image (37 s on arm64).
+      - name: Run podman in ${{ matrix.name }} with the template's runArgs (${{ matrix.arch }})
+        if: matrix.name == 'ansible-podman'
+        env:
+          REF: ${{ matrix.image }}@${{ matrix.digest }}
+        run: bash scripts/smoke-podman-profile.sh "${REF}"
+
   publish:
     name: Publish ${{ github.ref_name }}
-    needs: [resolve, gate]
+    needs: [resolve, gate, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write  # create the GitHub release and upload the SBOMs
       packages: write  # add the version tags on GHCR
       id-token: write  # keyless cosign signatures of the SBOMs
+    env:
+      # renovate: datasource=github-releases depName=anchore/syft
+      SYFT_VERSION: v1.46.0
 
     steps:
       - name: Check out the tagged commit
@@ -385,7 +468,7 @@ jobs:
         id: install_syft
         uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
         with:
-          syft-version: v1.46.0
+          syft-version: ${{ env.SYFT_VERSION }}
 
       - name: Expose syft on PATH
         env:
@@ -395,7 +478,10 @@ jobs:
       # One source and no --annotation: buildx then pushes the gated index
       # bytes unchanged under the new tag; anything else writes a new index
       # that nothing scanned or signed. Every dry run is checked before the
-      # first tag is written, so a mismatch leaves no image half-released.
+      # first tag is written, so a mismatch leaves no image half-released. The
+      # read-back at the end proves each tag serves the digest gate and smoke
+      # judged; running a tag again would run the same bytes. A re-run writes the
+      # same tag on the same digest: resolve refuses a tag on any other.
       - name: Tag the gated digests with ${{ github.ref_name }}
         env:
           IMAGES_JSON: ${{ needs.resolve.outputs.images }}
@@ -525,41 +611,3 @@ jobs:
         with:
           name: devcontainer-sbom
           path: sbom/
-
-  smoke-ghcr:
-    name: GHCR Release Smoke Test (${{ matrix.name }})
-    needs: [resolve, publish]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read  # checkout for the smoke script
-      packages: read  # pull the published tag
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.resolve.outputs.images) }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Smoke the PUBLISHED tag, not a local rebuild: docker run pulls it.
-      # The script has no podman stack; ansible-podman gets the ansible
-      # checks, which it ships the same tooling for. The -aws images have
-      # stacks of their own: the plain stack's checks plus the AWS ones.
-      - name: Smoke published ${{ matrix.name }}:${{ matrix.version_tag }}
-        env:
-          NAME: ${{ matrix.name }}
-          REF: ${{ matrix.image }}:${{ matrix.version_tag }}
-        run: |
-          set -euo pipefail
-          bash scripts/smoke-devcontainer-image.sh --stack "${NAME%-podman}" --image "${REF}"

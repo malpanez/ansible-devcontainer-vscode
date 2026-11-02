@@ -226,7 +226,7 @@ GitHub Actions workflows live under `.github/workflows/`:
 - `ci.yml` – runs the test playbook, lints shell and PowerShell scripts, keeps Go/Terraform checks, runs Molecule, builds the Dev Container images whose inputs changed (`linux/amd64`), gates them on the size budgets in `.github/image-size-budgets.json`, smoke-tests them, and scans them with Grype (`.grype.yaml`: fixable high/critical findings block), plus `hadolint`. Publishing is not done here: see `build-containers.yml`.
 - `build-containers.yml` – the only workflow that publishes `latest`, `main` and the Python stream tag: daily and on pushes to `main`, uncached, Grype-gated, signed and attested.
 - `quality.yml` – quality metrics: yamllint (pinned from `uv.lock`), ansible-lint, hadolint, radon, vulture and Bandit. No workflow runs `pre-commit`: the hooks run in the container and locally (`pre-commit run --all-files`).
-- `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
+- `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, runs them on `linux/amd64` and `linux/arm64` runners, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
 
 CI takes its Python, Go and Terraform versions from the Dockerfiles (`scripts/derive-toolchain-versions.sh`), so it tests the toolchain the images ship.
 
