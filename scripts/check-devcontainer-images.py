@@ -95,37 +95,47 @@ class PinnedImage:
         return f"{self.repository}:{self.tag}@{self.digest}"
 
 
+def _string_end(text: str, start: int) -> int:
+    """Index just past the string literal that opens at text[start]."""
+    i = start + 1
+    while i < len(text):
+        if text[i] == "\\":
+            i += 2
+        elif text[i] == '"':
+            return i + 1
+        else:
+            i += 1
+    return len(text)
+
+
+def _comment_end(text: str, i: int) -> int | None:
+    """Index just past the comment that starts at text[i]; None if none does."""
+    if text.startswith("//", i):
+        end = text.find("\n", i)
+        return len(text) if end == -1 else end
+    if text.startswith("/*", i):
+        end = text.find("*/", i + 2)
+        if end == -1:
+            raise ValueError("unterminated block comment")
+        return end + 2
+    return None
+
+
 def _strip_comments(text: str) -> str:
     out: list[str] = []
     i = 0
-    in_string = False
     while i < len(text):
-        char = text[i]
-        if in_string:
-            out.append(char)
-            if char == "\\" and i + 1 < len(text):
-                out.append(text[i + 1])
-                i += 2
-                continue
-            if char == '"':
-                in_string = False
-            i += 1
+        if text[i] == '"':
+            end = _string_end(text, i)
+            out.append(text[i:end])
+            i = end
             continue
-        if char == '"':
-            in_string = True
-            out.append(char)
+        end = _comment_end(text, i)
+        if end is None:
+            out.append(text[i])
             i += 1
-        elif text.startswith("//", i):
-            end = text.find("\n", i)
-            i = len(text) if end == -1 else end
-        elif text.startswith("/*", i):
-            end = text.find("*/", i + 2)
-            if end == -1:
-                raise ValueError("unterminated block comment")
-            i = end + 2
         else:
-            out.append(char)
-            i += 1
+            i = end
     return "".join(out)
 
 
@@ -221,56 +231,54 @@ def _is_build_variant(path: Path) -> bool:
     return path.name == IMAGE_VARIANT and path.parent.name == BUILD_DIR
 
 
-def check_files(root: Path) -> tuple[list[str], list[PinnedImage]]:
-    """Check every template and example; return findings and the pinned images."""
-    findings: list[str] = []
-    images: list[PinnedImage] = []
-    templates = _discover(root, TEMPLATE_GLOBS)
-    examples = _discover(root, EXAMPLE_GLOBS)
-
+def _load_configs(
+    root: Path, paths: Iterable[Path]
+) -> tuple[dict[Path, Any], list[str]]:
     configs: dict[Path, Any] = {}
-    for path in templates + examples:
+    findings: list[str] = []
+    for path in paths:
         try:
             configs[path] = load_jsonc(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, ValueError) as exc:
+        except (OSError, ValueError) as exc:
             findings.append(f"{path.relative_to(root)}: cannot be parsed: {exc}")
+    return configs, findings
 
-    for path, config in configs.items():
-        rel = path.relative_to(root)
-        if not isinstance(config, dict):
-            findings.append(f"{rel}: is not a JSON object")
-            continue
-        if path in templates and _is_build_variant(path):
-            findings.extend(
-                f"{rel}: {message}"
-                for message in _check_build_variant(path, config, configs)
-            )
-            continue
-        if "build" in config:
-            findings.append(
-                f'{rel}: still builds locally ("build"); templates start from the'
-                f" published image, and only {BUILD_DIR}/{IMAGE_VARIANT} builds the"
-                " Dockerfile"
-            )
-        image = parse_image(config.get("image"))
-        if image is None:
-            findings.append(
-                f'{rel}: "image" is {json.dumps(config.get("image"))}, not'
-                " <registry>/<repository>:<tag>@sha256:<digest>"
-            )
-            continue
-        if VERSION_TAG_RE.fullmatch(image.tag) is None:
-            # Not sent to the registry: the pin is wrong whatever it answers today.
-            findings.append(
-                f'{rel}: pins the tag "{image.tag}", not a release version tag'
-                " v<major>.<minor>.<patch>: the nightly rebuild moves the other tags"
-                " (latest, main, py3xx, the sha- tag of the commit it rebuilds) and"
-                " cleanup-ghcr.yml deletes the digest they leave untagged two weeks"
-                " later, so the pin stops pulling"
-            )
-            continue
-        images.append(image)
 
+def _check_image_variant(
+    rel: Path, config: dict[str, Any]
+) -> tuple[list[str], PinnedImage | None]:
+    """Check a template or example that starts from a published image."""
+    findings: list[str] = []
+    if "build" in config:
+        findings.append(
+            f'{rel}: still builds locally ("build"); templates start from the'
+            f" published image, and only {BUILD_DIR}/{IMAGE_VARIANT} builds the"
+            " Dockerfile"
+        )
+    image = parse_image(config.get("image"))
+    if image is None:
+        findings.append(
+            f'{rel}: "image" is {json.dumps(config.get("image"))}, not'
+            " <registry>/<repository>:<tag>@sha256:<digest>"
+        )
+        return findings, None
+    if VERSION_TAG_RE.fullmatch(image.tag) is None:
+        # Not sent to the registry: the pin is wrong whatever it answers today.
+        findings.append(
+            f'{rel}: pins the tag "{image.tag}", not a release version tag'
+            " v<major>.<minor>.<patch>: the nightly rebuild moves the other tags"
+            " (latest, main, py3xx, the sha- tag of the commit it rebuilds) and"
+            " cleanup-ghcr.yml deletes the digest they leave untagged two weeks"
+            " later, so the pin stops pulling"
+        )
+        return findings, None
+    return findings, image
+
+
+def _check_stack_dirs(
+    root: Path, templates: list[Path], configs: dict[Path, Any]
+) -> list[str]:
+    findings: list[str] = []
     stack_dirs = {path.parent for path in templates if not _is_build_variant(path)}
     for directory in sorted(stack_dirs):
         if (directory / IMAGE_VARIANT) in configs and not (
@@ -280,6 +288,33 @@ def check_files(root: Path) -> tuple[list[str], list[PinnedImage]]:
                 f"{directory.relative_to(root)}: has no {BUILD_DIR}/{IMAGE_VARIANT},"
                 " so its Dockerfile cannot be opened as a dev container nor tested by CI"
             )
+    return findings
+
+
+def check_files(root: Path) -> tuple[list[str], list[PinnedImage]]:
+    """Check every template and example; return findings and the pinned images."""
+    images: list[PinnedImage] = []
+    templates = _discover(root, TEMPLATE_GLOBS)
+    examples = _discover(root, EXAMPLE_GLOBS)
+
+    configs, findings = _load_configs(root, templates + examples)
+
+    for path, config in configs.items():
+        rel = path.relative_to(root)
+        if not isinstance(config, dict):
+            findings.append(f"{rel}: is not a JSON object")
+        elif path in templates and _is_build_variant(path):
+            findings.extend(
+                f"{rel}: {message}"
+                for message in _check_build_variant(path, config, configs)
+            )
+        else:
+            image_findings, image = _check_image_variant(rel, config)
+            findings.extend(image_findings)
+            if image is not None:
+                images.append(image)
+
+    findings.extend(_check_stack_dirs(root, templates, configs))
     return findings, images
 
 

@@ -62,6 +62,7 @@ sarif_for() {
   case "${platform}" in
     linux/amd64) printf '%s' "${SARIF_AMD64}" ;;
     linux/arm64) printf '%s' "${SARIF_ARM64}" ;;
+    *) usage_error "no SARIF input for platform '${platform}'" ;;
   esac
 }
 

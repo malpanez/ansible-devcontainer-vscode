@@ -17,7 +17,8 @@ HEADER = "# pinned collections\n# name version sha256\n\n"
 
 def _load_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("refresh_collection_pins", SCRIPT)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
