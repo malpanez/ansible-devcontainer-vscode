@@ -9,6 +9,7 @@ on:
       - '.devcontainer/**'
       - 'Dockerfile'
       - 'requirements-ansible.txt'
+      - 'requirements-aws.txt'
       - 'requirements-devcontainer-tools.txt'
       - '.github/workflows/benchmark.yml'
   push:
@@ -18,6 +19,7 @@ on:
       - '.devcontainer/**'
       - 'Dockerfile'
       - 'requirements-ansible.txt'
+      - 'requirements-aws.txt'
       - 'requirements-devcontainer-tools.txt'
   workflow_dispatch:
   schedule:
@@ -50,6 +52,16 @@ jobs:
             path: devcontainers/terraform
           - name: base
             path: devcontainers/base
+          # The -aws images are a stage of the stack's Dockerfile, selected by
+          # target; the entries above leave it empty and build the last stage,
+          # the plain image. ansible-aws builds on the BASE_IMAGE pin, as the
+          # ansible entry does.
+          - name: terraform-aws
+            path: devcontainers/terraform
+            target: terraform-aws
+          - name: ansible-aws
+            path: devcontainers/ansible
+            target: ansible-aws
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -88,6 +100,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.container.path }}/Dockerfile
+          target: ${{ matrix.container.target }}
           load: true
           tags: benchmark-${{ matrix.container.name }}:test
           cache-from: ${{ steps.rcache.outputs.from }}
@@ -156,6 +169,13 @@ jobs:
             path: devcontainers/ansible
           - name: terraform
             path: devcontainers/terraform
+          # See container-startup-benchmark.
+          - name: terraform-aws
+            path: devcontainers/terraform
+            target: terraform-aws
+          - name: ansible-aws
+            path: devcontainers/ansible
+            target: ansible-aws
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -194,12 +214,15 @@ jobs:
         env:
           CONTAINER_NAME: ${{ matrix.container.name }}
           CONTAINER_PATH: ${{ matrix.container.path }}
+          TARGET_ARGS: ${{ matrix.container.target && format('--target {0}', matrix.container.target) || '' }}
         run: |
+          read -r -a TARGET_FLAGS <<< "${TARGET_ARGS}"
           start_time=$(date +%s%N)
           docker buildx build \
             --tag "benchmark-build-${CONTAINER_NAME}:cold" \
             --load \
             --no-cache \
+            "${TARGET_FLAGS[@]}" \
             --file "${CONTAINER_PATH}/Dockerfile" \
             .
           end_time=$(date +%s%N)
@@ -214,13 +237,16 @@ jobs:
           CONTAINER_NAME: ${{ matrix.container.name }}
           CONTAINER_PATH: ${{ matrix.container.path }}
           RCACHE_ARGS: ${{ steps.rcache.outputs.args }}
+          TARGET_ARGS: ${{ matrix.container.target && format('--target {0}', matrix.container.target) || '' }}
         run: |
           read -r -a CACHE_FLAGS <<< "${RCACHE_ARGS}"
+          read -r -a TARGET_FLAGS <<< "${TARGET_ARGS}"
           start_time=$(date +%s%N)
           docker buildx build \
             --tag "benchmark-build-${CONTAINER_NAME}:warm" \
             --load \
             "${CACHE_FLAGS[@]}" \
+            "${TARGET_FLAGS[@]}" \
             --file "${CONTAINER_PATH}/Dockerfile" \
             .
           end_time=$(date +%s%N)
@@ -270,8 +296,6 @@ jobs:
 
       - name: Resolve registry cache
         id: rcache
-        env:
-          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.container.name }}:buildcache-publish
         run: |
           set -euo pipefail
           # Read-only use of the cache build-containers.yml publishes, so this

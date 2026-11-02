@@ -67,6 +67,16 @@ jobs:
             context: devcontainers/ansible
           - name: devcontainer-terraform
             context: devcontainers/terraform
+          # The -aws images are a stage of the stack's Dockerfile, selected by
+          # stage; the entries above leave it empty and build the last stage,
+          # the plain image. devcontainer-ansible-aws builds on the BASE_IMAGE
+          # pin, as devcontainer-ansible does.
+          - name: devcontainer-terraform-aws
+            context: devcontainers/terraform
+            stage: terraform-aws
+          - name: devcontainer-ansible-aws
+            context: devcontainers/ansible
+            stage: ansible-aws
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -111,6 +121,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.target.context }}/Dockerfile
+          target: ${{ matrix.target.stage }}
           load: true
           tags: sbom-${{ matrix.target.name }}:latest
           cache-from: ${{ steps.rcache.outputs.from }}
