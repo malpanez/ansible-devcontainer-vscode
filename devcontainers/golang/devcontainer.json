@@ -1,6 +1,6 @@
 {
   "name": "Go Dev Container",
-  "image": "ghcr.io/malpanez/devcontainer-golang:v2.0.0@sha256:65ae7077a65fe5610387919610371475bb2b7bc65b822a641a2416489ee89b7b",
+  "image": "ghcr.io/malpanez/devcontainer-golang:v2.2.0@sha256:4a12dcddbb2367f87d4f855fd7bcf1000f78a25cdfacf2310dccad503f2d275e",
   "customizations": {
     "vscode": {
       "extensions": [
