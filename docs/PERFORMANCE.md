@@ -1,211 +1,68 @@
 # Performance Optimization Guide
 
-**Last Updated**: 2025-12-04 (image sizes corrected 2026-11 to the CI measurements; build, startup and cache-hit figures were not re-measured)
+**Last Updated**: 2026-11-01. Every figure below comes from CI on commit `e7c0c97` (v2.2.0) and says which run measured it. Nothing else measures performance here, so figures that earlier versions of this guide gave for ansible-playbook, Terraform plan, Go build, bind-mount I/O, pre-commit, workflow durations, cache hit rates, arm64 builds and VS Code open times were removed rather than left stale.
 
-This guide documents performance characteristics, benchmarks, and optimization strategies for the ansible-devcontainer-vscode project.
+This guide documents what is measured, what is not, and optimization strategies for the ansible-devcontainer-vscode project.
 
 ---
 
 ## Table of Contents
 
-- [Container Build Performance](#container-build-performance)
-- [Runtime Performance](#runtime-performance)
-- [CI/CD Pipeline Performance](#cicd-pipeline-performance)
-- [Development Workflow Performance](#development-workflow-performance)
+- [What Is Measured](#what-is-measured)
+- [Image Size](#image-size)
+- [Build and Startup Time](#build-and-startup-time)
 - [Optimization Strategies](#optimization-strategies)
 - [Monitoring & Benchmarking](#monitoring--benchmarking)
 
 ---
 
-## Container Build Performance
+## What Is Measured
 
-### Current Benchmarks (December 2025)
+`.github/workflows/benchmark.yml` runs on pull requests and pushes that touch `devcontainers/**` and the requirements exports, on `workflow_dispatch`, and weekly on Monday at 06:00 UTC. It measures:
 
-Measured on GitHub Actions runners (ubuntu-latest, 2-core, 7GB RAM):
+| Job | What it times | Stacks |
+|-----|---------------|--------|
+| Container Startup Time | Wall time of `docker run --rm <image> echo Ready`, 3 iterations, averaged. The image is built in the job, with the `buildcache-publish` registry cache when one exists. | base, ansible, terraform |
+| Build Time Benchmark | `docker buildx build` of the stack, once with `--no-cache` ("cold") and once with the registry cache as `--cache-from` ("warm"). | ansible, terraform |
+| Resource Usage Benchmark | `docker stats` memory and CPU of an idle `sleep 30` container built from `.devcontainer/Dockerfile`. | the repository's own devcontainer |
 
-| Stack     | Build Time | Image Size | Startup Time | Layers | Cache Hit Rate |
-|-----------|------------|------------|--------------|--------|----------------|
-| Ansible   | 3m 45s     | 436 MiB    | 8s           | 12     | ~75%           |
-| Terraform | 2m 10s     | 669 MiB    | 4s           | 8      | ~80%           |
-| Golang    | 1m 30s     | 376 MiB    | 3s           | 6      | ~85%           |
-| LaTeX     | 2m 45s     | 335 MiB    | 5s           | 9      | ~70%           |
+Golang and LaTeX are not benchmarked. The jobs run on `ubuntu-latest`; in the run below that was the Ubuntu 26 runner image `20261025.179` with 15.61 GiB of memory. Numbers from a shared runner vary from run to run.
+
+---
+
+## Image Size
+
+The `linux/amd64` images of v2.2.0 (commit `e7c0c97`). Uncompressed is `docker image inspect` `.Size` on the runner, from the size gate of `ci.yml` (run 41337212915), and for base, which that gate does not build, the sum of its layers' files from [the release notes](release-notes/v2.2.0.md#sizes). Compressed is what a pull downloads, from the publish report of `build-containers.yml` (run 41337212893). The limits are in [`.github/image-size-budgets.json`](../.github/image-size-budgets.json).
+
+| Stack         | Uncompressed | Compressed (zstd) |
+|---------------|--------------|-------------------|
+| base          | 330.1 MiB    | 93.9 MiB          |
+| ansible       | 436.0 MiB    | 119.0 MiB         |
+| ansible-podman | 523.5 MiB   | 148.2 MiB         |
+| ansible-aws   | 718.8 MiB    | 195.5 MiB         |
+| terraform     | 668.7 MiB    | 187.6 MiB         |
+| terraform-aws | 918.2 MiB    | 247.2 MiB         |
+| golang        | 376.2 MiB    | 103.0 MiB         |
+| latex         | 335.4 MiB    | 96.5 MiB          |
+
+---
+
+## Build and Startup Time
+
+Measured by `benchmark.yml`, run 41337213035 on `main` (2026-11-01). CI measured these on a GitHub-hosted runner; they are not a statement about a developer machine.
+
+| Stack     | Cold build (`--no-cache`) | Warm build (registry cache) | Startup (average of 3) | Startup, each iteration |
+|-----------|---------------------------|-----------------------------|------------------------|-------------------------|
+| base      | not measured              | not measured                | 448 ms                 | 879, 234, 231 ms        |
+| ansible   | 44 s                      | 3 s                         | 677 ms                 | 1596, 215, 221 ms       |
+| terraform | 43 s                      | 3 s                         | 1556 ms                | 4247, 181, 241 ms       |
 
 **Notes**:
-- Build times include layer caching (warm cache scenario)
-- Cold cache builds are 2-3x slower
-- Image sizes are the uncompressed `linux/amd64` figures CI measures (`docker image inspect` `.Size`); the enforced limits are in `.github/image-size-budgets.json`
-- Startup time = container ready to time when shell prompt appears
+- Startup is `docker run --rm <image> echo Ready`: the time to start a container and exit, not the time for VS Code to open a dev container. The first iteration was the slowest in all three runs, which is most of the average.
+- The warm build re-uses a registry cache, so it measures cache lookups, not a rebuild with changed inputs.
+- The Resource Usage job writes its memory and CPU figures to the job summary only, so no figure from it is quoted here.
 
-### Build Time Breakdown (Ansible Stack Example)
-
-```
-Base image pull:          45s  (12%)
-System packages:          90s  (24%)
-Python dependencies:      120s (32%)
-Ansible collections:      60s  (16%)
-Configuration & cleanup:  30s  (8%)
-Layer caching overhead:   30s  (8%)
-```
-
-### Multi-Architecture Build Performance
-
-| Platform      | Ansible Build | Terraform Build | Notes |
-|---------------|---------------|-----------------|-------|
-| linux/amd64   | 3m 45s        | 2m 10s          | Native on GHA |
-| linux/arm64   | 8m 20s        | 5m 30s          | QEMU emulation |
-
-**Recommendation**: Use native builders for arm64 (e.g., AWS Graviton, Apple Silicon) to reduce build times by 50%.
-
----
-
-## Runtime Performance
-
-### Container Startup Performance
-
-Time from `docker run` to ready-to-use shell:
-
-```bash
-# Benchmark script
-time docker run --rm -it devcontainer-ansible /bin/bash -c "echo ready"
-
-# Results (average of 10 runs)
-Ansible:    8.2s  ± 0.5s
-Terraform:  4.1s  ± 0.3s
-Golang:     3.5s  ± 0.2s
-LaTeX:      5.0s  ± 0.4s
-```
-
-### Tool Performance Inside Containers
-
-#### Ansible Playbook Execution
-
-```bash
-# Simple playbook (5 tasks, localhost)
-ansible-playbook playbooks/test-environment.yml
-
-Real time: 12.3s
-User time: 8.1s
-Sys time:  2.2s
-```
-
-#### Terraform Plan
-
-```bash
-# Small infrastructure (10 resources)
-terraform plan
-
-Real time: 8.5s
-User time: 6.2s
-Sys time:  1.1s
-```
-
-#### Go Build
-
-```bash
-# Simple CLI application
-go build -o app main.go
-
-Real time: 2.1s
-User time: 1.8s
-Sys time:  0.3s
-```
-
-### Volume Mount Performance
-
-File I/O performance with bind mounts (WSL2 on Windows):
-
-| Operation           | Native | Bind Mount | Overhead |
-|---------------------|--------|------------|----------|
-| Read 1000 files     | 0.5s   | 1.2s       | +140%    |
-| Write 1000 files    | 0.8s   | 2.1s       | +162%    |
-| Git status (large)  | 1.2s   | 3.8s       | +216%    |
-
-**Recommendation**: Use named volumes for caches (uv, Ansible Galaxy) to avoid bind mount overhead.
-
----
-
-## CI/CD Pipeline Performance
-
-### Workflow Execution Times
-
-| Workflow                    | Duration | Parallelism | Caching |
-|-----------------------------|----------|-------------|---------|
-| CI Pipeline (full)          | 12m      | 4 jobs      | ✅       |
-| Build Containers (all)      | 18m      | 4 stacks    | ✅       |
-| Security Scorecard          | 3m       | 1 job       | ❌       |
-| Quality Checks              | 8m       | 3 jobs      | ✅       |
-| Container Structure Tests   | 6m       | 4 stacks    | ✅       |
-
-### Cache Performance Impact
-
-Effect of caching on CI pipeline duration:
-
-| Cache Type       | Cache Miss | Cache Hit | Improvement |
-|------------------|------------|-----------|-------------|
-| Pre-commit       | 5m 30s     | 2m 10s    | -60%        |
-| Docker layers    | 15m        | 6m        | -60%        |
-| Go modules       | 3m         | 45s       | -75%        |
-| uv cache         | 4m         | 1m 20s    | -67%        |
-
-**Key Insight**: Proper caching reduces CI time by ~60% on average.
-
-### Pre-commit Hook Performance
-
-Average execution time for `pre-commit run --all-files`:
-
-```
-Trailing whitespace:       0.8s
-End-of-file-fixer:        0.6s
-Check YAML:               1.2s
-yamllint:                 2.5s
-ansible-lint:             18.3s  ⚠️ Slowest
-ruff (check):             1.1s
-ruff (format):            0.9s
-detect-secrets:           3.2s
-─────────────────────────
-Total:                    28.6s
-```
-
-**Optimization**: ansible-lint can be cached or run only on changed files in dev workflow.
-
----
-
-## Development Workflow Performance
-
-### VS Code Devcontainer Open Time
-
-Time from "Reopen in Container" to usable editor:
-
-| Scenario              | Ansible | Terraform | Golang | LaTeX |
-|-----------------------|---------|-----------|--------|-------|
-| First open (no cache) | 5m 20s  | 3m 10s    | 2m 40s | 3m 30s |
-| Rebuild (with cache)  | 3m 45s  | 2m 10s    | 1m 30s | 2m 45s |
-| Reopen (no rebuild)   | 15s     | 12s       | 10s    | 13s   |
-
-**Prebuilt Images** (using GHCR):
-
-| Scenario                    | Time   | Improvement |
-|-----------------------------|--------|-------------|
-| First open (pull from GHCR) | 45s    | -90%        |
-| Rebuild needed              | 3m 45s | Baseline    |
-
-**Recommendation**: Use prebuilt GHCR images for 10x faster first-open experience.
-
-### Context Switching Performance
-
-Time to switch between devcontainer stacks:
-
-```bash
-# Using make or scripts
-make switch-terraform
-
-Time to switch:     2s   (script execution)
-Time to rebuild:    2m 10s (if Terraform image not cached)
-Total downtime:     2m 12s
-
-# With prebuilt images
-Total downtime:     47s  (2s script + 45s image pull)
-```
+Nothing in CI times a `linux/arm64` build, a Golang or LaTeX build, a bind-mount workload, or the time VS Code takes to reopen a container.
 
 ---
 
@@ -228,8 +85,6 @@ RUN pip install -r /workspace/requirements.txt
 COPY . /workspace
 ```
 
-**Impact**: 60-80% faster rebuild when only code changes.
-
 ---
 
 ### 2. BuildKit Cache Mounts
@@ -245,8 +100,6 @@ RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
     apt-get update && apt-get install -y python3
 ```
-
-**Impact**: 40-50% faster package installation on rebuilds.
 
 ---
 
@@ -265,11 +118,11 @@ FROM debian:trixie-slim
 COPY --from=builder /terraform /usr/local/bin/
 ```
 
-**Impact**: 30-40% smaller final images.
-
 ---
 
 ### 4. Named Volumes for Caches
+
+Bind mounts cross the host file system, which is slow on Docker Desktop and WSL2. Keep caches in named volumes, as the stack templates do:
 
 **Before**:
 ```json
@@ -287,8 +140,6 @@ COPY --from=builder /terraform /usr/local/bin/
 ]
 ```
 
-**Impact**: 3-5x faster dependency installs, persistent across rebuilds.
-
 ---
 
 ### 5. Parallel Builds
@@ -301,13 +152,16 @@ strategy:
   max-parallel: 4
 ```
 
-**Impact**: 4x faster full build (18m → 4.5m on 4-core runner).
+---
+
+### 6. Prebuilt Images
+
+Pull the published images from GHCR instead of building: the templates under `devcontainers/` reference them, so opening a dev container is a pull, not a build.
 
 ---
 
-### 6. Reduce Image Size
+### 7. Reduce Image Size
 
-Current optimizations:
 ```dockerfile
 # Remove apt cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -319,75 +173,38 @@ RUN pip cache purge
 RUN find /usr/local -type d -name __pycache__ -exec rm -rf {} +
 ```
 
-**Impact**: 15-20% smaller images.
+The size budgets above turn growth into a failing pull request instead of a surprise.
 
 ---
 
 ## Monitoring & Benchmarking
 
-### Automated Benchmarking (Planned)
+### Automated Benchmarking
 
-Add to `.github/workflows/benchmarks.yml`:
+`benchmark.yml` (see [What Is Measured](#what-is-measured)) uploads one JSON file per job as an artifact kept for 90 days (`benchmark-<stack>`, `benchmark-build-<stack>`). On pull requests its `Compare with Baseline` job prints the current figures in the job summary and comments them on the pull request. It compares against nothing stored and applies no threshold: a regression is noticed by reading the numbers, not by a failing check.
 
-```yaml
-- name: Benchmark build time
-  run: |
-    start=$(date +%s)
-    docker build -t test devcontainers/ansible/
-    end=$(date +%s)
-    duration=$((end - start))
-    echo "Build time: ${duration}s" >> $GITHUB_STEP_SUMMARY
-    echo "build_time=$duration" >> benchmark.txt
+To read the latest figures from the command line:
 
-- name: Track over time
-  uses: benchmark-action/github-action-benchmark@v1
-  with:
-    tool: 'customSmallerIsBetter'
-    output-file-path: benchmark.txt
+```bash
+gh run list --workflow benchmark.yml --branch main --limit 1
+gh run download <run-id> --pattern 'benchmark-*'
 ```
 
 ### Local Benchmarking
 
 ```bash
 # Benchmark container build
-time docker build --no-cache -t devcontainer-ansible devcontainers/ansible/
+time docker build --no-cache -t devcontainer-ansible -f devcontainers/ansible/Dockerfile .
 
 # Benchmark with cache
-time docker build -t devcontainer-ansible devcontainers/ansible/
+time docker build -t devcontainer-ansible -f devcontainers/ansible/Dockerfile .
 
 # Benchmark startup
 time docker run --rm devcontainer-ansible /bin/bash -c "echo ready"
 
 # Profile with docker stats
-docker stats --no-stream devcontainer-ansible
+docker stats --no-stream <container-id>
 ```
-
-### Performance Regression Detection
-
-Track these metrics in CI:
-
-- ✅ Container build time (per stack)
-- ✅ Final image size
-- ✅ Layer count
-- ✅ Cache hit rate
-- ✅ Workflow execution time
-
-Alert on:
-- Build time increases > 20%
-- Image size increases > 10%
-- Workflow time increases > 15%
-
----
-
-## Performance Targets (2025 Roadmap)
-
-| Metric                    | Current | Target  | Strategy |
-|---------------------------|---------|---------|----------|
-| Ansible first-open        | 5m 20s  | < 1m    | GHCR prebuilds |
-| CI pipeline duration      | 12m     | < 8m    | Better parallelism |
-| Image size (Ansible)      | 436 MiB | < 500 MB | Met; limit now enforced by `.github/image-size-budgets.json` |
-| Pre-commit (all files)    | 28.6s   | < 20s   | Selective linting |
-| Cache hit rate            | 75%     | > 90%   | Better cache keys |
 
 ---
 
@@ -421,18 +238,6 @@ dive devcontainer-ansible:latest
 # Benchmark with statistical analysis
 hyperfine 'docker run --rm devcontainer-ansible /bin/bash -c "echo ready"'
 ```
-
----
-
-## Best Practices Summary
-
-1. ✅ **Use prebuilt images from GHCR** (10x faster first-open)
-2. ✅ **Layer dependencies before code** (60-80% faster rebuilds)
-3. ✅ **Use BuildKit cache mounts** (40-50% faster package installs)
-4. ✅ **Named volumes for persistent caches** (3-5x faster dependency installs)
-5. ✅ **Multi-stage builds** (30-40% smaller images)
-6. ✅ **Parallel CI jobs** (4x faster full pipeline)
-7. ✅ **Monitor performance over time** (catch regressions early)
 
 ---
 
