@@ -1109,6 +1109,15 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    # security is left out on purpose. It scans the checkout against the Grype
+    # database of the day and fails on any fixable high, so an advisory
+    # published overnight for a package this repository already pins turns it
+    # red with nothing wrong in the pull request. On 2026-10-26 it failed 11
+    # pull requests within half an hour, a digest bump touching only
+    # devcontainers/latex/Dockerfile among them, and on 2026-08-10 it failed 12.
+    # As a need of this required check it would block every pull request but
+    # the fix itself, and with two advisories at once each fix stays red on the
+    # other, as the image scan did to Renovate on 2026-10-27.
     needs:
       - changes
       - test-playbooks
@@ -1116,6 +1125,7 @@ jobs:
       - terraform-ci
       - script-lint
       - dockerfile-lint
+      - devcontainer-state
       - devcontainer-build
       - devcontainer-cli-test
       - unit-tests
