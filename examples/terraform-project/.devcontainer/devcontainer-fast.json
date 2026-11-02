@@ -42,7 +42,7 @@
   "postCreateCommand": [
     "bash",
     "-lc",
-    "set -euo pipefail; pre-commit install --install-hooks || true; terraform init || true"
+    "set -euo pipefail; ensure-precommit && terraform init -backend=false"
   ],
 
   "remoteUser": "vscode"

@@ -125,7 +125,7 @@ git commit -m "feat: add VPC security group"
   "postCreateCommand": [
     "bash",
     "-c",
-    "pre-commit install --install-hooks || true; terraform init || true"
+    "ensure-precommit && terraform init -backend=false"
   ],
 
   "remoteUser": "vscode"
@@ -271,7 +271,7 @@ Con el directorio en orden, basta con:
   },
   "postCreateCommand": [
     "bash", "-c",
-    "pre-commit install --install-hooks || true"
+    "ensure-precommit"
   ]
 }
 ```

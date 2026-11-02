@@ -100,7 +100,7 @@ graph TD
     D -->|copies template| F[.pre-commit-config.yaml]
     D -->|image's pre-commit install| G[Git hooks active]
 
-    H[CI Pipeline] -->|uvx pre-commit run --all-files| I[Validates PRs]
+    H[CI Pipeline] -->|yamllint, ansible-lint, hadolint, shellcheck| I[Validates PRs]
 
     style A fill:#e1f5ff
     style E fill:#e8f5e9

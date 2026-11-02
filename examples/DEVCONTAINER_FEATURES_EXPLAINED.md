@@ -149,7 +149,7 @@ Si el comando retorna una ruta (`/usr/bin/git`), **ya está instalado**.
 
   "postCreateCommand": [
     "bash", "-lc",
-    "set -euo pipefail; pre-commit install --install-hooks || true; [ -f requirements.yml ] && ansible-galaxy collection install -r requirements.yml || true"
+    "set -euo pipefail; ensure-precommit && if test -f requirements.yml; then ansible-galaxy collection install -r requirements.yml; else echo 'No requirements.yml found, skipping collection install'; fi"
   ],
 
   "remoteUser": "vscode"
@@ -338,7 +338,7 @@ docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest bash -c "
 
   "postCreateCommand": [
     "bash", "-lc",
-    "pre-commit install --install-hooks || true"
+    "ensure-precommit"
   ],
 
   "remoteUser": "vscode"
@@ -380,7 +380,7 @@ docker run --rm ghcr.io/malpanez/devcontainer-terraform:latest bash -c "
 
   "postCreateCommand": [
     "bash", "-lc",
-    "pre-commit install --install-hooks || true && terraform init || true"
+    "ensure-precommit && terraform init -backend=false"
   ],
 
   "remoteUser": "vscode"
