@@ -17,7 +17,8 @@ AWS_CLI_SCRIPT = REPO_ROOT / "devcontainers" / "scripts" / "install-aws-cli.sh"
 
 def _load_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("refresh_tool_pins", SCRIPT)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -88,3 +89,37 @@ def test_sync_hashes_rewrites_both_aws_cli_hashes(
         f"AWS_CLI_SHA256_AARCH64={'c' * 64}\n"
         'echo "${AWS_CLI_SHA256_X86_64}"\n'
     )
+
+
+def test_sync_hashes_fails_after_the_other_tools_when_a_version_is_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    script = tmp_path / "install-aws-cli.sh"
+    script.write_text(f"AWS_CLI_VERSION=2.99.1\nAWS_CLI_SHA256_X86_64={'a' * 64}\n")
+    aws = _tool("aws-cli")
+    readable = dataclasses.replace(
+        aws,
+        version_pattern=(script, aws.version_pattern[1]),
+        hash_patterns=[(script, aws.hash_patterns[0][1], aws.hash_patterns[0][2])],
+    )
+    unreadable = dataclasses.replace(
+        aws,
+        name="gone",
+        version_pattern=(tmp_path / "missing.sh", aws.version_pattern[1]),
+    )
+    no_match = dataclasses.replace(
+        aws, name="renamed", version_pattern=(script, r"^NOT_THERE=([0-9.]+)$")
+    )
+    digest = "b" * 64
+    monkeypatch.setattr(MODULE, "TOOLS", [unreadable, no_match, readable])
+    monkeypatch.setattr(MODULE, "sha256_of", lambda url: digest)
+
+    assert MODULE.sync_hashes() == 1
+
+    assert f"AWS_CLI_SHA256_X86_64={digest}" in script.read_text()
+    err = capsys.readouterr().err
+    assert "gone: FAILED" in err
+    assert "renamed: FAILED" in err
+    assert "gone, renamed" in err

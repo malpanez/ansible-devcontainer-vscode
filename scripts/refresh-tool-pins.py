@@ -11,7 +11,9 @@ renovate-postprocess workflow runs this after Renovate bumps one of them:
     scripts/refresh-tool-pins.py --sync-hashes
 
 It reads the version already in each file and rewrites the matching hash.
-Idempotent; a no-op when the hashes already match.
+Idempotent; a no-op when the hashes already match. Exits 1 after the other
+tools are done when a tool's version cannot be read, so a stale hash is not
+left behind with a green run.
 """
 
 from __future__ import annotations
@@ -126,11 +128,13 @@ def current_version(tool: Tool) -> str:
 
 
 def sync_hashes() -> int:
+    unreadable: list[str] = []
     for tool in TOOLS:
         try:
             version = current_version(tool)
-        except Exception as error:  # noqa: BLE001 - report and continue
-            print(f"{tool.name}: SKIPPED ({error})")
+        except (OSError, RuntimeError, UnicodeDecodeError) as error:
+            print(f"{tool.name}: FAILED ({error})", file=sys.stderr)
+            unreadable.append(tool.name)
             continue
         for path, pattern, url_template in tool.hash_patterns:
             url = url_template.format(v=version)
@@ -141,6 +145,12 @@ def sync_hashes() -> int:
             if count == 0:
                 raise RuntimeError(f"{tool.name}: hash pattern missing in {path}")
             path.write_text(updated)
+    if unreadable:
+        print(
+            f"version not read for: {', '.join(unreadable)}; their hashes are stale",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
