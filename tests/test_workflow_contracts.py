@@ -312,6 +312,14 @@ def test_jobs_name_their_ubuntu_release() -> None:
             assert "latest" not in runs_on, (workflow_name, job_name, runs_on)
 
 
+def test_jobs_declare_a_timeout() -> None:
+    for workflow_name, workflow in _all_workflows().items():
+        for job_name, job in workflow["jobs"].items():
+            if "uses" in job:
+                continue
+            assert "timeout-minutes" in job, (workflow_name, job_name)
+
+
 @pytest.mark.parametrize(
     ("workflow", "job", "matrix_key", "name_prefix", "stage_key"),
     [

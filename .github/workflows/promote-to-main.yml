@@ -48,6 +48,7 @@ jobs:
   create-promotion-pr:
     name: Create promotion PR
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
