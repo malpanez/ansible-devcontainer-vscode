@@ -20,9 +20,9 @@ setup: ## Initial setup - install all dependencies
 .PHONY: lint-deps
 lint-deps: ## Install what the lint hooks need: the uv.lock environment and the image's pinned Ansible collections
 	@uv sync --locked --no-build
+	@rm -rf .cache/ansible-lint/collections && mkdir -p .cache/ansible-lint/collections
 	@uv run --locked --no-build bash devcontainers/ansible/install-collections.sh \
-		"$$(uv run --locked --no-build python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
-		devcontainers/ansible/collections.txt
+		.cache/ansible-lint/collections devcontainers/ansible/collections.txt
 
 .PHONY: lint
 lint: ## Run all linters (the same pre-commit run as CI's Lint job)

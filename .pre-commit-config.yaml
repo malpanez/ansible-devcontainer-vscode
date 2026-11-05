@@ -54,15 +54,19 @@ repos:
         types: [file, yaml]
 
       # Offline, as .ansible-lint sets it, so it never installs requirements.yml
-      # unpinned. The collections it resolves modules against are the ones the
-      # ansible images ship, pinned with their sha256 in
-      # devcontainers/ansible/collections.txt: baked into the ansible dev
-      # container, and installed into the project environment by
-      # `make lint-deps` anywhere else, CI included. Without them the run
-      # fails on syntax-check[unknown-module] (ansible.posix.synchronize).
+      # unpinned. It resolves modules only against the collections the ansible
+      # images ship, pinned with their sha256 in
+      # devcontainers/ansible/collections.txt, which `make lint-deps` installs
+      # into .cache/ansible-lint/collections, CI included. Offline,
+      # ansible-lint puts $ANSIBLE_HOME/collections first on the path
+      # (~/.ansible/collections by default), so ANSIBLE_HOME moves it there,
+      # and ANSIBLE_COLLECTIONS_PATH replaces the paths ansible.cfg sets. A
+      # copy in ~/.ansible or ./collections is never read. Without
+      # `make lint-deps` the run fails on syntax-check[unknown-module]
+      # (ansible.posix.synchronize).
       - id: ansible-lint
         name: Lint Ansible Files
-        entry: uv run --locked --no-build ansible-lint -v --force-color --profile=production --offline
+        entry: env ANSIBLE_HOME=.cache/ansible-lint ANSIBLE_COLLECTIONS_PATH=.cache/ansible-lint/collections uv run --locked --no-build ansible-lint -v --force-color --profile=production --offline
         language: system
         files: \.(yaml|yml)$
         pass_filenames: false

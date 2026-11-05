@@ -444,6 +444,27 @@ def _locked_packages() -> set[str]:
     return {package["name"] for package in lock["package"]}
 
 
+def _hook_command(entry: str) -> tuple[dict[str, str], list[str]]:
+    """Split an `env NAME=value ... command` hook entry into its env and command."""
+    words = entry.split()
+    env: dict[str, str] = {}
+    if words[0] == "env":
+        words.pop(0)
+        while "=" in words[0]:
+            name, value = words.pop(0).split("=", 1)
+            env[name] = value
+    return env, words
+
+
+def _hook(hook_id: str) -> dict[str, Any]:
+    return next(
+        hook
+        for repo in _pre_commit_config()["repos"]
+        for hook in repo["hooks"]
+        if hook["id"] == hook_id
+    )
+
+
 def _make_recipe(target: str) -> list[str]:
     lines = (REPO_ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
     start = next(i for i, line in enumerate(lines) if line.startswith(f"{target}:"))
@@ -540,11 +561,21 @@ def test_hooks_of_locked_tools_run_from_uv_lock() -> None:
                 assert hook["id"] not in locked, (repo["repo"], hook["id"])
                 continue
             local += 1
-            entry = hook["entry"].split()
+            _, entry = _hook_command(hook["entry"])
             assert entry[:4] == ["uv", "run", "--locked", "--no-build"], hook["id"]
             assert hook["language"] == "system", hook["id"]
             assert LOCKED_EXECUTABLES.get(entry[4], entry[4]) in locked, hook["id"]
     assert local
+
+
+def test_ansible_lint_reads_only_the_collections_lint_deps_installs() -> None:
+    env, _ = _hook_command(_hook("ansible-lint")["entry"])
+    collections = env["ANSIBLE_COLLECTIONS_PATH"]
+    recipe = " ".join(_make_recipe("lint-deps"))
+
+    assert collections == f"{env['ANSIBLE_HOME']}/collections"
+    assert f"rm -rf {collections} && mkdir -p {collections}" in recipe
+    assert f"{collections} devcontainers/ansible/collections.txt" in recipe
 
 
 def test_remote_hook_revs_are_frozen_commits() -> None:
