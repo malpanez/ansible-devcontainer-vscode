@@ -21,6 +21,7 @@
   ],
   "prConcurrentLimit": 30,
   "prHourlyLimit": 0,
+  "minimumReleaseAge": "14 days",
   "ignorePaths": [
     "**/node_modules/**",
     "**/bower_components/**",
@@ -36,6 +37,10 @@
       "/^devcontainers/[^/]+/(local-build/)?devcontainer[^/]*\\.json$/",
       "/^examples/[^/]+/\\.devcontainer/[^/]+\\.json$/"
     ]
+  },
+  "pre-commit": {
+    "description": "The hooks that are not in uv.lock (pre-commit-hooks, shellcheck-py, hadolint-py, pre-commit-terraform), pinned to a commit with a '# frozen: <tag>' comment; Renovate keeps that format when it moves them. The manager is off by default. Before this, nothing moved these revs: hadolint followed ci.yml's HADOLINT_VERSION through a parity script, and that copy is gone with Dockerfile Lint. The Python tools' hooks run from uv.lock and move with it.",
+    "enabled": true
   },
   "lockFileMaintenance": {
     "enabled": true,
@@ -147,6 +152,20 @@
         "anchore/syft"
       ],
       "automerge": false
+    },
+    {
+      "description": "minimumReleaseAge (14 days, top level) needs a release timestamp, and since Renovate 42 an update without one is held, not raised (minimumReleaseAgeBehaviour defaults to timestamp-required). GHCR gives none. The images this repository publishes are exempt: they are built here from this repository's own pins, which the rules above age, and gated before they are tagged (build-containers.yml, release.yml); holding them would freeze the template pins and the ansible Dockerfile's BASE_IMAGE for good. Third-party GHCR images stay held on purpose (the Execution Environment image, the Dev Container features): bump those by hand once the release is 14 days old.",
+      "matchPackageNames": [
+        "ghcr.io/malpanez/devcontainer-*"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Lock file maintenance has no release timestamp, so under minimumReleaseAge it would be held for good and uv.lock would stop being refreshed. Renovate's own security:minimumReleaseAge presets exempt it the same way. The cost: it can bring in a transitive package younger than 14 days. Closing that needs uv to enforce the age itself ([tool.uv] exclude-newer = \"14 days\", which uv 0.13.6 accepts), a change that re-locks uv.lock and is left to its own pull request.",
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "minimumReleaseAge": null
     }
   ],
   "customManagers": [

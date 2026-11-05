@@ -2,13 +2,15 @@
 name: Sync Main to Develop
 
 on:
+  # No schedule. A 6-hourly sweep was meant to catch main pushes made with
+  # GITHUB_TOKEN, which emit no event. Promotions merge with BOT_TOKEN, so
+  # they do; and when BOT_TOKEN fails the sweep cannot push to protected
+  # develop either, so the renewal runbook (docs/MAINTENANCE.md) dispatches
+  # this workflow by hand. Its 57 readable scheduled runs from 2026-10-18 to
+  # 2026-11-05 all found develop 0 commits behind main.
   push:
     branches:
       - main
-  # Fallback: pushes made with GITHUB_TOKEN (e.g. auto-merge enabled by a
-  # workflow) do not emit push events, so sweep periodically as well.
-  schedule:
-    - cron: '15 */6 * * *'
   workflow_dispatch:
     inputs:
       force:

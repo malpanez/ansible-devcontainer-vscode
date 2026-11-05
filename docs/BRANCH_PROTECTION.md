@@ -43,7 +43,8 @@ Navigate to: **Settings → Branches → Edit rule**
 - `CI Success` (from `ci.yml`)
 - `CodeQL Summary` (from `codeql.yml`)
 - `SBOM Verification Success` (from `sbom-verification.yml`)
-- `Quality Summary` (from `quality.yml`)
+- `Quality Summary` (from `ci.yml`, a temporary alias of its Lint job)
+- `Test Summary` (from `test-containers.yml`)
 
 `Guard Main Promotion Path` (from `enforce-promotion-path.yml`, on PRs whose
 base is `main`) and `GitGuardian Security Checks` report on these PRs but are
@@ -72,7 +73,8 @@ base is `main`) and `GitGuardian Security Checks` report on these PRs but are
 
 - `CI Success` (from `ci.yml`)
 - `SBOM Verification Success` (from `sbom-verification.yml`)
-- `Quality Summary` (from `quality.yml`)
+- `Quality Summary` (from `ci.yml`, a temporary alias of its Lint job)
+- `Test Summary` (from `test-containers.yml`)
 
 `develop` deliberately does **not** require `CodeQL Summary`; CodeQL still
 runs on every pull request into it. `Guard Develop Intake` (from
@@ -89,20 +91,22 @@ blocked promotion:
    gate its work from inside.** A required context that never appears leaves
    the pull request waiting forever -- GitHub does not treat "the workflow
    was skipped" as "the check passed". Trigger-level `paths` / `paths-ignore`
-   filters are therefore banned in `ci.yml`, `codeql.yml`, `quality.yml` and
-   `sbom-verification.yml`; each one runs a cheap `changes` job
+   filters are therefore banned in `ci.yml`, `codeql.yml`,
+   `sbom-verification.yml` and `test-containers.yml`; each one runs a cheap
+   `changes` job
    (`dorny/paths-filter`) and gates the expensive jobs on its outputs, and
    each aggregate job is `if: always()` and passes only the results `success`
    and `skipped`, so a skipped job stays green while a failed or cancelled
    one (a job that times out ends as `cancelled`) turns the check red.
 
-2. **`Quality Summary` gates that the metrics ran, not what they found.** The
-   jobs in `quality.yml` are deliberately non-blocking (`continue-on-error`,
-   `no-fail: true`): they publish complexity, dead-code, lint and Hadolint
-   reports. The check fails only if one of those jobs itself fails or is
-   cancelled -- for example when the hash-pinned install breaks. The lint
-   gates that can actually reject a change live in `ci.yml` and in the
-   pre-commit hooks.
+2. **`Quality Summary` is a temporary alias of `ci.yml`'s Lint job.** It used
+   to come from `quality.yml`, whose jobs could not fail on what they found
+   (every step was `continue-on-error`, `|| true` or `no-fail`). That
+   workflow is gone: its lint is the pre-commit run in the Lint job, the
+   only lint in CI, and its radon, vulture and Bandit reports come back
+   later as a real quality gate. The alias passes only when Lint passed
+   (`success`; `skipped` and `cancelled` fail), and keeps the required name
+   reporting until protection moves to a single `ci-gate` check.
 
 ---
 
@@ -120,7 +124,7 @@ gh api repos/:owner/:repo/branches/develop/protection
 ```bash
 gh api repos/:owner/:repo/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":false,"contexts":["CI Success","CodeQL Summary","SBOM Verification Success","Quality Summary"]}' \
+  --field required_status_checks='{"strict":false,"contexts":["CI Success","CodeQL Summary","SBOM Verification Success","Quality Summary","Test Summary"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"dismiss_stale_reviews":true,"require_code_owner_reviews":true,"required_approving_review_count":1}' \
   --field restrictions=null \
@@ -135,7 +139,7 @@ gh api repos/:owner/:repo/branches/main/protection \
 ```bash
 gh api repos/:owner/:repo/branches/develop/protection \
   --method PUT \
-  --field required_status_checks='{"strict":false,"contexts":["CI Success","SBOM Verification Success","Quality Summary"]}' \
+  --field required_status_checks='{"strict":false,"contexts":["CI Success","SBOM Verification Success","Quality Summary","Test Summary"]}' \
   --field enforce_admins=false \
   --field required_pull_request_reviews=null \
   --field restrictions=null \

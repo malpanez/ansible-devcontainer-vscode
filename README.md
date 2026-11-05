@@ -5,7 +5,6 @@
 [![CodeQL](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/codeql.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
 [![SBOM](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/sbom-verification.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/sbom-verification.yml)
-[![Code Quality](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
 [![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)
@@ -223,12 +222,11 @@ version tables rot:
 
 GitHub Actions workflows live under `.github/workflows/`:
 
-- `ci.yml` – runs the test playbook, lints shell and PowerShell scripts, keeps Go/Terraform checks, runs Molecule, builds the Dev Container images whose inputs changed (`linux/amd64`), gates them on the size budgets in `.github/image-size-budgets.json`, smoke-tests them, and scans them with Grype (`.grype.yaml`: fixable high/critical findings block), plus `hadolint`. Publishing is not done here: see `build-containers.yml`.
+- `ci.yml` – lints with `pre-commit run --all-files` (the Lint job, the only lint in CI: yamllint, ansible-lint, ruff, detect-secrets, shellcheck, hadolint and the Terraform hooks; the Python tools at their `uv.lock` versions), runs the test playbook, Molecule and the unit tests, builds the Dev Container images whose inputs changed (`linux/amd64`), gates them on the size budgets in `.github/image-size-budgets.json`, smoke-tests them, and scans them with Grype (`.grype.yaml`: fixable high/critical findings block). Publishing is not done here: see `build-containers.yml`.
 - `build-containers.yml` – the only workflow that publishes `latest`, `main` and the Python stream tag: daily and on pushes to `main`, uncached, Grype-gated, signed and attested.
-- `quality.yml` – quality metrics: yamllint (pinned from `uv.lock`), ansible-lint, hadolint, radon, vulture and Bandit. No workflow runs `pre-commit`: the hooks run in the container and locally (`pre-commit run --all-files`).
 - `release.yml` – on a version tag, verifies the cosign signature of the image digests `build-containers.yml` built and gated, re-scans them with Grype, runs them on `linux/amd64` and `linux/arm64` runners, adds the version tag to those exact digests and attaches signed SBOMs to the GitHub release. It builds nothing.
 
-CI takes its Python, Go and Terraform versions from the Dockerfiles (`scripts/derive-toolchain-versions.sh`), so it tests the toolchain the images ship.
+CI takes its Python, Terraform and TFLint versions from the Dockerfiles (`scripts/derive-toolchain-versions.sh`), so it tests and lints with the toolchain the images ship. `make lint` runs the same pre-commit command as CI; `make lint-deps` first installs the `uv.lock` environment and the Ansible collections the ansible images ship, which ansible-lint needs outside the ansible dev container.
 
 ## Repository Layout
 
@@ -266,7 +264,7 @@ Override defaults in `roles/*/defaults/main.yml` or pass extra vars (`-e variabl
 - `./scripts/smoke-devcontainer-image.sh` — builds a Dev Container image and runs per-stack smoke checks (compatible with Docker Desktop or Podman).
 - `./scripts/smoke-devcontainer-image.sh --stack <name> --build` — builds a stack image (`ansible`, `ansible-aws`, `terraform`, `terraform-aws`, `golang`, `latex`) and runs an end-to-end smoke check used in CI.
 - `molecule test` — spins up Debian with all roles applied and verifies via Testinfra (`molecule/default/tests/test_default.py`).
-- GitHub Actions does not run `pre-commit`; it runs targeted playbook/Molecule checks, yamllint and ansible-lint (`quality.yml`), Go/Terraform tests when relevant, and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
+- GitHub Actions runs `pre-commit run --all-files` as its only lint (the Lint job), then targeted playbook/Molecule checks, the unit tests and the hardened container pipeline described above (see `.github/workflows/ci.yml`).
 - See [`docs/`](docs/README.md) for scenario walkthroughs (Terraform Proxmox, LaTeX résumé), corporate network tips, and the Windows bootstrap guide.
 
 ## Scenario Playbooks
@@ -329,22 +327,12 @@ add tools at build time, or layer extra VS Code settings — recipes in
 
 ## Security & Code Scanning
 
-This repository implements comprehensive security scanning and automated alert management:
+This repository implements comprehensive security scanning:
 
 - 🔒 **Grype Scanning**: Every published image is scanned for CVEs before it is tagged (`build-containers.yml`), and again at release
 - 📊 **SARIF Upload**: Security findings integrated into GitHub Security tab
-- 🤖 **Automated Alert Management**: Weekly cleanup of stale/false-positive alerts
 
 **For security reports**: See [`SECURITY.md`](SECURITY.md) for responsible disclosure guidelines.
-
-**Alert Management**:
-
-- Automated workflow runs weekly to clean up stale alerts (90+ days old)
-- Manual trigger available via GitHub Actions → "Security Alert Management"
-- Custom dismissal rules in [`.github/scripts/manage-code-scanning-alerts.sh`](.github/scripts/manage-code-scanning-alerts.sh)
-- Configuration file: [`.github/security-alert-exceptions.yml`](.github/security-alert-exceptions.yml)
-
-See [`.github/scripts/README.md`](.github/scripts/README.md) for automation details and usage.
 
 ## Performance Optimizations
 

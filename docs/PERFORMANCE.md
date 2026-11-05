@@ -18,7 +18,7 @@ This guide documents what is measured, what is not, and optimization strategies 
 
 ## What Is Measured
 
-`.github/workflows/benchmark.yml` runs on pull requests and pushes that touch `devcontainers/**` and the requirements exports, on `workflow_dispatch`, and weekly on Monday at 06:00 UTC. It measures:
+No workflow measures build or startup time any more. `benchmark.yml` did, on pull requests and pushes that touched `devcontainers/**` and the requirements exports and weekly; it was removed because it rebuilt five images for about 10 job-minutes per event and compared the result against nothing, so no change could fail on it. The build and startup figures below are its last run on `main`. It measured:
 
 | Job | What it times | Stacks |
 |-----|---------------|--------|
@@ -49,7 +49,7 @@ The `linux/amd64` images of v2.2.0 (commit `e7c0c97`). Uncompressed is `docker i
 
 ## Build and Startup Time
 
-Measured by `benchmark.yml`, run 41337213035 on `main` (2026-11-01). CI measured these on a GitHub-hosted runner; they are not a statement about a developer machine.
+Measured by the removed `benchmark.yml`, run 41337213035 on `main` (2026-11-01), its last run there. CI measured these on a GitHub-hosted runner; they are not a statement about a developer machine.
 
 | Stack     | Cold build (`--no-cache`) | Warm build (registry cache) | Startup (average of 3) | Startup, each iteration |
 |-----------|---------------------------|-----------------------------|------------------------|-------------------------|
@@ -181,14 +181,7 @@ The size budgets above turn growth into a failing pull request instead of a surp
 
 ### Automated Benchmarking
 
-`benchmark.yml` (see [What Is Measured](#what-is-measured)) uploads one JSON file per job as an artifact kept for 90 days (`benchmark-<stack>`, `benchmark-build-<stack>`). On pull requests its `Compare with Baseline` job prints the current figures in the job summary and comments them on the pull request. It compares against nothing stored and applies no threshold: a regression is noticed by reading the numbers, not by a failing check.
-
-To read the latest figures from the command line:
-
-```bash
-gh run list --workflow benchmark.yml --branch main --limit 1
-gh run download <run-id> --pattern 'benchmark-*'
-```
+None. What CI enforces is size: the size gate in `ci.yml` fails a pull request whose image outgrows its budget in [`.github/image-size-budgets.json`](../.github/image-size-budgets.json). Build and startup time have no automated measurement since `benchmark.yml` was removed (see [What Is Measured](#what-is-measured)); measure them locally as below.
 
 ### Local Benchmarking
 

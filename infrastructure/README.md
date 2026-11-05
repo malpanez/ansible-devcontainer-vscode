@@ -11,8 +11,9 @@ workspace and GitHub Actions stay in sync.
   keep credentials outside of git.
 
 > Add additional modules under `infrastructure/<name>` and the local validation
-> script (`./scripts/run-terraform-tests.sh`) plus CI (`Terraform Checks` job)
-> will pick them up automatically.
+> script (`./scripts/run-terraform-tests.sh`) plus CI (the pre-commit
+> `terraform_fmt`, `terraform_validate` and `terraform_tflint` hooks in the
+> Lint job) will pick them up automatically.
 
 ## Usage
 

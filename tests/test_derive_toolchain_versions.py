@@ -17,6 +17,7 @@ GOLANG_OK = (
 TERRAFORM_OK = (
     "ARG DEBIAN_VERSION=trixie-slim\n"
     "ARG TERRAFORM_VERSION=1.16.4\n"
+    "ARG TFLINT_VERSION=0.64.0\n"
     "FROM debian:${DEBIAN_VERSION} AS fetch\n"
     "ARG TERRAFORM_VERSION TFLINT_VERSION\n"
 )
@@ -64,12 +65,14 @@ def test_real_dockerfiles_yield_the_versions_they_ship():
         "python_version",
         "go_version",
         "terraform_version",
+        "tflint_version",
     ]
 
     versions = _parse(proc.stdout)
     assert re.fullmatch(r"\d+\.\d+", versions["python_version"])
     assert re.fullmatch(r"\d+\.\d+", versions["go_version"])
     assert re.fullmatch(r"\d+\.\d+\.\d+", versions["terraform_version"])
+    assert re.fullmatch(r"\d+\.\d+\.\d+", versions["tflint_version"])
 
     base = (REPO_ROOT / "devcontainers/base/Dockerfile").read_text(encoding="utf-8")
     golang = (REPO_ROOT / "devcontainers/golang/Dockerfile").read_text(encoding="utf-8")
@@ -87,6 +90,7 @@ def test_real_dockerfiles_yield_the_versions_they_ship():
         re.MULTILINE,
     )
     assert f"\nARG TERRAFORM_VERSION={versions['terraform_version']}\n" in terraform
+    assert f"\nARG TFLINT_VERSION={versions['tflint_version']}\n" in terraform
 
 
 def test_defaults_do_not_depend_on_the_working_directory(tmp_path: Path):
@@ -97,9 +101,11 @@ def test_known_inputs_yield_exact_output(tmp_path: Path):
     proc = _run(_write(tmp_path, BASE_OK, GOLANG_OK, TERRAFORM_OK))
 
     assert proc.returncode == 0, proc.stderr
-    assert (
-        proc.stdout
-        == "python_version=3.14\ngo_version=1.27\nterraform_version=1.16.4\n"
+    assert proc.stdout == (
+        "python_version=3.14\n"
+        "go_version=1.27\n"
+        "terraform_version=1.16.4\n"
+        "tflint_version=0.64.0\n"
     )
 
 
@@ -180,6 +186,19 @@ def test_missing_file_fails_without_output(
             GOLANG_OK,
             "ARG TERRAFORM_VERSION=latest\n",
             "ARG TERRAFORM_VERSION=<major>.<minor>.<patch>",
+        ),
+        # The bare re-declaration inside a stage carries no value.
+        (
+            BASE_OK,
+            GOLANG_OK,
+            "ARG TERRAFORM_VERSION=1.16.4\nARG TERRAFORM_VERSION TFLINT_VERSION\n",
+            "ARG TFLINT_VERSION=<major>.<minor>.<patch>",
+        ),
+        (
+            BASE_OK,
+            GOLANG_OK,
+            "ARG TERRAFORM_VERSION=1.16.4\nARG TFLINT_VERSION=0.64\n",
+            "ARG TFLINT_VERSION=<major>.<minor>.<patch>",
         ),
     ],
 )
