@@ -302,6 +302,16 @@ def test_jobs_only_read_matrix_keys_they_define() -> None:
             assert read <= defined, (workflow_name, job_name, read - defined)
 
 
+def test_jobs_name_their_ubuntu_release() -> None:
+    # Renovate does not move runner labels, so an OS upgrade is a change made
+    # by hand. release.yml's matrix takes its runners from release-images.py,
+    # which tests/test_release_images.py pins.
+    for workflow_name, workflow in _all_workflows().items():
+        for job_name, job in workflow["jobs"].items():
+            runs_on = str(job.get("runs-on", ""))
+            assert "latest" not in runs_on, (workflow_name, job_name, runs_on)
+
+
 @pytest.mark.parametrize(
     ("workflow", "job", "matrix_key", "name_prefix", "stage_key"),
     [

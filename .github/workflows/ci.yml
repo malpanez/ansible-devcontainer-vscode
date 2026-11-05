@@ -29,7 +29,7 @@ permissions:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -169,7 +169,7 @@ jobs:
   # ships (scripts/derive-toolchain-versions.sh).
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     timeout-minutes: 20
     permissions:
@@ -233,7 +233,7 @@ jobs:
 
   test-playbooks:
     name: Test Playbooks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.ansible == 'true'
     timeout-minutes: 15
@@ -291,7 +291,7 @@ jobs:
   # goes is the owner's call; until then it keeps a job of its own.
   powershell-lint:
     name: PowerShell Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.scripts == 'true'
     timeout-minutes: 10
@@ -316,7 +316,7 @@ jobs:
 
   devcontainer-state:
     name: Devcontainer State
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: >-
       needs.changes.outputs.devcontainer == 'true'
@@ -621,7 +621,7 @@ jobs:
 
   devcontainer-cli-test:
     name: DevContainer CLI (${{ matrix.stack }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, devcontainer-build]
     if: needs.changes.outputs.devcontainer == 'true'
     timeout-minutes: 30
@@ -797,7 +797,7 @@ jobs:
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.python == 'true'
     timeout-minutes: 15
@@ -853,7 +853,7 @@ jobs:
 
   ansible-test:
     name: Ansible Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.ansible == 'true'
     timeout-minutes: 15
@@ -901,7 +901,7 @@ jobs:
 
   molecule:
     name: Molecule (${{ matrix.distro }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, test-playbooks]
     if: |
       needs.changes.outputs.ansible == 'true' &&
@@ -985,7 +985,7 @@ jobs:
 
   scenario-tests:
     name: Scenario Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, devcontainer-build]
     if: |
       github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
@@ -1018,7 +1018,7 @@ jobs:
 
   ci-success:
     name: CI Success
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -1085,7 +1085,7 @@ jobs:
   # passed. Delete it when protection moves to the single ci-gate check.
   quality-summary:
     name: Quality Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read

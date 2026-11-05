@@ -28,7 +28,7 @@ concurrency:
 jobs:
   resolve:
     name: Resolve gated digests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 135
     permissions:
       contents: read  # checkout with history
@@ -268,7 +268,7 @@ jobs:
   gate:
     name: Gate ${{ matrix.name }}
     needs: resolve
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read  # checkout for .grype.yaml
@@ -438,7 +438,7 @@ jobs:
   publish:
     name: Publish ${{ github.ref_name }}
     needs: [resolve, gate, smoke]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write  # create the GitHub release and upload the SBOMs

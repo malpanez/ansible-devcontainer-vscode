@@ -186,7 +186,7 @@ def test_smoke_legs_are_one_per_image_and_platform_and_latex_has_no_arm64(
         module.IMAGES
     ) - {"latex"}
     assert {(leg["platform"], leg["runner"]) for leg in legs} == {
-        ("linux/amd64", "ubuntu-latest"),
+        ("linux/amd64", "ubuntu-24.04"),
         ("linux/arm64", "ubuntu-24.04-arm"),
     }
     assert all(leg["digest"] == DIGEST for leg in legs)
