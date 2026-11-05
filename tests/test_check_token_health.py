@@ -1,6 +1,6 @@
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -14,7 +14,7 @@ DAY = 86_400
 
 
 def _expiry(days: float, fmt: str = "%Y-%m-%d %H:%M:%S UTC") -> str:
-    moment = datetime.fromtimestamp(NOW + int(days * DAY), tz=timezone.utc)
+    moment = datetime.fromtimestamp(NOW + int(days * DAY), tz=UTC)
     return moment.strftime(fmt)
 
 

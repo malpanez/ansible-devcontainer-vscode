@@ -38,7 +38,7 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   aws-cli hashes (`scripts/refresh-tool-pins.py --sync-hashes`),
   regenerates the `requirements*.txt` exports from uv.lock, and resyncs
   the active `.devcontainer` — then pushes the fix back so CI re-runs.
-- Runs with `BOT_TOKEN` (see [Automation Token](#5-automation-token-bot_token));
+- Runs with `BOT_TOKEN` (see [Automation Token](#4-automation-token-bot_token));
   the Dependency Dashboard issue lists everything.
 
 #### Configuration
@@ -68,7 +68,7 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   the cached CI layer and the nightly publish ship different versions,
   neither of them the lock's (certifi, 2026-10-26).
 - **CI tools belong in a dependency group, not in a bare `pip install`.**
-  `quality.yml` and `sbom-verification.yml` install their tooling from
+  `sbom-verification.yml` installs its tooling from
   `requirements-ci-quality.txt` with `--require-hashes`; the group lives in
   `pyproject.toml` so Renovate manages it like everything else. Before this,
   `pip install ansible ansible-lint` resolved whatever PyPI served that day —
@@ -119,51 +119,7 @@ gh api repos/OWNER/REPO/dependabot/alerts \
 
 ---
 
-### 2. Security Alert Management 🔒
-
-**Automated weekly cleanup** of security alerts:
-
-#### What It Does
-- **Dismisses documented CVEs** in vendor binaries
-- **Monitors age of alerts** (auto-dismiss after 90 days)
-- **Generates weekly reports** with statistics
-
-#### Workflow
-- File: [`.github/workflows/security-alert-management.yml`](../.github/workflows/security-alert-management.yml)
-- Schedule: Weekly (Mondays 9 AM UTC)
-- Manual trigger: Available via GitHub Actions UI
-
-#### Scripts
-1. **Main script**: `.github/scripts/manage-code-scanning-alerts.sh`
-   - Auto-dismisses stale alerts
-   - Handles vendor binary CVEs
-   - Generates statistics
-
-2. **Configuration**: `.github/security-alert-exceptions.yml`
-   - Documents 27 accepted CVEs
-   - Defines dismissal policies
-   - Review schedule
-
-#### How to Use
-```bash
-# Run manually (dry-run)
-DRY_RUN=true bash .github/scripts/manage-code-scanning-alerts.sh
-
-# Run manually (dismiss alerts)
-DRY_RUN=false bash .github/scripts/manage-code-scanning-alerts.sh
-
-# Customize age threshold (default: 90 days)
-MAX_ALERT_AGE_DAYS=60 bash .github/scripts/manage-code-scanning-alerts.sh
-```
-
-#### What to Review
-- **Weekly**: Check workflow runs for new alerts
-- **Quarterly**: Update `.github/security-alert-exceptions.yml`
-- **On new CVEs**: Investigate before adding to exceptions
-
----
-
-### 3. Branch Synchronization 🔄
+### 2. Branch Synchronization 🔄
 
 **Auto-syncs main → develop** after every merge:
 
@@ -191,7 +147,7 @@ git push
 
 ---
 
-### 4. Quality Checks ✅
+### 3. Quality Checks ✅
 
 **Pre-commit hooks** run automatically before every commit:
 
@@ -203,22 +159,29 @@ git push
 
 #### Setup
 ```bash
-# pre-commit ships in every devcontainer image, pinned from uv.lock
-# Install hooks
-pre-commit install
+# The uv.lock environment the yamllint, ansible-lint, ruff and
+# detect-secrets hooks run from, and the Ansible collections the ansible
+# images ship (ansible-lint runs offline against them)
+make lint-deps
 
-# Run manually on all files
-pre-commit run --all-files
+# Install hooks
+uv run --locked pre-commit install
+
+# Run manually on all files, exactly as CI does
+make lint
 ```
 
 #### CI Integration
-- Workflow: `.github/workflows/ci.yml`
-- Runs: On every PR and push
-- Checks: Linting, tests, security scans
+- Workflow: `.github/workflows/ci.yml`, job `Lint`
+- Runs: on every PR and push, with no path filter
+- Checks: `pre-commit run --all-files`, the only lint in CI. A tool is
+  added to CI by adding its hook, and its version lives in one place:
+  `uv.lock` for the Python tools, the hook's frozen `rev` for the rest,
+  and the terraform Dockerfile for terraform and tflint
 
 ---
 
-### 5. Automation Token (`BOT_TOKEN`)
+### 4. Automation Token (`BOT_TOKEN`)
 
 **One personal access token** carries every automated step that the
 built-in `GITHUB_TOKEN` cannot do: pushing to protected `develop`, opening
@@ -236,7 +199,7 @@ without a single alert.
 | [`sync-main-to-develop.yml`](../.github/workflows/sync-main-to-develop.yml) | Check out and push the `main` merge to protected `develop` (admin bypass of the required check) | Run fails at checkout; `develop` stops receiving `main`'s merge commits |
 | [`renovate.yml`](../.github/workflows/renovate.yml) | Run Renovate (branches, PRs, auto-merge) | No dependency PRs at all |
 | [`renovate-postprocess.yml`](../.github/workflows/renovate-postprocess.yml) | Check out the Renovate branch and push the regenerated hashes, `requirements*.txt` and `.devcontainer` | Run fails at checkout on every open Renovate PR |
-| [`promote-to-main.yml`](../.github/workflows/promote-to-main.yml) | Approve the promotion PR's parked workflow runs and enable auto-merge | Runs stay parked (`action_required`) until approved by hand; auto-merge falls back to `GITHUB_TOKEN`, whose merge push emits no events (no build on `main`, no sync) until the scheduled sweeps catch up |
+| [`promote-to-main.yml`](../.github/workflows/promote-to-main.yml) | Approve the promotion PR's parked workflow runs and enable auto-merge | Runs stay parked (`action_required`) until approved by hand; auto-merge falls back to `GITHUB_TOKEN`, whose merge push emits no events: no sync to `develop` until the runbook below dispatches it, and `main` is built only by `build-containers.yml`'s nightly run |
 | [`auto-release.yml`](../.github/workflows/auto-release.yml) | Check out and push the release tag so the tag push triggers `release.yml` | Run fails at checkout: no tag, no release |
 
 The `secrets.BOT_TOKEN || github.token` fallbacks in `sync-main-to-develop.yml`
@@ -318,7 +281,7 @@ gh run list --workflow token-health.yml --limit 1
 **Due Date**: 2026-03-04
 
 #### 1. Security Review
-- [ ] Review `.github/security-alert-exceptions.yml`
+- [ ] Review the ignore rules and their rationale in `.grype.yaml`
 - [ ] Check for new CVEs in vendor binaries
 - [ ] Update acceptance rationale if needed
 - [ ] Review OpenSSF Scorecard: https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode
@@ -410,12 +373,11 @@ When a new CVE alert appears:
 
 2. **Determine Action**
    - **Fixable**: Update dependency and test
-   - **Vendor binary**: Add to `.github/security-alert-exceptions.yml`
+   - **Vendor binary**: Add an ignore rule with its rationale to `.grype.yaml`
    - **False positive**: Dismiss with justification
 
 3. **Document**
    - Update `SECURITY.md` or the .grype.yaml rationale comments if needed
-   - Add to exceptions config
    - Create issue if requires upstream fix
 
 #### 3. OpenSSF Scorecard Improvements
@@ -439,10 +401,9 @@ When a new CVE alert appears:
 
 #### Automation Health
 - **Renovate**: Active (weekly scans)
-- **Security Alert Management**: Active (weekly runs)
 - **Sync Main→Develop**: Active (on main push)
 - **Token Health**: Active (daily canary for `BOT_TOKEN`)
-- **Pre-commit Hooks**: Active (local only)
+- **Pre-commit Hooks**: Active (locally and in CI's Lint job)
 
 #### Dependencies
 - **Python Packages**: Auto-updated by Renovate
@@ -481,10 +442,6 @@ pre-commit run --all-files --show-diff-on-failure
 - **GitHub Actions**: https://github.com/malpanez/ansible-devcontainer-vscode/actions
 - **Security Alerts**: https://github.com/malpanez/ansible-devcontainer-vscode/security/code-scanning
 
-### Related Documentation
-
-- [.github/security-alert-exceptions.yml](.github/security-alert-exceptions.yml) - CVE exceptions config
-
 ---
 
 ## Troubleshooting
@@ -509,19 +466,6 @@ in `Promote develop to main`, no Renovate PRs on Monday
 4. Check if rate limit exceeded
 5. Manually trigger: `gh workflow run renovate.yml`
 
-### Security Workflow Failing
-
-**Symptoms**: Weekly security workflow fails
-
-**Solutions**:
-1. Check workflow logs: `gh run view <run-id>`
-2. Verify GitHub token permissions
-3. Test script locally:
-   ```bash
-   DRY_RUN=true bash .github/scripts/manage-code-scanning-alerts.sh
-   ```
-4. Check `.github/security-alert-exceptions.yml` syntax
-
 ### Pre-commit Hooks Not Running
 
 **Symptoms**: Commits bypass pre-commit checks
@@ -529,7 +473,7 @@ in `Promote develop to main`, no Renovate PRs on Monday
 **Solutions**:
 1. Reinstall hooks: `pre-commit install`
 2. Check if using `--no-verify` flag
-3. Update hooks: `pre-commit autoupdate`
+3. Update hooks: `make update-deps` (keeps the revs frozen to commits; Renovate normally does this)
 4. Run manually: `pre-commit run --all-files`
 
 ### Containers Failing to Build

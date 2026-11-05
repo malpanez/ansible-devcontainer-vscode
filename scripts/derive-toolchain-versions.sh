@@ -9,10 +9,15 @@
 # product did not contain. Reading the versions from the Dockerfiles leaves
 # one place to bump, and Renovate already bumps it.
 #
-# Prints three key=value lines, in the form $GITHUB_OUTPUT expects:
+# Prints four key=value lines, in the form $GITHUB_OUTPUT expects:
 #   python_version=<major>.<minor>          FROM python:           (base)
 #   go_version=<major>.<minor>              FROM golang:           (golang)
 #   terraform_version=<major>.<minor>.<patch>  ARG TERRAFORM_VERSION= (terraform)
+#   tflint_version=<major>.<minor>.<patch>     ARG TFLINT_VERSION=    (terraform)
+#
+# ci.yml's Lint job installs that terraform and that tflint for the
+# pre-commit-terraform hooks, so they lint with what the terraform image
+# ships.
 #
 # Every value is resolved before anything is printed, so a failure never
 # leaves a partial set behind. BASE_DOCKERFILE, GOLANG_DOCKERFILE and
@@ -54,6 +59,7 @@ main() {
   local python_version
   local go_version
   local terraform_version
+  local tflint_version
 
   python_version="$(extract_version "${BASE_DOCKERFILE}" \
     '^FROM python:\([0-9]\{1,\}\.[0-9]\{1,\}\).*' \
@@ -64,10 +70,14 @@ main() {
   terraform_version="$(extract_version "${TERRAFORM_DOCKERFILE}" \
     '^ARG TERRAFORM_VERSION=\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)[[:space:]]*$' \
     'ARG TERRAFORM_VERSION=<major>.<minor>.<patch>')"
+  tflint_version="$(extract_version "${TERRAFORM_DOCKERFILE}" \
+    '^ARG TFLINT_VERSION=\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)[[:space:]]*$' \
+    'ARG TFLINT_VERSION=<major>.<minor>.<patch>')"
 
   printf 'python_version=%s\n' "${python_version}"
   printf 'go_version=%s\n' "${go_version}"
   printf 'terraform_version=%s\n' "${terraform_version}"
+  printf 'tflint_version=%s\n' "${tflint_version}"
 }
 
 main "$@"

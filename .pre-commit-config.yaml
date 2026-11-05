@@ -1,10 +1,15 @@
 ---
-# TOP 0.1% Pre-commit Configuration
-# Ensures code quality, security, and consistency across all commits
+# The lint contract. CI's Lint job (ci.yml) runs `pre-commit run --all-files`
+# and nothing else in CI lints, so a hook here is the one place a linter runs
+# and the one place its version is set. `make lint` runs the same command.
+#
+# Revs are frozen to the tag's commit, as `pre-commit autoupdate --freeze`
+# writes them; Renovate's pre-commit manager moves the commit and the comment
+# together.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: trailing-whitespace
         name: Trim Trailing Whitespace
@@ -32,75 +37,78 @@ repos:
       - id: mixed-line-ending
         name: Fix Mixed Line Endings
 
-  - repo: https://github.com/adrienverge/yamllint
-    rev: v1.37.1
+  # The tools uv.lock pins run from the project environment, so the lock is
+  # the only place their versions are set. As hooks with revs of their own
+  # they drifted from it: ruff 0.14.3 against 0.17.3, ansible-lint 25.9.2
+  # against 26.10.1, yamllint 1.37.1 against 1.38.0, while CI and the images
+  # ran the lock's. --locked fails when uv.lock is out of date with
+  # pyproject.toml instead of resolving afresh. --no-build installs wheels
+  # only, so no package's build script ever runs (every locked package has
+  # a wheel, and the project itself is not built: package = false).
+  - repo: local
     hooks:
       - id: yamllint
         name: Lint YAML Files
-        args: ['-c', '.yamllint']
+        entry: uv run --locked --no-build yamllint -c .yamllint
+        language: system
+        types: [file, yaml]
 
-  - repo: https://github.com/ansible/ansible-lint
-    rev: v25.9.2
-    hooks:
+      # Offline, as .ansible-lint sets it, so it never installs requirements.yml
+      # unpinned. The collections it resolves modules against are the ones the
+      # ansible images ship, pinned with their sha256 in
+      # devcontainers/ansible/collections.txt: baked into the ansible dev
+      # container, and installed into the project environment by
+      # `make lint-deps` anywhere else, CI included. Without them the run
+      # fails on syntax-check[unknown-module] (ansible.posix.synchronize).
       - id: ansible-lint
         name: Lint Ansible Files
+        entry: uv run --locked --no-build ansible-lint -v --force-color --profile=production --offline
+        language: system
         files: \.(yaml|yml)$
-        language_version: python3
-        args:
-          - --profile=production
-          - --offline
-        additional_dependencies:
-          - ansible
+        pass_filenames: false
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.3
-    hooks:
       - id: ruff
         name: Ruff Linter
-        args: ["--fix", "--exit-non-zero-on-fix"]
+        entry: uv run --locked --no-build ruff check --force-exclude --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
       - id: ruff-format
         name: Ruff Formatter
+        entry: uv run --locked --no-build ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
 
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
-    hooks:
       - id: detect-secrets
         name: Detect Secrets
-        args:
-          - "--baseline"
-          - ".secrets.baseline"
+        entry: uv run --locked --no-build detect-secrets-hook --baseline .secrets.baseline
+        language: system
         exclude: package-lock.json
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: a23f6b85d0fdd5bb9d564e2579e678033debbdff  # frozen: v0.10.0.1
     hooks:
       - id: shellcheck
         name: ShellCheck
 
-  # Keep this pinned to the same hadolint as every other call site,
-  # currently v2.15.1:
-  #   - ci.yml, HADOLINT_VERSION (Dockerfile Lint, the gate that blocks merges)
-  #   - Makefile, validate-docker (hadolint/hadolint:<tag>)
-  #   - quality.yml, hadolint/hadolint-action@v3.5.0, which bundles 2.15.1
-  #     (code scanning, report-only)
-  # scripts/check-hadolint-parity.sh compares this rev with the first two
-  # and fails Dockerfile Lint when they differ. Renovate moves only the
-  # HADOLINT_VERSION value; bump this rev and the Makefile on the same pull
-  # request. The hadolint inside the action is compared by nothing.
-  # When they drift, the local hook silently enforces a different ruleset
-  # than CI: at v2.12.0.3 it did not know DL3064 at all, so five findings
-  # existed only in code scanning and nothing local could reproduce them.
+  # The only hadolint: ci.yml's Dockerfile Lint job, the Makefile's docker run
+  # and quality.yml's hadolint-action each pinned one of their own, and a
+  # parity script kept two of them in step. This one lints every Dockerfile in
+  # the tree, Dockerfile.podman and .devcontainer/ included, at hadolint's
+  # default failure threshold (info), stricter than the `error` the CI job used.
   - repo: https://github.com/AleksaC/hadolint-py
-    rev: v2.15.1
+    rev: 6e7504451511eaeb62a3e7f14d63b0296cbf86eb  # frozen: v2.15.1
     hooks:
       - id: hadolint
         name: Hadolint (Dockerfile Linter)
 
-  # Note: tflint hook removed - using terraform_tflint from pre-commit-terraform instead
-  # The tflint repository no longer provides pre-commit hooks directly
-
+  # These run the terraform and tflint on PATH. CI installs the versions the
+  # terraform image ships (devcontainers/terraform/Dockerfile, through
+  # scripts/derive-toolchain-versions.sh), as that dev container has them.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.96.2
+    rev: e0322737dccad136b751416f9e45d9980fe18435  # frozen: v1.96.2
     hooks:
       - id: terraform_fmt
         name: Terraform Format

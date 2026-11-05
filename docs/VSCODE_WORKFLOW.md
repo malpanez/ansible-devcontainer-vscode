@@ -204,48 +204,33 @@ Automatic and manual branch cleanup process.
 sequenceDiagram
     participant Dev as Developer
     participant GH as GitHub
-    participant WF as Cleanup Workflow
     participant Repo as Repository
 
     Dev->>GH: Create PR
     Dev->>GH: Review & Approve
-    GH->>GH: Merge PR to main
-
-    Note over GH,WF: Automatic trigger
-
-    GH->>WF: PR merged event
-    WF->>WF: Check branch name
-    WF->>WF: Verify not protected
-    WF->>Repo: git push --delete branch
-
-    Note over Repo: Branch cleaned
-
-    Repo->>GH: Update branch list
-    GH->>Dev: Notification
+    GH->>GH: Merge PR
+    GH->>Repo: Delete the head branch (repository setting)
 
     Note over Dev: Or manual cleanup...
 
     Dev->>Dev: Run "Cleanup Merged Branches" task
-    Dev->>WF: Trigger manual workflow (dry-run)
-    WF->>Repo: List merged branches
-    WF->>Dev: Show preview
+    Dev->>Repo: List merged branches (dry-run)
     Dev->>Dev: Review list
-    Dev->>WF: Confirm cleanup
-    WF->>Repo: Delete branches
+    Dev->>Repo: Delete branches
 ```
 
 ### Automatic Cleanup
 
-**Trigger:** PR merged to main or develop
+GitHub deletes a pull request's head branch when the pull request merges,
+through the repository setting **Automatically delete head branches**
+(`delete_branch_on_merge`, Settings → General → Pull Requests). No workflow
+is involved; the `cleanup-merged-branches.yml` workflow that did this before
+has been removed.
 
-**Process:**
-1. Workflow detects merge event
-2. Extracts branch name from PR
-3. Verifies branch is not protected (main/develop)
-4. Deletes remote branch automatically
-5. Posts summary to GitHub Actions
-
-**Configuration:** [.github/workflows/cleanup-merged-branches.yml](.github/workflows/cleanup-merged-branches.yml)
+`develop` is the head branch of every promotion pull request into `main`.
+Its branch protection does not allow deletions, and GitHub documents that
+branch protection can prevent the automatic deletion; check that `develop`
+is still there after the first promotion that merges with the setting on.
 
 ### Manual Cleanup
 
@@ -261,11 +246,6 @@ Ctrl+Shift+P → "Tasks: Run Task" → "Cleanup Merged Branches"
 
 # Interactive cleanup
 ./scripts/cleanup-merged-branches.sh
-```
-
-**Method 3: GitHub Actions**
-```
-Actions → "Cleanup Merged Branches" → Run workflow → Select dry_run option
 ```
 
 ---
