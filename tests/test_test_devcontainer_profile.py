@@ -325,7 +325,8 @@ def test_image_mode_brings_the_profile_up_on_the_image_as_it_is(
     rendered = json.loads((fake / "config.json").read_text())
     shipped = json.loads((REPO_ROOT / "devcontainers" / stack / profile).read_text())
     assert "build" not in rendered
-    assert rendered.pop("image") == "devcontainer-x:ci"
+    image = rendered.pop("image")
+    assert image == "devcontainer-x:ci"
     del shipped["image"]
     assert rendered == shipped
     assert (fake / "inspect.log").read_text().split() == [
