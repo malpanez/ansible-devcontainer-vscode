@@ -476,20 +476,23 @@ The `scenarios/` subdirectory contains end-to-end workflow examples.
 
 ### run-latex-cv.sh
 
-Generates a LaTeX CV using the Tectonic engine.
+Compiles the example CV with the Tectonic engine inside the LaTeX dev container image.
 
 **Usage:**
 
 ```bash
-# Run LaTeX CV example
+# Build base and latex from this checkout, then compile (both images are removed afterwards)
 ./scripts/scenarios/run-latex-cv.sh
+
+# Compile in a latex image that is already in the local Docker image store; nothing is built, pulled or removed
+./scripts/scenarios/run-latex-cv.sh --image devcontainer-latex:ci
 ```
 
 **What it does:**
 
-1. Switches to LaTeX devcontainer
-2. Compiles example CV from `examples/latex/cv/`
-3. Outputs PDF to `build/cv.pdf`
+1. Builds and smoke-tests the images (`scripts/smoke-devcontainer-image.sh`), or only smoke-tests the `--image` one
+2. Compiles `docs/scenarios/examples/resume.tex` in a container, with the examples mounted read-only
+3. Fails unless `resume.pdf` comes out non-empty; the PDF stays in the container
 
 ---
 

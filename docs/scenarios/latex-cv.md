@@ -39,4 +39,4 @@ Showcase the LaTeX devcontainer by compiling your résumé/CV with `latex-worksh
 - Add a GitHub Actions workflow (`latex.yml`) to compile and upload PDFs on push for portfolio automation.
 - Add spell checking by enabling the built-in VS Code Code Spell Checker extension (already installed).
 
-> CI exercises these instructions via `scripts/scenarios/run-latex-cv.sh`, which builds the LaTeX devcontainer image and compiles `docs/scenarios/examples/resume.tex` with `tectonic`.
+> CI exercises these instructions via `scripts/scenarios/run-latex-cv.sh`, which compiles `docs/scenarios/examples/resume.tex` with `tectonic` in the LaTeX devcontainer image. Run without options it builds that image first; `ci.yml`'s latex job passes the image it already built with `--image`.

@@ -1,6 +1,6 @@
 ---
 # devcontainer-ansible-podman is the ansible stack plus Podman, so
-# test-containers.yml runs ansible.yaml against it as well; this file holds
+# ci.yml's image job runs ansible.yaml against it as well; this file holds
 # only what the Podman layer adds.
 schemaVersion: 2.0.0
 

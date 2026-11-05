@@ -7,7 +7,7 @@
 # smoke-devcontainer-image.sh has no podman stack and gives this image the
 # ansible checks only, so a release could tag an image in which podman cannot
 # run a container. ci.yml's "Test the podman profile" proves the profile on an
-# image it builds, for amd64; test-containers.yml uses --privileged, which is
+# image it builds, for amd64; its podman smoke test uses --privileged, which is
 # not what the template does.
 #
 # runArgs come from the profile, so the check follows it. As the template does,
@@ -15,8 +15,8 @@
 # host directory on /workspace. The profile's other mounts are caches and stay
 # out: they would share state with whatever else uses those volume names.
 #
-# The check pulls from quay.io and ghcr.io, so it gets three attempts, as in
-# test-containers.yml. Every attempt starts from a new volume and a new
+# The check pulls from quay.io and ghcr.io, so it gets three attempts, as
+# ci.yml's podman smoke test does. Every attempt starts from a new volume and a new
 # directory: an attempt that passes only because an earlier one left something
 # behind has proved nothing. Both are removed afterwards.
 #

@@ -4,7 +4,6 @@
 [![Build Containers](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/build-containers.yml)
 [![CodeQL](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/codeql.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/malpanez/ansible-devcontainer-vscode/badge)](https://securityscorecards.dev/viewer/?uri=github.com/malpanez/ansible-devcontainer-vscode)
-[![SBOM](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/sbom-verification.yml/badge.svg)](https://github.com/malpanez/ansible-devcontainer-vscode/actions/workflows/sbom-verification.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
 [![GHCR](https://img.shields.io/badge/GHCR-images-blue?logo=github)](https://github.com/malpanez?tab=packages&repo_name=ansible-devcontainer-vscode)

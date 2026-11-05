@@ -45,9 +45,10 @@ dev = [
   "ipython>=8.20.0",
 ]
 
-# Tools CI installs at run time: sbom-verification.yml's NTIA checker, and
-# radon, vulture and bandit, which quality.yml ran until it was removed and
-# which come back as a quality gate. They live
+# Tools CI installs at run time: radon, vulture and bandit, which quality.yml
+# ran until it was removed and which come back as a quality gate, and the NTIA
+# checker sbom-verification.yml ran until ci.yml's image jobs replaced it (its
+# check could not fail; nothing installs it now). They live
 # here rather than as bare `pip install <name>` in the workflows so they are
 # resolved through uv.lock like everything else: pinned, hash-verifiable and
 # refreshed by Renovate. Unpinned CI installs are how ansible drifted to a

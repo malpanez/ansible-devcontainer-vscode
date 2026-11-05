@@ -42,9 +42,9 @@ Navigate to: **Settings → Branches → Edit rule**
 
 - `CI Success` (from `ci.yml`)
 - `CodeQL Summary` (from `codeql.yml`)
-- `SBOM Verification Success` (from `sbom-verification.yml`)
+- `SBOM Verification Success` (from `ci.yml`, a temporary alias of its image jobs)
 - `Quality Summary` (from `ci.yml`, a temporary alias of its Lint job)
-- `Test Summary` (from `test-containers.yml`)
+- `Test Summary` (from `ci.yml`, a temporary alias of its image jobs)
 
 `Guard Main Promotion Path` (from `enforce-promotion-path.yml`, on PRs whose
 base is `main`) and `GitGuardian Security Checks` report on these PRs but are
@@ -72,9 +72,9 @@ base is `main`) and `GitGuardian Security Checks` report on these PRs but are
 **Required status checks on `develop`:**
 
 - `CI Success` (from `ci.yml`)
-- `SBOM Verification Success` (from `sbom-verification.yml`)
+- `SBOM Verification Success` (from `ci.yml`, a temporary alias of its image jobs)
 - `Quality Summary` (from `ci.yml`, a temporary alias of its Lint job)
-- `Test Summary` (from `test-containers.yml`)
+- `Test Summary` (from `ci.yml`, a temporary alias of its image jobs)
 
 `develop` deliberately does **not** require `CodeQL Summary`; CodeQL still
 runs on every pull request into it. `Guard Develop Intake` (from
@@ -91,9 +91,8 @@ blocked promotion:
    gate its work from inside.** A required context that never appears leaves
    the pull request waiting forever -- GitHub does not treat "the workflow
    was skipped" as "the check passed". Trigger-level `paths` / `paths-ignore`
-   filters are therefore banned in `ci.yml`, `codeql.yml`,
-   `sbom-verification.yml` and `test-containers.yml`; each one runs a cheap
-   `changes` job
+   filters are therefore banned in `ci.yml` and `codeql.yml`; each one runs a
+   cheap `changes` job
    (`dorny/paths-filter`) and gates the expensive jobs on its outputs, and
    each aggregate job is `if: always()` and passes only the results `success`
    and `skipped`, so a skipped job stays green while a failed or cancelled
@@ -107,6 +106,15 @@ blocked promotion:
    later as a real quality gate. The alias passes only when Lint passed
    (`success`; `skipped` and `cancelled` fail), and keeps the required name
    reporting until protection moves to a single `ci-gate` check.
+
+3. **`Test Summary` and `SBOM Verification Success` are temporary aliases of
+   `ci.yml`'s image jobs.** They used to come from `test-containers.yml` and
+   `sbom-verification.yml`, which built every image again for their structure
+   tests and SBOMs. Those checks now run in `ci.yml`'s `Image (<name>)` jobs,
+   on the one build of each image that every image check uses, and both
+   workflows are gone. Each alias needs `changes`, `lint`, `base` and `image`,
+   passes only `success` and `skipped`, and says so when no image changed.
+   They too go when protection moves to `ci-gate`.
 
 ---
 

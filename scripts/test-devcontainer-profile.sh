@@ -8,8 +8,11 @@
 # pin, after the release it broke. The config brought up here is the profile
 # with its "image" replaced by the "build" of the stack's
 # local-build/devcontainer.json, and for a profile of another image, the
-# Dockerfile named by DOCKERFILE. Lifecycle commands, mounts, features and users
-# stay the profile's. The profile has to be plain JSON, because jq reads it.
+# Dockerfile named by DOCKERFILE. With IMAGE set, its "image" is replaced by
+# IMAGE instead and nothing is built from the Dockerfile: ci.yml passes the
+# image its job built and every other check ran on. Lifecycle commands, mounts,
+# features and users stay the profile's. The profile has to be plain JSON,
+# because jq reads it.
 #
 # `devcontainer up` is not the check: it reports success on a profile with no
 # daemon and no access to one, and the CLI does not look at how a feature's
@@ -17,20 +20,25 @@
 #
 # The container is left running. ci.yml relies on the runner to clean up.
 #
-# Usage: [BASE_IMAGE=image] [DOCKERFILE=file] [CHECK_ATTEMPTS=n]
+# Usage: [IMAGE=image | [BASE_IMAGE=image] [DOCKERFILE=file]] [CHECK_ATTEMPTS=n]
 #        test-devcontainer-profile.sh STACK PROFILE CHECK
 #   STACK           a directory under devcontainers/
 #   PROFILE         a config file in that directory
 #   CHECK           the command that must succeed, such as 'docker version'
+#   IMAGE           an image already in the local Docker image store to bring
+#                   the profile up on as it is, instead of building one; it is
+#                   never pulled. Not with BASE_IMAGE or DOCKERFILE, which only
+#                   apply to a build.
 #   BASE_IMAGE      build argument for a Dockerfile that takes one (ansible)
 #   DOCKERFILE      a file in that directory to build, not local-build's
 #   CHECK_ATTEMPTS  how often to try CHECK, by default 30 two seconds apart for
 #                   the daemon of a feature to start. A slow CHECK with nothing
 #                   to wait for sets it lower.
 #
-# Run from the repository root: the build context is ${localWorkspaceFolder}.
-# Exits 1 if the container does not come up or the check keeps failing. Usage
-# errors exit 2.
+# Run from the repository root: the build context and the workspace are
+# ${localWorkspaceFolder}. Exits 1 if the container does not come up or the
+# check keeps failing. Usage errors, an IMAGE that is not in the local image
+# store among them, exit 2.
 set -euo pipefail
 
 UP_ATTEMPTS=3
@@ -46,7 +54,7 @@ cleanup() {
 trap cleanup EXIT
 
 usage() {
-  echo "Usage: [BASE_IMAGE=image] [DOCKERFILE=file] [CHECK_ATTEMPTS=n] $(basename "$0") STACK PROFILE CHECK" >&2
+  echo "Usage: [IMAGE=image | [BASE_IMAGE=image] [DOCKERFILE=file]] [CHECK_ATTEMPTS=n] $(basename "$0") STACK PROFILE CHECK" >&2
   exit 2
 }
 
@@ -55,6 +63,11 @@ render_config() {
   local profile="$2"
   local local_build="${template_dir}/local-build/devcontainer.json"
   local dockerfile
+
+  if [[ -n "${IMAGE:-}" ]]; then
+    jq --arg image "${IMAGE}" 'del(.build) | .image = $image' "${template_dir}/${profile}"
+    return
+  fi
 
   # Absolute, because the config moves: the CLI takes no other file name than
   # devcontainer.json, so a profile can only run from a directory of its own.
@@ -121,6 +134,18 @@ fi
 if [[ -n "${DOCKERFILE:-}" && ! -f "${TEMPLATE_DIR}/${DOCKERFILE}" ]]; then
   echo "::error::${TEMPLATE_DIR}/${DOCKERFILE} does not exist" >&2
   usage
+fi
+if [[ -n "${IMAGE:-}" ]]; then
+  if [[ -n "${BASE_IMAGE:-}" || -n "${DOCKERFILE:-}" ]]; then
+    echo "::error::IMAGE is used as it is; BASE_IMAGE and DOCKERFILE only apply to a build" >&2
+    usage
+  fi
+  # Never pulled: a name that is not here would otherwise come from a
+  # registry, and the profile would pass or fail on an image nobody built.
+  if ! docker image inspect -- "${IMAGE}" >/dev/null 2>&1; then
+    echo "::error::${IMAGE} is not in the local image store" >&2
+    usage
+  fi
 fi
 
 CONFIG_DIR="$(mktemp -d)"
