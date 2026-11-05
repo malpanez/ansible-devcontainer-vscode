@@ -40,6 +40,11 @@ exec "$@"
 """
 
 FAKE_DOCKER = """#!/usr/bin/env bash
+if [[ "$1 $2" == "image inspect" ]]; then
+  printf '%s\\n' "$*" >> "${FAKE_STATE}/inspect.log"
+  [[ -z "${FAKE_MISSING_IMAGE:-}" ]]
+  exit
+fi
 printf '%s\\n' "$*" >> "${FAKE_STATE}/docker.log"
 checks="$(wc -l < "${FAKE_STATE}/docker.log")"
 ((checks > FAKE_CHECK_FAILURES))
@@ -67,6 +72,8 @@ def fake(tmp_path: Path) -> Path:
 def _run(
     fake: Path,
     *args: str,
+    image: str | None = None,
+    missing_image: bool = False,
     base_image: str | None = None,
     dockerfile: str | None = None,
     check_attempts: int | None = None,
@@ -83,8 +90,12 @@ def _run(
         "FAKE_UP_FAILURES": str(up_failures),
         "FAKE_CHECK_FAILURES": str(check_failures),
     }
-    for name in ("BASE_IMAGE", "DOCKERFILE", "CHECK_ATTEMPTS"):
+    for name in ("IMAGE", "BASE_IMAGE", "DOCKERFILE", "CHECK_ATTEMPTS"):
         env.pop(name, None)
+    if image is not None:
+        env["IMAGE"] = image
+    if missing_image:
+        env["FAKE_MISSING_IMAGE"] = "1"
     if base_image is not None:
         env["BASE_IMAGE"] = base_image
     if dockerfile is not None:
@@ -297,4 +308,62 @@ def test_a_profile_with_comments_fails_before_up(fake: Path, tmp_path: Path) -> 
     )
 
     assert proc.returncode != 0
+    assert _calls(fake, "up") == 0
+
+
+@pytest.mark.parametrize(
+    ("stack", "profile"),
+    [(stack, profile) for stack, profile, _ in PROFILES]
+    + [("golang", "devcontainer.json")],
+)
+def test_image_mode_brings_the_profile_up_on_the_image_as_it_is(
+    fake: Path, stack: str, profile: str
+) -> None:
+    proc = _run(fake, stack, profile, "docker version", image="devcontainer-x:ci")
+
+    assert proc.returncode == 0, proc.stderr
+    rendered = json.loads((fake / "config.json").read_text())
+    shipped = json.loads((REPO_ROOT / "devcontainers" / stack / profile).read_text())
+    assert "build" not in rendered
+    assert rendered.pop("image") == "devcontainer-x:ci"
+    del shipped["image"]
+    assert rendered == shipped
+    assert (fake / "inspect.log").read_text().split() == [
+        "image",
+        "inspect",
+        "--",
+        "devcontainer-x:ci",
+    ]
+
+
+@pytest.mark.parametrize(
+    "option", [{"base_image": "devcontainer-base:ci"}, {"dockerfile": "Dockerfile"}]
+)
+def test_image_mode_takes_no_build_option(fake: Path, option: dict[str, str]) -> None:
+    proc = _run(
+        fake,
+        "ansible",
+        "devcontainer.docker-socket.json",
+        "docker version",
+        image="devcontainer-ansible:ci",
+        **option,
+    )
+
+    assert proc.returncode == 2
+    assert "only apply to a build" in proc.stderr
+    assert _calls(fake, "up") == 0
+
+
+def test_image_mode_never_pulls_a_missing_image(fake: Path) -> None:
+    proc = _run(
+        fake,
+        "terraform",
+        "devcontainer.docker-socket.json",
+        "docker version",
+        image="ghcr.io/example/devcontainer-terraform:v1",
+        missing_image=True,
+    )
+
+    assert proc.returncode == 2
+    assert "is not in the local image store" in proc.stderr
     assert _calls(fake, "up") == 0

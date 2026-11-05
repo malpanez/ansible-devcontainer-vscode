@@ -5,9 +5,9 @@ The budgets are in .github/image-size-budgets.json, one entry per published
 image (devcontainer-<name>, keyed by <name>), in MiB (1024 * 1024 bytes).
 
   local --image <image reference> --name <name>
-      The pull request gate (ci.yml, devcontainer-build). Compares the size of
-      an image in the local Docker engine, `docker image inspect` .Size, with
-      max_uncompressed_mib. Over budget prints ::error:: and exits 1.
+      The pull request gate (ci.yml's base and image jobs). Compares the size
+      of an image in the local Docker engine, `docker image inspect` .Size,
+      with max_uncompressed_mib. Over budget prints ::error:: and exits 1.
 
   registry --ref <repository>@<digest> --name <name> [--platform linux/amd64]
       The publish report (build-containers.yml). Sums config and layer sizes of

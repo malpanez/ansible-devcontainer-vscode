@@ -232,10 +232,11 @@ commandTests:
     exitCode: 0
 
   # The login shell, the world-writable uv lock and LANG are checked in base.yaml
-  # and ansible-podman.yaml, where they come from. test-containers builds this
-  # image on the BASE_IMAGE pin, which trails the base Dockerfile until main
-  # publishes it, so a check here could not pass in the pull request that fixes
-  # base.
+  # and ansible-podman.yaml, where they come from. ci.yml's image job builds
+  # this image on the base built in the same run, but a build outside CI
+  # resolves the BASE_IMAGE pin, which trails the base Dockerfile until main
+  # publishes it, so a check here would fail there in the pull request that
+  # fixes base.
   # The same goes for the absence of sudo: it is checked in base.yaml,
   # ansible-podman.yaml, terraform.yaml, golang.yaml and latex.yaml.
   # And for the Debian release, checked in base.yaml, terraform.yaml and

@@ -68,9 +68,11 @@ It replaced Dependabot because this repo pins tool versions in Dockerfile
   the cached CI layer and the nightly publish ship different versions,
   neither of them the lock's (certifi, 2026-10-26).
 - **CI tools belong in a dependency group, not in a bare `pip install`.**
-  `sbom-verification.yml` installs its tooling from
-  `requirements-ci-quality.txt` with `--require-hashes`; the group lives in
-  `pyproject.toml` so Renovate manages it like everything else. Before this,
+  The `ci-quality` group in `pyproject.toml`, exported to
+  `requirements-ci-quality.txt`, is where such a tool goes, installed with
+  `--require-hashes`, so Renovate manages it like everything else.
+  (`sbom-verification.yml` installed its NTIA checker from it; the workflow
+  is gone, and nothing installs the export today.) Before this,
   `pip install ansible ansible-lint` resolved whatever PyPI served that day —
   which is how CI ran ansible 14.3.1 against a lock pinning 14.2.0 and broke
   develop on 2026-08-10.
