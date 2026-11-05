@@ -14,32 +14,32 @@ setup: ## Initial setup - install all dependencies
 	@command -v gh >/dev/null 2>&1 || (echo "Installing gh CLI..." && sudo apt-get update && sudo apt-get install -y gh)
 	@$(MAKE) --no-print-directory lint-deps
 	@echo "Installing pre-commit hooks..."
-	@uv run --locked pre-commit install --install-hooks
+	@uv run --locked --no-build pre-commit install --install-hooks
 	@echo "✅ Setup complete!"
 
 .PHONY: lint-deps
 lint-deps: ## Install what the lint hooks need: the uv.lock environment and the image's pinned Ansible collections
-	@uv sync --locked
-	@uv run --locked bash devcontainers/ansible/install-collections.sh \
-		"$$(uv run --locked python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+	@uv sync --locked --no-build
+	@uv run --locked --no-build bash devcontainers/ansible/install-collections.sh \
+		"$$(uv run --locked --no-build python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
 		devcontainers/ansible/collections.txt
 
 .PHONY: lint
 lint: ## Run all linters (the same pre-commit run as CI's Lint job)
 	@echo "🔍 Running linters..."
-	@uv run --locked pre-commit run --all-files
+	@uv run --locked --no-build pre-commit run --all-files
 
 .PHONY: lint-fix
 lint-fix: ## Run linters and auto-fix issues
 	@echo "🔧 Running linters with auto-fix..."
-	@uv run --locked pre-commit run --all-files || uv run --locked pre-commit run --all-files
+	@uv run --locked --no-build pre-commit run --all-files || uv run --locked --no-build pre-commit run --all-files
 	@echo "✅ Auto-fix complete!"
 
 .PHONY: security
 security: ## Run security scans
 	@echo "🔒 Running security scans..."
 	@echo "Checking for secrets..."
-	@uv run --locked pre-commit run detect-secrets --all-files
+	@uv run --locked --no-build pre-commit run detect-secrets --all-files
 	@echo "Running Grype scan..."
 	@if command -v grype >/dev/null 2>&1; then \
 		grype dir:. --only-fixed --fail-on high; \
@@ -96,7 +96,7 @@ clean: ## Clean cache and temporary files
 .PHONY: update-deps
 update-deps: ## Update all dependencies
 	@echo "⬆️  Updating dependencies..."
-	@uv run --locked pre-commit autoupdate --freeze
+	@uv run --locked --no-build pre-commit autoupdate --freeze
 	@echo "✅ Dependencies updated! Review changes before committing."
 
 .PHONY: check-alerts
@@ -107,12 +107,12 @@ check-alerts: ## Check GitHub security alerts
 .PHONY: validate-yaml
 validate-yaml: ## Validate all YAML files
 	@echo "📝 Validating YAML files..."
-	@uv run --locked pre-commit run yamllint --all-files
+	@uv run --locked --no-build pre-commit run yamllint --all-files
 
 .PHONY: validate-docker
 validate-docker: ## Validate all Dockerfiles
 	@echo "🐳 Validating Dockerfiles..."
-	@uv run --locked pre-commit run hadolint --all-files
+	@uv run --locked --no-build pre-commit run hadolint --all-files
 
 .PHONY: ci-local
 ci-local: lint security ## Run the lint and security checks locally (lint already runs yamllint and hadolint)

@@ -42,12 +42,14 @@ repos:
   # they drifted from it: ruff 0.14.3 against 0.17.3, ansible-lint 25.9.2
   # against 26.10.1, yamllint 1.37.1 against 1.38.0, while CI and the images
   # ran the lock's. --locked fails when uv.lock is out of date with
-  # pyproject.toml instead of resolving afresh.
+  # pyproject.toml instead of resolving afresh. --no-build installs wheels
+  # only, so no package's build script ever runs (every locked package has
+  # a wheel, and the project itself is not built: package = false).
   - repo: local
     hooks:
       - id: yamllint
         name: Lint YAML Files
-        entry: uv run --locked yamllint -c .yamllint
+        entry: uv run --locked --no-build yamllint -c .yamllint
         language: system
         types: [file, yaml]
 
@@ -60,28 +62,28 @@ repos:
       # fails on syntax-check[unknown-module] (ansible.posix.synchronize).
       - id: ansible-lint
         name: Lint Ansible Files
-        entry: uv run --locked ansible-lint -v --force-color --profile=production --offline
+        entry: uv run --locked --no-build ansible-lint -v --force-color --profile=production --offline
         language: system
         files: \.(yaml|yml)$
         pass_filenames: false
 
       - id: ruff
         name: Ruff Linter
-        entry: uv run --locked ruff check --force-exclude --fix --exit-non-zero-on-fix
+        entry: uv run --locked --no-build ruff check --force-exclude --fix --exit-non-zero-on-fix
         language: system
         types_or: [python, pyi]
         require_serial: true
 
       - id: ruff-format
         name: Ruff Formatter
-        entry: uv run --locked ruff format --force-exclude
+        entry: uv run --locked --no-build ruff format --force-exclude
         language: system
         types_or: [python, pyi]
         require_serial: true
 
       - id: detect-secrets
         name: Detect Secrets
-        entry: uv run --locked detect-secrets-hook --baseline .secrets.baseline
+        entry: uv run --locked --no-build detect-secrets-hook --baseline .secrets.baseline
         language: system
         exclude: package-lock.json
 

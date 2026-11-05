@@ -476,7 +476,10 @@ def test_lint_runs_pre_commit_on_every_event() -> None:
     assert job["needs"] == "changes"
     assert "if" not in job
     assert "make lint-deps" in runs
-    assert "uv run --locked pre-commit run --all-files --show-diff-on-failure" in runs
+    assert (
+        "uv run --locked --no-build pre-commit run --all-files --show-diff-on-failure"
+        in runs
+    )
     for event in ("pull_request", "push"):
         config = _triggers(workflow)[event] or {}
         assert "paths" not in config, event
@@ -502,9 +505,11 @@ def test_only_the_lint_job_runs_a_linter() -> None:
 
 
 def test_make_lint_is_the_command_ci_runs() -> None:
-    assert "@uv run --locked pre-commit run --all-files" in _make_recipe("lint")
+    assert "@uv run --locked --no-build pre-commit run --all-files" in _make_recipe(
+        "lint"
+    )
     recipe = " ".join(_make_recipe("lint-deps"))
-    assert "uv sync --locked" in recipe
+    assert "uv sync --locked --no-build" in recipe
     assert "devcontainers/ansible/install-collections.sh" in recipe
     assert "devcontainers/ansible/collections.txt" in recipe
 
@@ -536,9 +541,9 @@ def test_hooks_of_locked_tools_run_from_uv_lock() -> None:
                 continue
             local += 1
             entry = hook["entry"].split()
-            assert entry[:3] == ["uv", "run", "--locked"], hook["id"]
+            assert entry[:4] == ["uv", "run", "--locked", "--no-build"], hook["id"]
             assert hook["language"] == "system", hook["id"]
-            assert LOCKED_EXECUTABLES.get(entry[3], entry[3]) in locked, hook["id"]
+            assert LOCKED_EXECUTABLES.get(entry[4], entry[4]) in locked, hook["id"]
     assert local
 
 
