@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import tomllib
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,35 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 STRUCTURE_WORKFLOW = ".github/workflows/test-containers.yml"
 METADATA_ACTION = "docker/metadata-action@"
 PATHS_FILTER_ACTION = "dorny/paths-filter@"
+# What a pre-commit hook runs, and so what no other workflow step may run.
+LINTERS = (
+    "ansible-lint",
+    "detect-secrets",
+    "hadolint",
+    "pre-commit",
+    "ruff",
+    "shellcheck",
+    "terraform fmt",
+    "tflint",
+    "yamllint",
+)
+# The executables whose package name differs from theirs.
+LOCKED_EXECUTABLES = {"detect-secrets-hook": "detect-secrets"}
+# Branch protection on develop and main requires these names (main also
+# CodeQL Summary), each from exactly one job.
+REQUIRED_CHECKS = {
+    "CI Success": ("ci", "ci-success"),
+    "Quality Summary": ("ci", "quality-summary"),
+    "SBOM Verification Success": ("sbom-verification", "sbom-verification-success"),
+    "Test Summary": ("test-containers", "summary"),
+    "CodeQL Summary": ("codeql", "codeql-summary"),
+}
+GHCR_JOBS_OK = {
+    "resolve_tags": "success",
+    "cleanup_untagged": "success",
+    "verify_protected_tags": "success",
+    "report_tagged_cleanup_policy": "success",
+}
 AWS_IMAGES = {
     "terraform-aws": "devcontainers/terraform",
     "ansible-aws": "devcontainers/ansible",
@@ -272,20 +302,20 @@ def test_jobs_only_read_matrix_keys_they_define() -> None:
             assert read <= defined, (workflow_name, job_name, read - defined)
 
 
-def test_resource_benchmark_reads_the_cache_of_the_active_template() -> None:
-    job = _workflow("benchmark")["jobs"]["resource-usage-benchmark"]
-    script = _step(job, "Resolve registry cache")["run"]
-
-    assert ".devcontainer/.template-metadata.json" in script
-    assert 'devcontainer-${STACK}:buildcache-publish"' in script
+def test_jobs_name_their_ubuntu_release() -> None:
+    # Renovate does not move runner labels, so an OS upgrade is a change made
+    # by hand. release.yml's matrix takes its runners from release-images.py,
+    # which tests/test_release_images.py pins.
+    for workflow_name, workflow in _all_workflows().items():
+        for job_name, job in workflow["jobs"].items():
+            runs_on = str(job.get("runs-on", ""))
+            assert "latest" not in runs_on, (workflow_name, job_name, runs_on)
 
 
 @pytest.mark.parametrize(
     ("workflow", "job", "matrix_key", "name_prefix", "stage_key"),
     [
         ("sbom-verification", "generate-sbom", "target", "devcontainer-", "stage"),
-        ("benchmark", "container-startup-benchmark", "container", "", "target"),
-        ("benchmark", "build-time-benchmark", "container", "", "target"),
     ],
 )
 def test_aws_images_are_measured_from_their_own_stage(
@@ -307,45 +337,21 @@ def test_aws_images_are_measured_from_their_own_stage(
             assert stage_key not in entry, name
 
 
-def test_sbom_and_startup_builds_pass_the_stage_to_buildx() -> None:
+def test_sbom_builds_pass_the_stage_to_buildx() -> None:
     sbom = _workflow("sbom-verification")["jobs"]["generate-sbom"]
-    startup = _workflow("benchmark")["jobs"]["container-startup-benchmark"]
 
     assert (
         _step(sbom, "Build container for SBOM")["with"]["target"]
         == "${{ matrix.target.stage }}"
     )
-    assert (
-        _step(startup, "Build container")["with"]["target"]
-        == "${{ matrix.container.target }}"
-    )
 
 
-@pytest.mark.parametrize(
-    "step",
-    ["Benchmark build time (cold cache)", "Benchmark build time (warm cache)"],
-)
-def test_build_time_benchmarks_pass_the_stage_to_buildx(step: str) -> None:
-    job = _workflow("benchmark")["jobs"]["build-time-benchmark"]
-    benchmark = _step(job, step)
-
-    assert "matrix.container.target" in benchmark["env"]["TARGET_ARGS"]
-    assert '"${TARGET_FLAGS[@]}"' in benchmark["run"]
-
-
-def test_benchmarks_run_when_the_aws_lock_export_changes() -> None:
-    triggers = _triggers(_workflow("benchmark"))
-
-    for event in ("pull_request", "push"):
-        assert "requirements-aws.txt" in triggers[event]["paths"], event
-
-
-def test_ci_success_needs_every_job_but_the_advisory_scan() -> None:
+def test_ci_success_needs_every_job_but_the_quality_alias() -> None:
     jobs = _workflow("ci")["jobs"]
     needs = set(jobs["ci-success"]["needs"])
 
-    assert "devcontainer-state" in needs
-    assert set(jobs) - needs - {"ci-success"} == {"security"}
+    assert {"devcontainer-state", "lint", "powershell-lint"} <= needs
+    assert set(jobs) - needs - {"ci-success"} == {"quality-summary"}
 
 
 def test_python_filter_covers_what_the_unit_tests_read() -> None:
@@ -436,3 +442,295 @@ def test_scan_gate_only_a_zero_count_passes(
 
     assert proc.returncode == returncode, proc.stdout
     assert message in proc.stdout
+
+
+def _pre_commit_config() -> dict[str, Any]:
+    text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    return yaml.safe_load(text)
+
+
+def _locked_packages() -> set[str]:
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    return {package["name"] for package in lock["package"]}
+
+
+def _hook_command(entry: str) -> tuple[dict[str, str], list[str]]:
+    """Split an `env NAME=value ... command` hook entry into its env and command."""
+    words = entry.split()
+    env: dict[str, str] = {}
+    if words[0] == "env":
+        words.pop(0)
+        while "=" in words[0]:
+            name, value = words.pop(0).split("=", 1)
+            env[name] = value
+    return env, words
+
+
+def _hook(hook_id: str) -> dict[str, Any]:
+    return next(
+        hook
+        for repo in _pre_commit_config()["repos"]
+        for hook in repo["hooks"]
+        if hook["id"] == hook_id
+    )
+
+
+def _make_recipe(target: str) -> list[str]:
+    lines = (REPO_ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith(f"{target}:"))
+    recipe = []
+    for line in lines[start + 1 :]:
+        if not line.startswith("\t"):
+            break
+        recipe.append(line.strip())
+    return recipe
+
+
+def _run_step(
+    workflow: str, job: str, step: str, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    script = _step(_workflow(workflow)["jobs"][job], step)["run"]
+    return subprocess.run(
+        ["bash", "-e", "-c", script],
+        env={**os.environ, **env},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_lint_runs_pre_commit_on_every_event() -> None:
+    workflow = _workflow("ci")
+    job = workflow["jobs"]["lint"]
+    runs = [step["run"] for step in job["steps"] if "run" in step]
+
+    assert job["needs"] == "changes"
+    assert "if" not in job
+    assert "make lint-deps" in runs
+    assert (
+        "uv run --locked --no-build pre-commit run --all-files --show-diff-on-failure"
+        in runs
+    )
+    for event in ("pull_request", "push"):
+        config = _triggers(workflow)[event] or {}
+        assert "paths" not in config, event
+        assert "paths-ignore" not in config, event
+
+
+def test_only_the_lint_job_runs_a_linter() -> None:
+    for workflow, job, step, script in _run_scripts():
+        if (workflow, job) == ("ci", "lint"):
+            continue
+        for line in script.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            for tool in LINTERS:
+                pattern = rf"(^|[^\w-]){re.escape(tool)}([^\w-]|$)"
+                assert not re.search(pattern, line), (workflow, job, step, tool)
+    for workflow_name, workflow in _all_workflows().items():
+        for job_name, job in workflow["jobs"].items():
+            for step in job.get("steps", []):
+                uses = step.get("uses", "")
+                for tool in ("hadolint", "shellcheck", "yamllint", "ansible-lint"):
+                    assert tool not in uses, (workflow_name, job_name, uses)
+
+
+def test_make_lint_is_the_command_ci_runs() -> None:
+    assert "@uv run --locked --no-build pre-commit run --all-files" in _make_recipe(
+        "lint"
+    )
+    recipe = " ".join(_make_recipe("lint-deps"))
+    assert "uv sync --locked --no-build" in recipe
+    assert "devcontainers/ansible/install-collections.sh" in recipe
+    assert "devcontainers/ansible/collections.txt" in recipe
+
+
+def test_lint_installs_the_terraform_and_tflint_the_image_ships() -> None:
+    jobs = _workflow("ci")["jobs"]
+    outputs = jobs["changes"]["outputs"]
+    lint = jobs["lint"]
+
+    for tool in ("terraform", "tflint"):
+        expected = f"${{{{ steps.toolchain.outputs.{tool}_version }}}}"
+        assert outputs[f"{tool}_version"] == expected, tool
+    terraform = _step(lint, "Set up Terraform")["with"]["terraform_version"]
+    tflint = _step(lint, "Install tflint")
+    assert terraform == "${{ needs.changes.outputs.terraform_version }}"
+    assert (
+        tflint["env"]["TFLINT_VERSION"] == "${{ needs.changes.outputs.tflint_version }}"
+    )
+    assert "sha256sum --check --strict" in tflint["run"]
+
+
+def test_hooks_of_locked_tools_run_from_uv_lock() -> None:
+    locked = _locked_packages()
+    local = 0
+    for repo in _pre_commit_config()["repos"]:
+        for hook in repo["hooks"]:
+            if repo["repo"] != "local":
+                assert hook["id"] not in locked, (repo["repo"], hook["id"])
+                continue
+            local += 1
+            _, entry = _hook_command(hook["entry"])
+            assert entry[:4] == ["uv", "run", "--locked", "--no-build"], hook["id"]
+            assert hook["language"] == "system", hook["id"]
+            assert LOCKED_EXECUTABLES.get(entry[4], entry[4]) in locked, hook["id"]
+    assert local
+
+
+def test_ansible_lint_reads_only_the_collections_lint_deps_installs() -> None:
+    env, _ = _hook_command(_hook("ansible-lint")["entry"])
+    collections = env["ANSIBLE_COLLECTIONS_PATH"]
+    recipe = " ".join(_make_recipe("lint-deps"))
+
+    assert collections == f"{env['ANSIBLE_HOME']}/collections"
+    assert f"rm -rf {collections} && mkdir -p {collections}" in recipe
+    assert f"{collections} devcontainers/ansible/collections.txt" in recipe
+
+
+def test_remote_hook_revs_are_frozen_commits() -> None:
+    text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    revs = re.findall(r"^\s+rev: (\S+)(.*)$", text, re.MULTILINE)
+
+    assert len(revs) == sum(
+        1 for repo in _pre_commit_config()["repos"] if repo["repo"] != "local"
+    )
+    for rev, comment in revs:
+        assert re.fullmatch(r"[0-9a-f]{40}", rev), rev
+        assert re.fullmatch(r"\s+# frozen: v\S+", comment), rev
+
+
+@pytest.mark.parametrize(("name", "owner"), sorted(REQUIRED_CHECKS.items()))
+def test_required_check_has_one_producer_that_always_reports(
+    name: str, owner: tuple[str, str]
+) -> None:
+    owners = [
+        (workflow_name, job_name)
+        for workflow_name, workflow in _all_workflows().items()
+        for job_name, job in workflow["jobs"].items()
+        if job.get("name") == name
+    ]
+
+    assert owners == [owner]
+    workflow = _workflow(owner[0])
+    assert workflow["jobs"][owner[1]]["if"] == "always()"
+    for event in ("pull_request", "push"):
+        config = _triggers(workflow)[event] or {}
+        assert "paths" not in config, event
+        assert "paths-ignore" not in config, event
+
+
+def test_quality_summary_aliases_lint() -> None:
+    job = _workflow("ci")["jobs"]["quality-summary"]
+
+    assert job["needs"] == "lint"
+    assert _step(job, "Check results")["env"] == {
+        "LINT_RESULT": "${{ needs.lint.result }}"
+    }
+
+
+def test_quality_summary_passes_when_lint_passed() -> None:
+    proc = _run_step(
+        "ci", "quality-summary", "Check results", {"LINT_RESULT": "success"}
+    )
+
+    assert proc.returncode == 0, proc.stdout
+
+
+@pytest.mark.parametrize("lint", ["failure", "cancelled", "skipped", ""])
+def test_quality_summary_fails_on_anything_else(lint: str) -> None:
+    proc = _run_step("ci", "quality-summary", "Check results", {"LINT_RESULT": lint})
+
+    assert proc.returncode == 1
+    assert "Lint did not pass" in proc.stdout
+
+
+def _ghcr_report(
+    tmp_path: Path, dry_run: str = "false", **results: str
+) -> tuple[int, str, str]:
+    summary = tmp_path / "summary.md"
+    needs = {
+        name.replace("_", "-"): {"result": result, "outputs": {}}
+        for name, result in results.items()
+    }
+    proc = _run_step(
+        "cleanup-ghcr",
+        "report",
+        "Report results",
+        {
+            "NEEDS_JSON": json.dumps(needs),
+            "DRY_RUN": dry_run,
+            "GITHUB_STEP_SUMMARY": str(summary),
+        },
+    )
+    return proc.returncode, proc.stdout, summary.read_text(encoding="utf-8")
+
+
+def test_ghcr_report_needs_every_other_job() -> None:
+    jobs = _workflow("cleanup-ghcr")["jobs"]
+
+    assert jobs["report"]["if"] == "always()"
+    assert set(jobs["report"]["needs"]) == set(jobs) - {"report"}
+    assert {name.replace("_", "-") for name in GHCR_JOBS_OK} == set(jobs) - {"report"}
+
+
+def test_ghcr_report_says_completed_only_when_every_job_succeeded(
+    tmp_path: Path,
+) -> None:
+    returncode, stdout, summary = _ghcr_report(tmp_path, **GHCR_JOBS_OK)
+
+    assert returncode == 0, stdout
+    assert "Cleanup completed" in summary
+    assert "Dry run" not in summary
+
+
+def test_ghcr_report_says_when_it_was_a_dry_run(tmp_path: Path) -> None:
+    returncode, stdout, summary = _ghcr_report(tmp_path, dry_run="true", **GHCR_JOBS_OK)
+
+    assert returncode == 0, stdout
+    assert "Dry run completed: nothing was deleted" in summary
+
+
+@pytest.mark.parametrize(
+    ("job", "result"),
+    [
+        ("cleanup_untagged", "failure"),
+        ("verify_protected_tags", "skipped"),
+        ("resolve_tags", "cancelled"),
+    ],
+)
+def test_ghcr_report_fails_and_names_a_job_that_did_not_succeed(
+    tmp_path: Path, job: str, result: str
+) -> None:
+    returncode, stdout, summary = _ghcr_report(
+        tmp_path, **{**GHCR_JOBS_OK, job: result}
+    )
+    named = f"{job.replace('_', '-')} ({result})"
+
+    assert returncode == 1
+    assert named in stdout
+    assert named in summary
+    assert "✅" not in summary
+
+
+def test_ghcr_report_states_the_configured_retention() -> None:
+    jobs = _workflow("cleanup-ghcr")["jobs"]
+    cleanup = next(
+        step
+        for step in jobs["cleanup-untagged"]["steps"]
+        if "ghcr-cleanup-action" in step.get("uses", "")
+    )
+    report = _step(jobs["report"], "Report results")["run"]
+
+    assert f"older-than: {cleanup['with']['older-than']}" in report
+    assert "keep-n-untagged" not in cleanup["with"]
+    assert "Keep last" not in report
+
+
+def test_jobs_only_test_for_events_their_workflow_declares() -> None:
+    for name, workflow in _all_workflows().items():
+        triggers = _triggers(workflow)
+        declared = {triggers} if isinstance(triggers, str) else set(triggers)
+        text = (WORKFLOWS / f"{name}.yml").read_text(encoding="utf-8")
+        for event in re.findall(r"github\.event_name\s*[!=]=\s*'([a-z_]+)'", text):
+            assert event in declared, (name, event)

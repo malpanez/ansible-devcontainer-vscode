@@ -22,14 +22,6 @@ env:
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
   UV_VERSION: "0.13.6"
-  # Must equal the pins in the Makefile and the pre-commit hook:
-  # scripts/check-hadolint-parity.sh fails Dockerfile Lint otherwise.
-  # HADOLINT_DIGEST is the index digest of that tag. Docker ignores the tag
-  # when a digest is given, so a version bump without a digest bump keeps
-  # running the old image.
-  # renovate: datasource=docker depName=hadolint/hadolint
-  HADOLINT_VERSION: "v2.15.1"
-  HADOLINT_DIGEST: "sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d"
 
 permissions:
   contents: read
@@ -37,22 +29,20 @@ permissions:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
     outputs:
       ansible: ${{ steps.filter.outputs.ansible }}
-      golang: ${{ steps.golang-check.outputs.enabled }}
       terraform: ${{ steps.filter.outputs.terraform }}
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
       template_images: ${{ steps.filter.outputs.template-images }}
       scripts: ${{ steps.filter.outputs.scripts }}
-      hadolint: ${{ steps.filter.outputs.hadolint }}
       python: ${{ steps.filter.outputs.python }}
       python_version: ${{ steps.toolchain.outputs.python_version }}
-      go_version: ${{ steps.toolchain.outputs.go_version }}
       terraform_version: ${{ steps.toolchain.outputs.terraform_version }}
+      tflint_version: ${{ steps.toolchain.outputs.tflint_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -82,11 +72,6 @@ jobs:
               # against the pins in this export, and molecule converges
               # install from it.
               - 'requirements-ansible.txt'
-            golang-files:
-              - '**/*.go'
-              - 'go.mod'
-              - 'go.sum'
-              - 'devcontainers/golang/**'
             terraform:
               - '**/*.tf'
               - 'terraform/**'
@@ -141,15 +126,6 @@ jobs:
               - 'examples/*/.devcontainer/*.json'
             scripts:
               - 'scripts/**'
-            # The files that pin hadolint and the guard that compares them,
-            # so a pull request moving a single pin still runs Dockerfile
-            # Lint. A filter of its own, not more paths under devcontainer:
-            # that one also starts the image builds.
-            hadolint:
-              - '.github/workflows/ci.yml'
-              - 'Makefile'
-              - '.pre-commit-config.yaml'
-              - 'scripts/check-hadolint-parity.sh'
             python:
               - '**/*.py'
               - 'requirements.txt'
@@ -177,28 +153,87 @@ jobs:
               - 'devcontainers/**/devcontainer*.json'
               - '.devcontainer/**/devcontainer*.json'
               - 'examples/*/.devcontainer/*.json'
-              # tests/test_check_hadolint_parity.py runs the guard on the
-              # repository's own pins (ci.yml is one, in the line below).
+              # tests/test_workflow_contracts.py reads them all, and checks
+              # the Lint job against these two: the lint-deps target it runs
+              # and the hooks it runs.
+              - '.github/workflows/*.yml'
               - 'Makefile'
               - '.pre-commit-config.yaml'
-              # tests/test_workflow_contracts.py reads them all.
-              - '.github/workflows/*.yml'
 
-      - name: Check Go module exists
-        id: golang-check
+  # The only lint in CI: the pre-commit hooks, the same run as `make lint`.
+  # The script-lint, dockerfile-lint and terraform-ci jobs here and
+  # quality.yml's lint jobs ran a second copy of some hooks, at other
+  # versions, over other files. No changes filter, on purpose: this is the
+  # lint contract, and each hook selects its own files. The Python tools come
+  # from uv.lock; terraform and tflint are the versions the terraform image
+  # ships (scripts/derive-toolchain-versions.sh).
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    needs: changes
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      UV_PYTHON: ${{ needs.changes.outputs.python_version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ needs.changes.outputs.python_version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
+        with:
+          terraform_version: ${{ needs.changes.outputs.terraform_version }}
+          terraform_wrapper: false
+
+      # Checked against the release's checksums.txt, as the terraform image
+      # checks the same download (devcontainers/terraform/Dockerfile).
+      - name: Install tflint
         env:
-          GOLANG_FILES: ${{ steps.filter.outputs.golang-files }}
+          TFLINT_VERSION: ${{ needs.changes.outputs.tflint_version }}
         run: |
-          if [ -f "go.mod" ] && [ "${GOLANG_FILES}" == "true" ]; then
-            echo "enabled=true" >> $GITHUB_OUTPUT
-          else
-            echo "enabled=false" >> $GITHUB_OUTPUT
-            echo "::notice::Go changes detected but no go.mod found, skipping Go CI"
-          fi
+          set -euo pipefail
+          DEST="${RUNNER_TEMP}/tflint"
+          BASE="https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}"
+          mkdir -p "${DEST}/bin"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${BASE}/tflint_linux_amd64.zip" -o "${DEST}/tflint_linux_amd64.zip"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${BASE}/checksums.txt" -o "${DEST}/checksums.txt"
+          (cd "${DEST}" && grep ' tflint_linux_amd64.zip$' checksums.txt | sha256sum --check --strict -)
+          unzip -q "${DEST}/tflint_linux_amd64.zip" tflint -d "${DEST}/bin"
+          echo "${DEST}/bin" >> "${GITHUB_PATH}"
+          "${DEST}/bin/tflint" --version
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # The uv.lock environment, and the Ansible collections the ansible
+      # images ship, which ansible-lint (offline) resolves modules against.
+      - name: Install the lint dependencies
+        run: make lint-deps
+
+      - name: Run pre-commit
+        run: uv run --locked --no-build pre-commit run --all-files --show-diff-on-failure
 
   test-playbooks:
     name: Test Playbooks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.ansible == 'true'
     timeout-minutes: 15
@@ -250,88 +285,13 @@ jobs:
             echo "::warning::Test playbook not found, skipping"
           fi
 
-  golang-ci:
-    name: Golang CI
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.golang == 'true'
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
-        with:
-          go-version: ${{ needs.changes.outputs.go_version }}
-          cache: true
-
-      - name: Verify Go installation
-        run: go version
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Check gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "::error::The following files need formatting:"
-            echo "$unformatted"
-            gofmt -d .
-            exit 1
-          fi
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run go test
-        run: go test -v -race -coverprofile=coverage.txt ./...
-
-
-  terraform-ci:
-    name: Terraform Checks
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.terraform == 'true'
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
-        with:
-          terraform_version: ${{ needs.changes.outputs.terraform_version }}
-          terraform_wrapper: false
-
-      - name: Cache Terraform providers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.terraform.d/plugin-cache
-          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: terraform-${{ runner.os }}-
-
-      - name: Terraform Format Check
-        run: terraform fmt -recursive -check
-
-      - name: Run Terraform validation
-        run: |
-          if [ -x "./scripts/run-terraform-tests.sh" ]; then
-            ./scripts/run-terraform-tests.sh
-          else
-            echo "::notice::Terraform test script not found or not executable"
-          fi
-
-  script-lint:
-    name: Script Lint
-    runs-on: ubuntu-latest
+  # PSScriptAnalyzer, as Script Lint ran it before shellcheck moved to
+  # pre-commit: unpinned Install-Module and non-blocking, unchanged. Whether
+  # it becomes a pinned, blocking check of the user-facing .ps1 scripts or
+  # goes is the owner's call; until then it keeps a job of its own.
+  powershell-lint:
+    name: PowerShell Lint
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.scripts == 'true'
     timeout-minutes: 10
@@ -341,13 +301,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Run shellcheck
-        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca  # master
-        with:
-          scandir: './scripts'
-          severity: error
-          ignore_paths: '*.ps1'
 
       - name: Lint PowerShell scripts
         if: hashFiles('scripts/*.ps1') != ''
@@ -361,38 +314,9 @@ jobs:
           }
         continue-on-error: true
 
-  dockerfile-lint:
-    name: Dockerfile Lint
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.devcontainer == 'true' || needs.changes.outputs.hadolint == 'true'
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Check hadolint version parity
-        run: bash scripts/check-hadolint-parity.sh
-
-      - name: Run hadolint on each Dockerfile
-        run: |
-          # Dockerfile*, not Dockerfile: the narrower glob never linted
-          # devcontainers/ansible/Dockerfile.podman.
-          for dockerfile in devcontainers/*/Dockerfile*; do
-            if [ -f "$dockerfile" ]; then
-              echo "Linting $dockerfile"
-              docker run --rm -i "hadolint/hadolint:${HADOLINT_VERSION}@${HADOLINT_DIGEST}" hadolint \
-                --failure-threshold error \
-                - < "$dockerfile"
-            fi
-          done
-
   devcontainer-state:
     name: Devcontainer State
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: >-
       needs.changes.outputs.devcontainer == 'true'
@@ -441,7 +365,7 @@ jobs:
       contents: read
       packages: write
       security-events: write
-    needs: [changes, dockerfile-lint]
+    needs: [changes, lint]
     if: needs.changes.outputs.devcontainer == 'true'
     strategy:
       fail-fast: false
@@ -697,7 +621,7 @@ jobs:
 
   devcontainer-cli-test:
     name: DevContainer CLI (${{ matrix.stack }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, devcontainer-build]
     if: needs.changes.outputs.devcontainer == 'true'
     timeout-minutes: 30
@@ -873,7 +797,7 @@ jobs:
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.python == 'true'
     timeout-minutes: 15
@@ -929,7 +853,7 @@ jobs:
 
   ansible-test:
     name: Ansible Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.ansible == 'true'
     timeout-minutes: 15
@@ -977,7 +901,7 @@ jobs:
 
   molecule:
     name: Molecule (${{ matrix.distro }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, test-playbooks]
     if: |
       needs.changes.outputs.ansible == 'true' &&
@@ -1061,7 +985,7 @@ jobs:
 
   scenario-tests:
     name: Scenario Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, devcontainer-build]
     if: |
       github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
@@ -1092,62 +1016,24 @@ jobs:
             ./scripts/scenarios/run-latex-cv.sh
           fi
 
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      security-events: write
-      contents: read
-    # PRs get the scan too so dependency vulns surface before merge;
-    # SARIF upload stays main-only (PR uploads pollute branch alerts)
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Run filesystem scan with Grype
-        id: grype-fs
-        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
-        env:
-          GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
-        with:
-          path: "."
-          severity-cutoff: high
-          only-fixed: true
-          output-format: sarif
-
-      - name: Upload Grype SARIF
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
-        if: always() && github.event_name == 'push'
-        with:
-          sarif_file: ${{ steps.grype-fs.outputs.sarif }}
-          category: grype-fs
-
   ci-success:
     name: CI Success
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
-    # security is left out on purpose. It scans the checkout against the Grype
-    # database of the day and fails on any fixable high, so an advisory
-    # published overnight for a package this repository already pins turns it
-    # red with nothing wrong in the pull request. On 2026-10-26 it failed 11
-    # pull requests within half an hour, a digest bump touching only
-    # devcontainers/latex/Dockerfile among them, and on 2026-08-10 it failed 12.
-    # As a need of this required check it would block every pull request but
-    # the fix itself, and with two advisories at once each fix stays red on the
-    # other, as the image scan did to Renovate on 2026-10-27.
+    # Every job but quality-summary, which only repeats Lint's result under
+    # another name. There is no filesystem Grype scan here any more: it sat
+    # outside this check on purpose, so it decided nothing. A scan of the
+    # checkout against the database of the day must not become a need: an
+    # advisory published overnight for a package this repository already
+    # pins would block every pull request but the fix (11 on 2026-10-26, 12
+    # on 2026-08-10).
     needs:
       - changes
+      - lint
+      - powershell-lint
       - test-playbooks
-      - golang-ci
-      - terraform-ci
-      - script-lint
-      - dockerfile-lint
       - devcontainer-state
       - devcontainer-build
       - devcontainer-cli-test
@@ -1190,3 +1076,31 @@ jobs:
           fi
 
           echo "✅ CI passed!"
+
+  # TEMPORARY ALIAS for branch protection. Develop and main require a check
+  # named "Quality Summary", which quality.yml produced. That workflow is
+  # gone: its lint is the Lint job above, and its radon, vulture and bandit
+  # reports, which could not fail, come back later as a real quality gate.
+  # This job keeps the required name alive and passes only when Lint
+  # passed. Delete it when protection moves to the single ci-gate check.
+  quality-summary:
+    name: Quality Summary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    needs: lint
+    if: always()
+    steps:
+      - name: Check results
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+        run: |
+          # Allow-list: only success passes. Lint has no changes filter, so a
+          # skipped Lint means the job it needs failed, and a cancelled one
+          # proved nothing.
+          if [ "${LINT_RESULT}" != "success" ]; then
+            echo "::error::Lint did not pass (${LINT_RESULT:-no result})"
+            exit 1
+          fi
+          echo "Lint passed."

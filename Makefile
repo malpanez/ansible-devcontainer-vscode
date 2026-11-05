@@ -12,29 +12,40 @@ help: ## Show this help message
 setup: ## Initial setup - install all dependencies
 	@echo "🚀 Setting up development environment..."
 	@command -v gh >/dev/null 2>&1 || (echo "Installing gh CLI..." && sudo apt-get update && sudo apt-get install -y gh)
-	@command -v pre-commit >/dev/null 2>&1 || (echo "Installing pre-commit..." && uvx pre-commit --version)
+	@$(MAKE) --no-print-directory lint-deps
 	@echo "Installing pre-commit hooks..."
-	@uvx pre-commit install --install-hooks
+	@uv run --locked --no-build pre-commit install --install-hooks
 	@echo "✅ Setup complete!"
 
+.PHONY: lint-deps
+lint-deps: ## Install what the lint hooks need: the uv.lock environment and the image's pinned Ansible collections
+	@uv sync --locked --no-build
+	@rm -rf .cache/ansible-lint/collections && mkdir -p .cache/ansible-lint/collections
+	@uv run --locked --no-build bash devcontainers/ansible/install-collections.sh \
+		.cache/ansible-lint/collections devcontainers/ansible/collections.txt
+
 .PHONY: lint
-lint: ## Run all linters
+lint: ## Run all linters (the same pre-commit run as CI's Lint job)
 	@echo "🔍 Running linters..."
-	@uvx pre-commit run --all-files
+	@uv run --locked --no-build pre-commit run --all-files
 
 .PHONY: lint-fix
 lint-fix: ## Run linters and auto-fix issues
 	@echo "🔧 Running linters with auto-fix..."
-	@uvx pre-commit run --all-files || true
+	@uv run --locked --no-build pre-commit run --all-files || uv run --locked --no-build pre-commit run --all-files
 	@echo "✅ Auto-fix complete!"
 
 .PHONY: security
 security: ## Run security scans
 	@echo "🔒 Running security scans..."
 	@echo "Checking for secrets..."
-	@uvx pre-commit run detect-secrets --all-files || true
+	@uv run --locked --no-build pre-commit run detect-secrets --all-files
 	@echo "Running Grype scan..."
-	@grype dir:. --only-fixed --fail-on high || echo "Grype not installed, skipping"
+	@if command -v grype >/dev/null 2>&1; then \
+		grype dir:. --only-fixed --fail-on high; \
+	else \
+		echo "Grype not installed, skipping"; \
+	fi
 	@echo "✅ Security scan complete!"
 
 .PHONY: test
@@ -85,7 +96,7 @@ clean: ## Clean cache and temporary files
 .PHONY: update-deps
 update-deps: ## Update all dependencies
 	@echo "⬆️  Updating dependencies..."
-	@uvx pre-commit autoupdate
+	@uv run --locked --no-build pre-commit autoupdate --freeze
 	@echo "✅ Dependencies updated! Review changes before committing."
 
 .PHONY: check-alerts
@@ -93,36 +104,18 @@ check-alerts: ## Check GitHub security alerts
 	@echo "🔔 Checking security alerts..."
 	@gh api repos/malpanez/ansible-devcontainer-vscode/code-scanning/alerts --jq '.[] | select(.state == "open") | {number: .number, severity: .rule.severity, rule: .rule.id}' || echo "gh CLI not authenticated"
 
-.PHONY: dismiss-alerts
-dismiss-alerts: ## Run alert management script (dry-run)
-	@echo "🤖 Running alert management (dry-run)..."
-	@DRY_RUN=true .github/scripts/manage-code-scanning-alerts.sh
-
-.PHONY: dismiss-alerts-for-real
-dismiss-alerts-for-real: ## Dismiss alerts for real (use with caution)
-	@echo "⚠️  Running alert management (REAL)..."
-	@read -p "Are you sure? Type 'yes' to confirm: " confirm; \
-	if [ "$$confirm" = "yes" ]; then \
-		DRY_RUN=false .github/scripts/manage-code-scanning-alerts.sh; \
-	else \
-		echo "Cancelled."; \
-	fi
-
 .PHONY: validate-yaml
 validate-yaml: ## Validate all YAML files
 	@echo "📝 Validating YAML files..."
-	@find . -name "*.yml" -o -name "*.yaml" | grep -v ".cache" | grep -v "node_modules" | xargs yamllint -c .yamllint || true
+	@uv run --locked --no-build pre-commit run yamllint --all-files
 
 .PHONY: validate-docker
 validate-docker: ## Validate all Dockerfiles
 	@echo "🐳 Validating Dockerfiles..."
-	@for f in $$(find . -name "Dockerfile*" -not -path "./.git/*" -not -path "./.venv/*"); do \
-		echo "Linting $$f"; \
-		docker run --rm -i hadolint/hadolint:v2.15.1 < "$$f" || exit 1; \
-	done
+	@uv run --locked --no-build pre-commit run hadolint --all-files
 
 .PHONY: ci-local
-ci-local: lint security validate-yaml validate-docker ## Run full CI pipeline locally
+ci-local: lint security ## Run the lint and security checks locally (lint already runs yamllint and hadolint)
 	@echo "✅ Full CI pipeline complete!"
 
 .PHONY: git-status
