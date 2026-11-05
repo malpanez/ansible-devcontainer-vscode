@@ -22,7 +22,7 @@ jobs:
   # the image did not carry.
   resolve-tags:
     name: Resolve Derived Tags
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -41,7 +41,7 @@ jobs:
 
   cleanup-untagged:
     name: Delete Untagged Images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       packages: write
       contents: read
@@ -88,7 +88,7 @@ jobs:
 
   verify-protected-tags:
     name: Verify Protected Tags
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [cleanup-untagged, resolve-tags]
     permissions:
       contents: read
@@ -142,7 +142,7 @@ jobs:
 
   report-tagged-cleanup-policy:
     name: Tagged Cleanup Policy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: cleanup-untagged
     permissions:
       contents: read
@@ -162,7 +162,7 @@ jobs:
   # had.
   report:
     name: Cleanup Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [resolve-tags, cleanup-untagged, verify-protected-tags, report-tagged-cleanup-policy]
     if: always()
     permissions:

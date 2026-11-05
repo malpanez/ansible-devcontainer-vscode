@@ -64,7 +64,7 @@ IMAGES: dict[str, str] = {
     "golang": MULTI_ARCH,
     "latex": AMD64,
 }
-RUNNERS: dict[str, str] = {AMD64: "ubuntu-latest", ARM64: "ubuntu-24.04-arm"}
+RUNNERS: dict[str, str] = {AMD64: "ubuntu-24.04", ARM64: "ubuntu-24.04-arm"}
 BASE = "base"
 PIN_GLOB = "devcontainers/*/devcontainer*.json"
 

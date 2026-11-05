@@ -14,7 +14,7 @@ permissions:
 jobs:
   guard-main:
     name: Guard Main Promotion Path
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: github.base_ref == 'main'
     steps:
@@ -30,7 +30,7 @@ jobs:
 
   guard-develop:
     name: Guard Develop Intake
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: github.base_ref == 'develop'
     steps:
