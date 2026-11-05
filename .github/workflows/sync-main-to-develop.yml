@@ -25,6 +25,7 @@ jobs:
   sync:
     name: Sync Main to Develop
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write

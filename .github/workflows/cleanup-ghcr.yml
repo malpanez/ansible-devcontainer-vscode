@@ -23,6 +23,7 @@ jobs:
   resolve-tags:
     name: Resolve Derived Tags
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -42,6 +43,7 @@ jobs:
   cleanup-untagged:
     name: Delete Untagged Images
     runs-on: ubuntu-24.04
+    timeout-minutes: 75
     permissions:
       packages: write
       contents: read
@@ -89,6 +91,7 @@ jobs:
   verify-protected-tags:
     name: Verify Protected Tags
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     needs: [cleanup-untagged, resolve-tags]
     permissions:
       contents: read
@@ -143,6 +146,7 @@ jobs:
   report-tagged-cleanup-policy:
     name: Tagged Cleanup Policy
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     needs: cleanup-untagged
     permissions:
       contents: read
@@ -163,6 +167,7 @@ jobs:
   report:
     name: Cleanup Summary
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     needs: [resolve-tags, cleanup-untagged, verify-protected-tags, report-tagged-cleanup-policy]
     if: always()
     permissions:
