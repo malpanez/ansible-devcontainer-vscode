@@ -17,11 +17,12 @@ images map, so main can prove its tree was tested either way:
      "tree": <the head's tree>}
 
   write --digests DIR --images JSON --base true|false --tree T --head H
-        --base-sha B --run-id N --output FILE
+        --base-sha B --run-id N > tested-digests.json
       Builds the record from the candidate builds' digest files in DIR, one
-      {"name", "digest"} JSON file per image. Their names must be exactly the
-      images the changes job resolved, and base when it was built: a record
-      that left one out would let main publish an image nobody tested.
+      {"name", "digest"} JSON file per image, and prints it on stdout. Their
+      names must be exactly the images the changes job resolved, and base when
+      it was built: a record that left one out would let main publish an image
+      nobody tested.
 
   find-run --repository R --sha S
       For a push to main: the pull request merged as S, which must come from
@@ -30,11 +31,15 @@ images map, so main can prove its tree was tested either way:
       $GITHUB_OUTPUT. Reads the GitHub API through `gh api` (GH_TOKEN, with
       actions: read and pull-requests: read).
 
-  verify --record FILE --tree T --run-id N
-      Fails unless the record is well formed, came from run N and names tree T,
-      the tree of the commit main is at.
+  verify --tree T --run-id N < tested-digests.json
+      Fails unless the record on stdin is well formed, came from run N and
+      names tree T, the tree of the commit main is at.
 
 Every failure prints ::error:: with what to do, and exits 1. Usage errors exit 2.
+
+The record goes through stdout and stdin, not a path option: a path taken from
+argv is what SonarCloud's pythonsecurity:S8707 flags, as it did on #602. What
+reaches `gh api` is only what the patterns below matched (S8705).
 """
 
 from __future__ import annotations
@@ -53,6 +58,7 @@ SOURCE_BRANCH = "develop"
 TARGET_BRANCH = "main"
 BASE = "base"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
+REPOSITORY_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*/[A-Za-z0-9_.][A-Za-z0-9_.-]*")
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 RECORD_KEYS = {"base", "head", "images", "run_id", "tree"}
@@ -63,9 +69,17 @@ class RecordError(Exception):
 
 
 def _sha(value: str, what: str) -> str:
-    if not SHA_RE.fullmatch(value):
+    match = SHA_RE.fullmatch(value)
+    if match is None:
         raise RecordError(f"{what} is {json.dumps(value)}, not a 40-character SHA-1")
-    return value
+    return match.group(0)
+
+
+def _repository(value: str) -> str:
+    match = REPOSITORY_RE.fullmatch(value)
+    if match is None:
+        raise RecordError(f"--repository is {json.dumps(value)}, not owner/name")
+    return match.group(0)
 
 
 def _run_id(value: str | int) -> int:
@@ -94,7 +108,7 @@ def read_digests(directory: Path) -> dict[str, str]:
     for path in files:
         try:
             entry = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, ValueError) as exc:
+        except (OSError, ValueError) as exc:
             raise RecordError(f"{path.name} cannot be read: {exc}") from exc
         if not isinstance(entry, dict) or set(entry) != {"name", "digest"}:
             raise RecordError(
@@ -179,6 +193,8 @@ def _gh_api(path: str, kind: type) -> Any:
 
 def find_run(repository: str, sha: str) -> dict[str, str]:
     """The promotion pull request merged as sha, and the run that tested it."""
+    repository = _repository(repository)
+    sha = _sha(sha, "--sha")
     pulls = _gh_api(f"repos/{repository}/commits/{sha}/pulls", list)
     merged = [
         pull
@@ -236,7 +252,7 @@ def find_run(repository: str, sha: str) -> dict[str, str]:
             f" {head_sha}: it merged before its candidate run passed. Re-run that"
             " run, then this job"
         )
-    run_id = passed[-1]["id"]
+    run_id = _run_id(passed[-1]["id"])
     artifacts = _gh_api(
         f"repos/{repository}/actions/runs/{run_id}/artifacts?name={ARTIFACT}", dict
     )
@@ -276,16 +292,19 @@ def _write(args: argparse.Namespace) -> int:
         )
     except (RecordError, ValueError) as exc:
         return _fail(exc)
-    Path(args.output).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    print(f"Tree {record['tree']} (develop {record['head']}), run {record['run_id']}:")
+    print(json.dumps(record, indent=2))
+    print(
+        f"Tree {record['tree']} (develop {record['head']}), run {record['run_id']}:",
+        file=sys.stderr,
+    )
     for name, digest in record["images"].items() or [("no image built", "")]:
-        print(f"  {name} {digest}".rstrip())
+        print(f"  {name} {digest}".rstrip(), file=sys.stderr)
     return 0
 
 
 def _find_run(args: argparse.Namespace) -> int:
     try:
-        found = find_run(args.repository, _sha(args.sha, "--sha"))
+        found = find_run(args.repository, args.sha)
     except RecordError as exc:
         return _fail(exc)
     for key, value in found.items():
@@ -295,9 +314,9 @@ def _find_run(args: argparse.Namespace) -> int:
 
 def _verify(args: argparse.Namespace) -> int:
     try:
-        record = json.loads(Path(args.record).read_text(encoding="utf-8"))
+        record = json.loads(sys.stdin.read())
         images = check_record(record, args.tree, args.run_id)
-    except (OSError, UnicodeDecodeError, ValueError, RecordError) as exc:
+    except (OSError, ValueError, RecordError) as exc:
         return _fail(exc)
     print(f"Run {args.run_id} tested tree {args.tree}, develop {record['head']}:")
     for name, digest in images.items() or [("no image changed", "")]:
@@ -316,12 +335,12 @@ def main(argv: list[str] | None = None) -> int:
     write.add_argument("--head", required=True, help="The develop commit built.")
     write.add_argument("--base-sha", required=True, help="main's commit.")
     write.add_argument("--run-id", required=True, help="This run's id.")
-    write.add_argument("--output", required=True, help="Where to write it.")
     find = commands.add_parser("find-run", help="The run that tested a main push.")
     find.add_argument("--repository", required=True, help="owner/name.")
     find.add_argument("--sha", required=True, help="The commit pushed to main.")
-    verify = commands.add_parser("verify", help="Check a record against a tree.")
-    verify.add_argument("--record", required=True, help="tested-digests.json.")
+    verify = commands.add_parser(
+        "verify", help="Check the record on stdin against a tree."
+    )
     verify.add_argument("--tree", required=True, help="The tree main is at.")
     verify.add_argument("--run-id", required=True, help="The run it came from.")
     args = parser.parse_args(argv)

@@ -33,11 +33,12 @@ fi
 
 
 def _run(
-    *args: str, env: dict[str, str] | None = None
+    *args: str, env: dict[str, str] | None = None, stdin: str = ""
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-I", str(SCRIPT), *args],
         env={**os.environ, **(env or {})},
+        input=stdin,
         capture_output=True,
         text=True,
         check=False,
@@ -79,9 +80,10 @@ def _write(
         BASE_SHA,
         "--run-id",
         "42",
-        "--output",
-        str(output),
     )
+    # The record is stdout, as ci.yml redirects it to tested-digests.json.
+    if proc.returncode == 0:
+        output.write_text(proc.stdout)
     return proc, output
 
 
@@ -185,7 +187,8 @@ def _record(tmp_path: Path, **overrides: Any) -> Path:
 def _verify(
     path: Path, tree: str = TREE, run_id: str = "42"
 ) -> subprocess.CompletedProcess[str]:
-    return _run("verify", "--record", str(path), "--tree", tree, "--run-id", run_id)
+    stdin = path.read_text() if path.is_file() else ""
+    return _run("verify", "--tree", tree, "--run-id", run_id, stdin=stdin)
 
 
 def test_a_record_of_this_tree_passes(tmp_path: Path) -> None:
@@ -228,7 +231,7 @@ def test_a_record_that_is_not_this_run_s_or_malformed_fails(
     assert "::error" in proc.stderr
 
 
-def test_a_missing_record_fails(tmp_path: Path) -> None:
+def test_an_empty_record_fails(tmp_path: Path) -> None:
     proc = _verify(tmp_path / "missing.json")
 
     assert proc.returncode == 1
@@ -320,6 +323,29 @@ def test_the_newest_successful_run_of_the_promotion_is_found(tmp_path: Path) -> 
 
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout.splitlines() == ["run_id=9", "pr=633", f"head={HEAD_SHA}"]
+
+
+@pytest.mark.parametrize(
+    ("repository", "sha", "named"),
+    [
+        ("-x/ansible-devcontainer-vscode", MAIN_SHA, "not owner/name"),
+        (f"{REPOSITORY}/extra", MAIN_SHA, "not owner/name"),
+        (REPOSITORY, "-" + "a" * 39, "not a 40-character SHA-1"),
+        (REPOSITORY, "A" * 40, "not a 40-character SHA-1"),
+    ],
+)
+def test_find_run_hands_gh_only_a_repository_and_a_sha(
+    tmp_path: Path, repository: str, sha: str, named: str
+) -> None:
+    # Fixtures that would answer, so a call that got through would pass.
+    env = _github(
+        tmp_path, [_pull()], [_run_entry(9, "2026-11-06T08:05:00Z")], {9: ARTIFACT}
+    )
+
+    proc = _run("find-run", f"--repository={repository}", f"--sha={sha}", env=env)
+
+    assert proc.returncode == 1
+    assert named in proc.stderr
 
 
 def test_a_fork_s_run_of_the_same_head_is_not_the_promotion_s(tmp_path: Path) -> None:

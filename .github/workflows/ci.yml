@@ -1781,7 +1781,7 @@ jobs:
           TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
           python3 scripts/tested-digests.py write --digests "${RUNNER_TEMP}/candidate-digest" \
             --images "${IMAGES}" --base "${BASE}" --tree "${TREE}" --head "${HEAD_SHA}" \
-            --base-sha "${BASE_SHA}" --run-id "${GITHUB_RUN_ID}" --output "${RUNNER_TEMP}/tested-digests.json"
+            --base-sha "${BASE_SHA}" --run-id "${GITHUB_RUN_ID}" > "${RUNNER_TEMP}/tested-digests.json"
 
       - name: Login to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
@@ -1852,8 +1852,8 @@ jobs:
         run: |
           set -euo pipefail
           TREE="$(git rev-parse 'HEAD^{tree}')"
-          python3 scripts/tested-digests.py verify --record "${RUNNER_TEMP}/tested-digests/tested-digests.json" \
-            --tree "${TREE}" --run-id "${RUN_ID}"
+          python3 scripts/tested-digests.py verify --tree "${TREE}" --run-id "${RUN_ID}" \
+            < "${RUNNER_TEMP}/tested-digests/tested-digests.json"
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
