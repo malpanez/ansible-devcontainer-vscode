@@ -265,6 +265,14 @@ def test_candidate_without_base_tests_no_base() -> None:
 
 
 @pytest.mark.parametrize(
+    ("images", "base"), [('["golang","latex"]', "true"), ("[]", "false")]
+)
+def test_nightly_builds_and_tests_as_candidate_mode(images: str, base: str) -> None:
+    # Nightly mode's digests are what 2d publishes too: every platform, built.
+    assert _ci_matrix("nightly", images, base) == _ci_matrix("candidate", images, base)
+
+
+@pytest.mark.parametrize(
     ("mode", "images", "base"),
     [
         ("publish", "[]", "false"),

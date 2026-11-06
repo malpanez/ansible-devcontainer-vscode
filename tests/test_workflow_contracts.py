@@ -68,9 +68,13 @@ IMAGE_SUMMARY_NEEDS = [
     "image",
     "candidate-tag",
 ]
-# The jobs that push to GHCR from a pull_request run, in candidate mode only.
+# The jobs that push to GHCR, from a pull_request run in candidate mode and
+# from a dispatch or a schedule in nightly mode, and only then.
 CANDIDATE_JOBS = ("candidate-base", "candidate-build", "candidate-tag")
-CANDIDATE_IF = "needs.changes.outputs.mode == 'candidate'"
+PUSHED_MODES = 'fromJSON(\'["candidate", "nightly"]\')'
+CANDIDATE_IF = f"contains({PUSHED_MODES}, needs.changes.outputs.mode)"
+# The legs' condition for testing a pushed candidate digest.
+PULLED_IF = f"contains({PUSHED_MODES}, env.MODE)"
 GHCR_JOBS_OK = {
     "resolve_tags": "success",
     "cleanup_untagged": "success",
@@ -326,13 +330,20 @@ def test_image_jobs_skip_on_an_empty_image_list() -> None:
     }
 
 
-def _resolve_images(tmp_path: Path, event: str, changes: str) -> dict[str, str]:
+def _resolve_images(
+    tmp_path: Path, event: str, changes: str, mode: str = "verification"
+) -> dict[str, str]:
     output = tmp_path / "output"
     proc = _run_step(
         "ci",
         "changes",
         "Resolve the images to test",
-        {"GITHUB_EVENT_NAME": event, "CHANGES": changes, "GITHUB_OUTPUT": str(output)},
+        {
+            "MODE": mode,
+            "GITHUB_EVENT_NAME": event,
+            "CHANGES": changes,
+            "GITHUB_OUTPUT": str(output),
+        },
     )
     assert proc.returncode == 0, proc.stderr
     return _outputs(output)
@@ -873,7 +884,7 @@ def test_only_candidate_jobs_write_a_registry_cache_on_a_pull_request() -> None:
                 )
     # The verification build's strategy logs in nowhere: it writes nothing.
     image = _workflow("ci")["jobs"]["image"]
-    assert _step(image, "Login to GHCR")["if"] == "env.MODE == 'candidate'"
+    assert _step(image, "Login to GHCR")["if"] == PULLED_IF
     assert (
         _step(image, "Determine cache strategy")["if"] == "env.MODE == 'verification'"
     )
@@ -942,7 +953,7 @@ def test_the_scan_blocks_on_critical_in_verification_and_high_in_candidate() -> 
     assert image["env"]["MODE"] == "${{ needs.changes.outputs.mode }}"
     assert (
         scan["with"]["severity-cutoff"]
-        == "${{ env.MODE == 'candidate' && 'high' || 'critical' }}"
+        == f"${{{{ {PULLED_IF} && 'high' || 'critical' }}}}"
     )
     assert scan["with"]["fail-build"] == "true"
     assert scan["with"]["only-fixed"] is True
@@ -1492,9 +1503,14 @@ def _release_images() -> ModuleType:
     return module
 
 
-def _mode(
-    tmp_path: Path, event: str, head_repo: str, head_ref: str, base_ref: str
-) -> str:
+def _decide_mode(
+    tmp_path: Path,
+    event: str,
+    head_repo: str,
+    head_ref: str,
+    base_ref: str,
+    mode_input: str = "",
+) -> tuple[subprocess.CompletedProcess[str], Path]:
     output = tmp_path / "mode"
     proc = _run_step(
         "ci",
@@ -1506,10 +1522,25 @@ def _mode(
             "HEAD_REF": head_ref,
             "BASE_REF": base_ref,
             "REPOSITORY": REPOSITORY,
+            "MODE_INPUT": mode_input,
             "GITHUB_OUTPUT": str(output),
         },
     )
-    assert proc.returncode == 0, proc.stderr
+    return proc, output
+
+
+def _mode(
+    tmp_path: Path,
+    event: str,
+    head_repo: str,
+    head_ref: str,
+    base_ref: str,
+    mode_input: str = "",
+) -> str:
+    proc, output = _decide_mode(
+        tmp_path, event, head_repo, head_ref, base_ref, mode_input
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
     return _outputs(output)["mode"]
 
 
@@ -1551,6 +1582,7 @@ def test_the_mode_reads_the_event_not_the_branch_name_alone() -> None:
         "HEAD_REF": "${{ github.head_ref }}",
         "BASE_REF": "${{ github.base_ref }}",
         "REPOSITORY": "${{ github.repository }}",
+        "MODE_INPUT": "${{ inputs.mode || '' }}",
     }
 
 
@@ -1589,10 +1621,14 @@ def test_every_checkout_in_ci_drops_its_credentials() -> None:
 
 
 def test_candidates_build_and_test_the_pull_request_head() -> None:
+    # Or, in nightly mode, which has no pull request, the run's commit.
     jobs = _workflow("ci")["jobs"]
     for job_name in CANDIDATE_JOBS:
         checkout = jobs[job_name]["steps"][0]
-        assert checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha }}"
+        assert checkout["with"]["ref"] == (
+            "${{ needs.changes.outputs.mode == 'nightly' && github.sha"
+            " || github.event.pull_request.head.sha }}"
+        )
     image_checkout = jobs["image"]["steps"][0]["with"]["ref"]
     assert image_checkout == (
         "${{ needs.changes.outputs.mode == 'candidate'"
@@ -1697,7 +1733,7 @@ def test_every_candidate_leg_checks_the_pulled_platform_before_any_check() -> No
     pull = _step(image, "Pull the candidate by digest")
     record = _step(image, "Record the image under test")
 
-    assert pull["if"] == "env.MODE == 'candidate'"
+    assert pull["if"] == PULLED_IF
     assert pull["env"]["PLATFORM"] == "${{ matrix.platform }}"
     assert names.index("Download the candidate digest") < names.index(
         "Pull the candidate by digest"
@@ -1784,7 +1820,7 @@ def test_the_verification_build_steps_skip_in_candidate_mode() -> None:
     for step in image["steps"][first : last + 1]:
         assert step["if"].startswith("env.MODE == 'verification'"), step["name"]
     for name in ("Login to GHCR", "Download the candidate digest"):
-        assert _step(image, name)["if"] == "env.MODE == 'candidate'"
+        assert _step(image, name)["if"] == PULLED_IF
     assert names.index("Build ${{ matrix.image }}") < names.index("Login to GHCR")
 
 
@@ -2321,3 +2357,474 @@ def test_a_promotion_whose_runs_stay_parked_fails_red() -> None:
     )
     # Auto-merge is still enabled when the approval failed.
     assert merge["if"].startswith("${{ !cancelled() && ")
+
+
+# Phase 2d-1: every candidate run builds every image and attests it, the PR
+# base reads the candidates' cache, and nightly mode (nightly.yml calling
+# ci.yml) builds, tests and records every image without tagging it, and runs
+# nothing but the image jobs.
+
+ATTEST_ACTION = "actions/attest-build-provenance@"
+# The jobs that test the repository rather than an image.
+REPOSITORY_JOBS = (
+    "test-playbooks",
+    "powershell-lint",
+    "devcontainer-state",
+    "unit-tests",
+    "ansible-test",
+    "molecule",
+    "scenario-tests",
+)
+NOT_NIGHTLY = "needs.changes.outputs.mode != 'nightly'"
+CI_GROUP = (
+    "${{ github.workflow }}-${{ github.ref }}"
+    "${{ inputs.mode && format('-ci.yml-{0}', inputs.mode) || '' }}"
+)
+LEVELS = {"none": 0, "read": 1, "write": 2}
+
+
+@pytest.mark.parametrize(
+    ("event", "changes", "mode"),
+    [
+        # A promotion that changed no image file still builds them all.
+        ("pull_request", '["python"]', "candidate"),
+        ("pull_request", "[]", "candidate"),
+        ("workflow_dispatch", "", "nightly"),
+        # 2d-2's schedule: paths-filter does not run, so no changes output.
+        ("schedule", "", "nightly"),
+    ],
+)
+def test_candidate_and_nightly_mode_build_every_image(
+    tmp_path: Path, event: str, changes: str, mode: str
+) -> None:
+    resolved = _resolve_images(tmp_path, event, changes, mode)
+
+    assert sorted(json.loads(resolved["images"])) == STACKS
+    assert resolved["base"] == "true"
+
+
+def test_the_filter_decides_nothing_in_nightly_mode() -> None:
+    changes = _workflow("ci")["jobs"]["changes"]
+    filter_step = next(
+        step
+        for step in changes["steps"]
+        if step.get("uses", "").startswith(PATHS_FILTER_ACTION)
+    )
+    images = _step(changes, "Resolve the images to test")
+
+    assert filter_step["if"] == "steps.mode.outputs.mode != 'nightly'"
+    assert images["env"]["MODE"] == "${{ steps.mode.outputs.mode }}"
+
+
+@pytest.mark.parametrize(
+    ("event", "head_repo", "head_ref", "base_ref", "mode_input", "mode"),
+    [
+        ("workflow_dispatch", "", "", "", "nightly", "nightly"),
+        ("schedule", "", "", "", "nightly", "nightly"),
+        ("workflow_dispatch", "", "", "", "verification", "verification"),
+        # A caller in the promotion pull request asking for verification gets
+        # the mode the event gives, as before the input existed.
+        ("pull_request", REPOSITORY, "develop", "main", "verification", "candidate"),
+    ],
+)
+def test_nightly_mode_is_a_dispatch_or_a_schedule_that_asks_for_it(
+    tmp_path: Path,
+    event: str,
+    head_repo: str,
+    head_ref: str,
+    base_ref: str,
+    mode_input: str,
+    mode: str,
+) -> None:
+    assert _mode(tmp_path, event, head_repo, head_ref, base_ref, mode_input) == mode
+
+
+@pytest.mark.parametrize(
+    ("event", "head_repo", "head_ref", "base_ref", "mode_input", "named"),
+    [
+        # A pull request's run takes its workflow files from the pull request,
+        # a fork's too: a caller there must not get the mode that pushes.
+        (
+            "pull_request",
+            REPOSITORY,
+            "develop",
+            "main",
+            "nightly",
+            "not on pull_request",
+        ),
+        (
+            "pull_request",
+            "someone/fork",
+            "develop",
+            "main",
+            "nightly",
+            "not on pull_request",
+        ),
+        ("pull_request_target", REPOSITORY, "develop", "main", "nightly", "not on"),
+        ("pull_request_review", REPOSITORY, "develop", "main", "nightly", "not on"),
+        ("push", "", "", "", "nightly", "not on push"),
+        ("workflow_run", "", "", "", "nightly", "not on workflow_run"),
+        ("workflow_dispatch", "", "", "", "candidate", "Unknown mode 'candidate'"),
+        ("workflow_dispatch", "", "", "", "Nightly", "Unknown mode 'Nightly'"),
+    ],
+)
+def test_nightly_mode_cannot_be_asked_for_by_any_other_event(
+    tmp_path: Path,
+    event: str,
+    head_repo: str,
+    head_ref: str,
+    base_ref: str,
+    mode_input: str,
+    named: str,
+) -> None:
+    proc, output = _decide_mode(
+        tmp_path, event, head_repo, head_ref, base_ref, mode_input
+    )
+
+    assert proc.returncode == 1
+    assert "::error::" in proc.stdout
+    assert named in proc.stdout
+    assert not output.exists()
+
+
+def test_ci_takes_the_mode_from_a_dispatch_or_a_call_and_has_no_schedule() -> None:
+    triggers = _triggers(_workflow("ci"))
+
+    assert set(triggers) == {
+        "push",
+        "pull_request",
+        "workflow_dispatch",
+        "workflow_call",
+    }
+    assert "schedule" not in triggers
+    dispatch = triggers["workflow_dispatch"]["inputs"]["mode"]
+    assert dispatch["type"] == "choice"
+    assert dispatch["default"] == "verification"
+    assert dispatch["options"] == ["verification", "nightly"]
+    call = triggers["workflow_call"]["inputs"]["mode"]
+    assert call["type"] == "string"
+    assert call["required"] is True
+
+
+def _group(group: str, workflow: str, ref: str, mode: str | None) -> str:
+    """The concurrency group as GitHub evaluates it, for the two forms used
+    here: ci.yml's and nightly.yml's."""
+    suffix = "${{ inputs.mode && format('-ci.yml-{0}', inputs.mode) || '' }}"
+    rendered = group.replace(suffix, f"-ci.yml-{mode}" if mode else "")
+    rendered = rendered.replace("${{ github.workflow }}", workflow)
+    rendered = rendered.replace("${{ github.ref }}", ref)
+    assert "${{" not in rendered, rendered
+    return rendered
+
+
+def test_a_call_never_shares_its_caller_s_concurrency_group() -> None:
+    ci = _workflow("ci")
+    nightly = _workflow("nightly")
+
+    assert ci["concurrency"] == {"group": CI_GROUP, "cancel-in-progress": True}
+    # A push and a pull request keep the group they always had.
+    for ref in ("refs/heads/develop", "refs/pull/636/merge"):
+        assert _group(CI_GROUP, ci["name"], ref, None) == f"CI Pipeline-{ref}"
+    # A called run's github.workflow is the caller's name, so a caller grouped
+    # as ci.yml groups would be cancelled by its own call without the suffix.
+    called = _group(CI_GROUP, nightly["name"], "refs/heads/main", "nightly")
+    plain_caller = _group(
+        "${{ github.workflow }}-${{ github.ref }}",
+        nightly["name"],
+        "refs/heads/main",
+        None,
+    )
+    ours = _group(
+        nightly["concurrency"]["group"], nightly["name"], "refs/heads/main", None
+    )
+    assert called == "Nightly-refs/heads/main-ci.yml-nightly"
+    # Compared without case, in case GitHub matches groups so.
+    assert called.lower() not in {plain_caller.lower(), ours.lower()}
+    # A nightly dispatched directly never cancels a push run of its branch.
+    assert _group(CI_GROUP, ci["name"], "refs/heads/main", "nightly") != _group(
+        CI_GROUP, ci["name"], "refs/heads/main", None
+    )
+    assert nightly["concurrency"]["cancel-in-progress"] is False
+
+
+def test_nightly_is_dispatched_and_calls_ci_in_nightly_mode() -> None:
+    nightly = _workflow("nightly")
+    triggers = _triggers(nightly)
+
+    # 2d-2 adds the schedule here; never in ci.yml (see its triggers).
+    assert set(triggers) == {"workflow_dispatch"}
+    assert nightly["permissions"] == {}
+    assert list(nightly["jobs"]) == ["ci"]
+    job = nightly["jobs"]["ci"]
+    assert job["uses"] == "./.github/workflows/ci.yml"
+    assert job["with"] == {"mode": "nightly"}
+    assert "secrets" not in job
+    callers = [
+        (name, job_name)
+        for name, workflow in _all_workflows().items()
+        for job_name, job in workflow["jobs"].items()
+        if "ci.yml" in str(job.get("uses", ""))
+    ]
+    assert callers == [("nightly", "ci")]
+
+
+def test_nightly_grants_what_every_job_of_ci_asks_for() -> None:
+    # GitHub checks every called job against the caller's grant before the run
+    # starts, skipped jobs included, and fails the run at startup when one
+    # asks for more. More than they ask for is more than the run needs.
+    asked: dict[str, str] = {}
+    for job in _workflow("ci")["jobs"].values():
+        for scope, level in job.get("permissions", {}).items():
+            if LEVELS[level] > LEVELS[asked.get(scope, "none")]:
+                asked[scope] = level
+
+    assert _workflow("nightly")["jobs"]["ci"]["permissions"] == asked
+    assert asked["id-token"] == asked["attestations"] == asked["packages"] == "write"
+
+
+def test_the_pull_request_base_reads_the_cache_the_candidates_write() -> None:
+    jobs = _workflow("ci")["jobs"]
+    probe = _step(jobs["base"], "Resolve the base build cache")
+    written = _build_step("ci", "candidate-base")["cache-to"]
+
+    cache_ref = probe["env"]["CACHE_REF"]
+    assert (
+        cache_ref
+        == "ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache"
+    )
+    assert written.startswith(f"type=registry,ref={cache_ref},")
+    build = _build_step("ci", "base")
+    assert build["cache-from"] == "${{ steps.base_cache.outputs.from }}"
+    assert "cache-to" not in build
+
+
+@pytest.mark.parametrize("exists", [True, False])
+def test_the_base_cache_is_read_only_when_it_exists(
+    tmp_path: Path, exists: bool
+) -> None:
+    # buildx aborts on a missing cache-from ref.
+    _stub(tmp_path / "bin", "docker", FAKE_BUILDX)
+    output = tmp_path / "output"
+    cache_ref = "ghcr.io/malpanez/devcontainer-base:buildcache"
+
+    proc = _run_step(
+        "ci",
+        "base",
+        "Resolve the base build cache",
+        {
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_CACHE_EXISTS": "1" if exists else "",
+            "CACHE_REF": cache_ref,
+            "GITHUB_OUTPUT": str(output),
+        },
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    expected = f"type=registry,ref={cache_ref}" if exists else ""
+    assert _outputs(output) == {"from": expected}
+
+
+def _attest_pin() -> str:
+    """build-containers.yml's one pin of the attest action."""
+    pins = {
+        step["uses"]
+        for job in _workflow("build-containers")["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("uses", "").startswith(ATTEST_ACTION)
+    }
+    assert len(pins) == 1, pins
+    return pins.pop()
+
+
+@pytest.mark.parametrize(
+    ("job_name", "image"),
+    [("candidate-base", "base"), ("candidate-build", "${{ matrix.image }}")],
+)
+def test_candidate_builds_attest_the_digest_they_pushed(
+    job_name: str, image: str
+) -> None:
+    job = _workflow("ci")["jobs"][job_name]
+    names = [step.get("name") for step in job["steps"]]
+    attests = [
+        step for step in job["steps"] if step.get("uses", "").startswith(ATTEST_ACTION)
+    ]
+    build = next(
+        step
+        for step in job["steps"]
+        if step.get("uses", "").startswith(BUILD_PUSH_ACTION)
+    )
+
+    assert len(attests) == 1
+    attest = attests[0]
+    assert attest["uses"] == _attest_pin()
+    assert attest["uses"] == (
+        "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8"
+    )
+    assert attest["with"] == {
+        "subject-name": f"ghcr.io/${{{{ github.repository_owner }}}}/devcontainer-{image}",
+        "subject-digest": "${{ steps.build.outputs.digest }}",
+        "push-to-registry": True,
+    }
+    assert attest["with"]["subject-name"] == build["with"]["tags"]
+    assert build["id"] == "build"
+    # Unconditional, after the digest was checked and before it is handed on:
+    # every digest a leg pulls is attested.
+    assert "if" not in attest
+    assert (
+        names.index(build["name"])
+        < names.index("Record the candidate digest")
+        < names.index(attest["name"])
+        < names.index("Upload the candidate digest")
+    )
+    text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+    assert f"uses: {attest['uses']}  # v4.2.2" in text
+
+
+def test_only_the_candidate_builds_can_sign_and_attest() -> None:
+    ci = _workflow("ci")
+    granted = {
+        job_name: {
+            scope
+            for scope in ("id-token", "attestations")
+            if job.get("permissions", {}).get(scope) == "write"
+        }
+        for job_name, job in ci["jobs"].items()
+    }
+
+    assert ci["permissions"] == {"contents": "read"}
+    assert {name for name, scopes in granted.items() if scopes} == {
+        "candidate-base",
+        "candidate-build",
+    }
+    for name in ("candidate-base", "candidate-build"):
+        assert granted[name] == {"id-token", "attestations"}
+        # Behind the mode, which only this repository's promotion or a
+        # dispatch or schedule selects.
+        assert CANDIDATE_IF in _conjuncts(ci["jobs"][name]["if"])
+
+
+def _or_outside_parentheses(condition: str) -> bool:
+    depth = 0
+    for index, char in enumerate(condition):
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if depth == 0 and condition.startswith("||", index):
+            return True
+    return False
+
+
+def test_the_repository_s_own_jobs_skip_in_nightly_mode() -> None:
+    jobs = _workflow("ci")["jobs"]
+
+    for name in REPOSITORY_JOBS:
+        condition = " ".join(jobs[name]["if"].split())
+        # A conjunct of the whole condition, not one way in among others.
+        assert condition.startswith(f"{NOT_NIGHTLY} && "), name
+        assert not _or_outside_parentheses(condition), name
+    # Lint stays: the candidate builds need it. Provenance needs a push, and
+    # nightly mode is never a push.
+    assert "if" not in jobs["lint"]
+    assert jobs["provenance"]["if"].startswith("github.event_name == 'push' && ")
+    # Every other job runs in nightly mode, or is verification's own.
+    gated = set(REPOSITORY_JOBS) | {"base", "provenance"}
+    for name, job in jobs.items():
+        if name not in gated:
+            assert "nightly" not in str(job.get("if", "")).replace(PUSHED_MODES, ""), (
+                name
+            )
+
+
+def _ci_success(
+    tmp_path: Path, results: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    needs = {
+        name: {"result": result, "outputs": {}} for name, result in results.items()
+    }
+    return _run_step(
+        "ci",
+        "ci-success",
+        "Check results",
+        {"NEEDS_JSON": json.dumps(needs), "GITHUB_STEP_SUMMARY": str(tmp_path / "s")},
+    )
+
+
+def test_the_summaries_pass_a_nightly_run(tmp_path: Path) -> None:
+    jobs = _workflow("ci")["jobs"]
+    skipped = {*REPOSITORY_JOBS, "base", "provenance"}
+    results = {
+        name: "skipped" if name in skipped else "success"
+        for name in jobs["ci-success"]["needs"]
+    }
+
+    assert _ci_success(tmp_path, results).returncode == 0
+    for job in IMAGE_SUMMARIES:
+        returncode, stdout, summary = _run_summary(
+            tmp_path,
+            job,
+            {name: results[name] for name in IMAGE_SUMMARY_NEEDS},
+            event="workflow_dispatch",
+        )
+        assert returncode == 0, stdout
+        assert "✅" in summary
+    # A nightly run whose legs failed fails them all.
+    results["image"] = "failure"
+    assert _ci_success(tmp_path, results).returncode == 1
+
+
+def test_nightly_mode_records_and_does_not_tag() -> None:
+    tag = _workflow("ci")["jobs"]["candidate-tag"]
+    write = _step(tag, "Write the record of what this run tested")
+
+    for name in ("Login to GHCR", "Tag the tested digests"):
+        assert _step(tag, name)["if"] == "needs.changes.outputs.mode == 'candidate'"
+    assert "if" not in _step(tag, "Upload the record")
+    assert write["env"]["HEAD_SHA"] == (
+        "${{ needs.changes.outputs.mode == 'nightly' && github.sha"
+        " || github.event.pull_request.head.sha }}"
+    )
+    assert write["env"]["BASE_SHA"] == (
+        "${{ needs.changes.outputs.mode == 'nightly' && github.sha"
+        " || github.event.pull_request.base.sha }}"
+    )
+
+
+def test_a_nightly_record_names_the_commit_it_built(tmp_path: Path) -> None:
+    repo = tmp_path / "main"
+    repo.mkdir()
+    _git(repo, tmp_path, "init", "-q", "-b", "main")
+    sha = _commit(repo, tmp_path, "file", "main\n")
+    # Untracked, so not in HEAD's tree: the step runs scripts/ from the checkout.
+    (repo / "scripts").symlink_to(REPO_ROOT / "scripts")
+    temp = tmp_path / "runner-temp"
+    digests = temp / "candidate-digest"
+    digests.mkdir(parents=True)
+    for name in ("base", "golang"):
+        (digests / f"{name}.json").write_text(
+            json.dumps({"name": name, "digest": DIGEST})
+        )
+
+    proc = _run_step(
+        "ci",
+        "candidate-tag",
+        "Write the record of what this run tested",
+        {
+            **_git_env(tmp_path),
+            "RUNNER_TEMP": str(temp),
+            "IMAGES": '["golang"]',
+            "BASE": "true",
+            # What the step's expressions give in nightly mode: github.sha.
+            "HEAD_SHA": sha,
+            "BASE_SHA": sha,
+            "GITHUB_RUN_ID": "77",
+        },
+        cwd=repo,
+    )
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    record = json.loads((temp / "tested-digests.json").read_text())
+    assert record == {
+        "base": sha,
+        "head": sha,
+        "images": {"base": DIGEST, "golang": DIGEST},
+        "run_id": 77,
+        "tree": _git(repo, tmp_path, "rev-parse", "HEAD^{tree}"),
+    }
