@@ -211,3 +211,30 @@ ignore:
     package:
       name: github.com/go-jose/go-jose/v4
       location: "/usr/local/bin/sops"
+
+  # klauspost/compress < 1.20.2, GO-2026-6865 (GHSA-fpmh-frq8-7rj8,
+  # CVE-2026-116591; in the Go database since 2026-11-05, fixed in
+  # compress 1.20.2 of 2026-10-12): the fse and huff0 decoders panic on a
+  # crafted two-block frame. terraform 1.17.1 (2026-10-28) embeds compress
+  # v1.19.1 and terragrunt 1.2.1 (2026-10-23) v1.19.2, read from the SBOM of
+  # #636's candidate run on 2026-11-06. Both are the latest releases, so there
+  # is nothing to bump to; tflint and gh already embed v1.20.3. Reaching it
+  # takes compressed data crafted by a malicious or compromised source, and the
+  # worst case is a crashed CLI on one developer's machine: ACCEPTED, not
+  # unreachable. Scoped to this one advisory, so any other compress finding in
+  # these binaries still blocks. Each rule also names the embedded version as
+  # grype prints it, and grype compares it for equality (grype/match/ignore.go
+  # at v0.118.0, ifPackageVersionApplies): when Renovate moves either tool,
+  # the rule stops matching, even if the new release is still vulnerable, so
+  # the gate asks again instead of relying on someone deleting it. Remove
+  # these rules once each tool ships compress >= 1.20.2.
+  - vulnerability: GO-2026-6865
+    package:
+      name: github.com/klauspost/compress
+      version: v1.19.1
+      location: "/usr/local/bin/terraform"
+  - vulnerability: GO-2026-6865
+    package:
+      name: github.com/klauspost/compress
+      version: v1.19.2
+      location: "/usr/local/bin/terragrunt"
