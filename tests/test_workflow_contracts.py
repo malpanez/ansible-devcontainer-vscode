@@ -1992,11 +1992,13 @@ def _git_env(tmp_path: Path) -> dict[str, str]:
     }
 
 
-def _git(repo: Path, tmp_path: Path, *args: str) -> str:
+def _git(
+    repo: Path, tmp_path: Path, *args: str, env: dict[str, str] | None = None
+) -> str:
     proc = subprocess.run(
         ["git", "-c", "commit.gpgsign=false", *args],
         cwd=repo,
-        env={**_clean_environ(), **_git_env(tmp_path)},
+        env={**_clean_environ(), **_git_env(tmp_path), **(env or {})},
         capture_output=True,
         text=True,
         check=True,
@@ -2877,6 +2879,8 @@ def test_a_nightly_record_names_the_commit_it_built(tmp_path: Path) -> None:
             "HEAD_SHA": sha,
             "BASE_SHA": sha,
             "GITHUB_RUN_ID": "77",
+            # GitHub sets it on every job; the step reads it from there.
+            "GITHUB_RUN_ATTEMPT": "3",
         },
         cwd=repo,
     )
@@ -2884,12 +2888,23 @@ def test_a_nightly_record_names_the_commit_it_built(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
     record = json.loads((temp / "tested-digests.json").read_text())
     assert record == {
+        "attempt": 3,
         "base": sha,
         "head": sha,
         "images": {"base": DIGEST, "golang": DIGEST},
         "run_id": 77,
         "tree": _git(repo, tmp_path, "rev-parse", "HEAD^{tree}"),
     }
+
+
+def test_the_record_carries_the_attempt_github_sets_on_the_job() -> None:
+    write = _step(
+        _workflow("ci")["jobs"]["candidate-tag"],
+        "Write the record of what this run tested",
+    )
+
+    assert '--attempt "${GITHUB_RUN_ATTEMPT}"' in write["run"]
+    assert "${{" not in write["run"]
 
 
 def _tracked_markdown() -> list[Path]:
@@ -2916,3 +2931,402 @@ def test_the_docs_verify_images_by_exact_identity() -> None:
             assert "--owner" not in command, (doc, command)
             assert "--repo malpanez/ansible-devcontainer-vscode" in command, doc
             assert "--signer-workflow" in command, doc
+
+
+# release.yml's resolve job and the gate's signature check, which only a tag
+# push runs.
+RESOLVE_STEP = "Resolve the digest to release for every image"
+VERIFY_STEP = "Verify build-containers signed ${{ matrix.name }} on main"
+SIGNER = (
+    f"https://github.com/{REPOSITORY}/.github/workflows/build-containers.yml"
+    "@refs/heads/main"
+)
+RELEASE_IMAGE = "ghcr.io/malpanez/devcontainer-golang"
+
+# docker buildx imagetools inspect <ref> --format <format>: the version tags do
+# not exist yet, main does, and sha-<commit> only with FAKE_SHA_TAG. Every
+# image has FAKE_DIGEST, and its config the revision label FAKE_REVISION.
+FAKE_RESOLVE_DOCKER = """#!/usr/bin/env bash
+REF="$4"
+case "${REF}" in
+  *@sha256:*|*:main) ;;
+  *:sha-*)
+    if [ -z "${FAKE_SHA_TAG}" ]; then
+      echo "ERROR: ${REF}: not found" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "ERROR: ${REF}: not found" >&2
+    exit 1
+    ;;
+esac
+case "$6" in
+  '{{json .Manifest}}') printf '{"digest":"%s"}\\n' "${FAKE_DIGEST}" ;;
+  '{{json .Image}}')
+    printf '{"config":{"Labels":{"org.opencontainers.image.revision":"%s"}}}\\n' "${FAKE_REVISION}"
+    ;;
+  *) exit 3 ;;
+esac
+"""
+
+# cosign verify: logs its arguments, and passes only for the workflow sha of
+# FAKE_SIGNED_AT, as cosign enforces --certificate-github-workflow-sha.
+FAKE_COSIGN = """#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "${FAKE_LOG}"
+SHA=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--certificate-github-workflow-sha" ]; then
+    SHA="$2"
+  fi
+  shift
+done
+if [ -n "${SHA}" ] && [ "${SHA}" = "${FAKE_SIGNED_AT}" ]; then
+  exit 0
+fi
+echo "Error: no matching signatures: expected GithubWorkflowSHA to be ${SHA}" >&2
+exit 1
+"""
+
+
+def _release_history(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    """main and develop as promotions leave them, newest first on main:
+
+    Y  README only
+    X  an image input (the base Dockerfile)
+    L  promotion: merges D2, D's tree again
+    D2 develop: main merged back into develop, D's tree
+    M  promotion: merges D, so it has D's tree, its second parent's
+    D  develop: README only
+    A  the first commit
+
+    Each commit is a second newer than the one before, so git log lists them in
+    that order.
+    """
+    repo = tmp_path / "repo"
+    (repo / "devcontainers" / "base").mkdir(parents=True)
+    _git(repo, tmp_path, "init", "-q", "-b", "main")
+    # Untracked, so in no commit's tree: the step runs scripts/ from the checkout.
+    (repo / "scripts").symlink_to(REPO_ROOT / "scripts")
+    dockerfile = repo / "devcontainers" / "base" / "Dockerfile"
+    readme = repo / "README.md"
+    shas: dict[str, str] = {}
+
+    def at(second: int) -> dict[str, str]:
+        date = f"@{1_800_000_000 + second} +0000"
+        return {"GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date}
+
+    def commit(name: str, second: int) -> None:
+        _git(repo, tmp_path, "add", "README.md", "devcontainers")
+        _git(repo, tmp_path, "commit", "-q", "-m", name, env=at(second))
+        shas[name] = _git(repo, tmp_path, "rev-parse", "HEAD")
+
+    def merge(name: str, second: int, branch: str) -> None:
+        _git(
+            repo, tmp_path, "merge", "-q", "--no-ff", "-m", name, branch, env=at(second)
+        )
+        shas[name] = _git(repo, tmp_path, "rev-parse", "HEAD")
+
+    dockerfile.write_text("FROM python:3.14.7-slim-bookworm\n")
+    readme.write_text("1\n")
+    commit("A", 1)
+    _git(repo, tmp_path, "checkout", "-q", "-b", "develop")
+    readme.write_text("2\n")
+    commit("D", 2)
+    _git(repo, tmp_path, "checkout", "-q", "main")
+    merge("M", 3, "develop")
+    _git(repo, tmp_path, "checkout", "-q", "develop")
+    merge("D2", 4, "main")
+    _git(repo, tmp_path, "checkout", "-q", "main")
+    merge("L", 5, "develop")
+    dockerfile.write_text("FROM python:3.14.7-slim-bookworm\nRUN true\n")
+    commit("X", 6)
+    readme.write_text("3\n")
+    commit("Y", 7)
+    # What checkout's fetch-depth 0 gives: every branch under origin/.
+    _git(repo, tmp_path, "update-ref", "refs/remotes/origin/main", shas["Y"])
+    return repo, shas
+
+
+def _resolve_release(
+    tmp_path: Path, repo: Path, tag: str, revision: str, sha_tag: bool
+) -> tuple[subprocess.CompletedProcess[str], list[dict[str, Any]]]:
+    _stub(tmp_path / "bin", "docker", FAKE_RESOLVE_DOCKER)
+    outputs = tmp_path / "outputs"
+    outputs.touch()
+    proc = _run_step(
+        "release",
+        "resolve",
+        RESOLVE_STEP,
+        {
+            **_git_env(tmp_path),
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "OWNER": "malpanez",
+            "TAG_SHA": tag,
+            "VERSION": "v9.9.9",
+            "GITHUB_OUTPUT": str(outputs),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
+            "FAKE_SHA_TAG": "1" if sha_tag else "",
+            "FAKE_DIGEST": DIGEST,
+            "FAKE_REVISION": revision,
+        },
+        cwd=repo,
+    )
+    written = _outputs(outputs)
+    return proc, json.loads(written["images"]) if "images" in written else []
+
+
+def test_a_sha_tag_built_from_a_commit_with_the_tagged_tree_is_released(
+    tmp_path: Path,
+) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    # 2d's candidate: the promotion's merge commit is tagged, and the label
+    # names the develop head its candidate run built.
+    proc, images = _resolve_release(tmp_path, repo, shas["M"], shas["D"], True)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert len(images) == len(_release_images().IMAGES)
+    for image in images:
+        assert image["source"] == f"sha-{shas['M'][:7]}"
+        assert image["revision"] == shas["D"]
+        assert image["digest"] == DIGEST
+    assert f"built from {shas['D']}: it has the tagged tree" in proc.stdout
+
+
+def test_the_signer_commits_are_the_tag_the_label_then_main_s_same_tree_commits(
+    tmp_path: Path,
+) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    _proc, images = _resolve_release(tmp_path, repo, shas["M"], shas["D"], True)
+
+    # M and D again among main's commits with that tree (L, D2, M, D, newest
+    # first) are left out. A, X and Y have other trees.
+    expected = [shas[name] for name in ("M", "D", "L", "D2")]
+    assert [json.loads(image["signer_shas"]) for image in images] == [expected] * len(
+        images
+    )
+
+
+def test_a_sha_tag_built_from_another_tree_is_refused(tmp_path: Path) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    proc, images = _resolve_release(tmp_path, repo, shas["Y"], shas["X"], True)
+
+    assert proc.returncode == 1
+    assert images == []
+    assert f"was built from {shas['X']}, whose tree" in proc.stdout
+    assert f"of {shas['Y']}" in proc.stdout
+
+
+def test_a_sha_tag_built_from_an_unknown_commit_is_refused(tmp_path: Path) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    proc, images = _resolve_release(tmp_path, repo, shas["M"], "e" * 40, True)
+
+    assert proc.returncode == 1
+    assert images == []
+    assert "which is not in this repository's history" in proc.stdout
+
+
+def test_main_built_from_a_commit_with_the_tagged_tree_is_released(
+    tmp_path: Path,
+) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    proc, images = _resolve_release(tmp_path, repo, shas["L"], shas["D"], False)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert {image["source"] for image in images} == {"main"}
+    assert f"built from {shas['D']}: it has the tagged tree" in proc.stdout
+
+
+def test_main_built_from_another_tree_with_the_same_image_inputs_is_released(
+    tmp_path: Path,
+) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    # Only the README changed from X to Y: today's release of a commit that
+    # changed no image.
+    proc, images = _resolve_release(tmp_path, repo, shas["Y"], shas["X"], False)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert {image["revision"] for image in images} == {shas["X"]}
+    assert f"built from {shas['X']}: no image input changed since" in proc.stdout
+    assert json.loads(images[0]["signer_shas"]) == [shas["Y"], shas["X"]]
+
+
+def test_main_with_another_tree_and_other_image_inputs_is_refused(
+    tmp_path: Path,
+) -> None:
+    repo, shas = _release_history(tmp_path)
+
+    # X changed the base Dockerfile after L.
+    proc, images = _resolve_release(tmp_path, repo, shas["Y"], shas["L"], False)
+
+    assert proc.returncode == 1
+    assert images == []
+    assert f"neither has the tree of {shas['Y']} nor matches it in devcontainers/" in (
+        proc.stdout
+    )
+
+
+def test_resolve_fails_without_origin_main(tmp_path: Path) -> None:
+    repo, shas = _release_history(tmp_path)
+    _git(repo, tmp_path, "update-ref", "-d", "refs/remotes/origin/main")
+
+    proc, images = _resolve_release(tmp_path, repo, shas["M"], shas["D"], True)
+
+    assert proc.returncode == 1
+    assert images == []
+    assert "The checkout has no origin/main" in proc.stdout
+
+
+def _verify_signature(
+    tmp_path: Path, signer_shas: str, signed_at: str, revision: str = "1" * 40
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    log = tmp_path / "cosign.log"
+    log.touch()
+    _stub(tmp_path / "bin", "cosign", FAKE_COSIGN)
+    proc = _run_step(
+        "release",
+        "gate",
+        VERIFY_STEP,
+        {
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "IMAGE": RELEASE_IMAGE,
+            "DIGEST": DIGEST,
+            "REVISION": revision,
+            "SIGNER_SHAS": signer_shas,
+            "SIGNER": SIGNER,
+            "GITHUB_REPOSITORY": REPOSITORY,
+            "FAKE_LOG": str(log),
+            "FAKE_SIGNED_AT": signed_at,
+        },
+    )
+    return proc, log.read_text().splitlines()
+
+
+def _cosign_call(sha: str) -> str:
+    return (
+        f"verify --certificate-identity {SIGNER}"
+        " --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+        f" --certificate-github-workflow-repository {REPOSITORY}"
+        f" --certificate-github-workflow-sha {sha} {RELEASE_IMAGE}@{DIGEST}"
+    )
+
+
+def test_the_gate_takes_the_signer_list_from_resolve() -> None:
+    step = _step(_workflow("release")["jobs"]["gate"], VERIFY_STEP)
+
+    # A JSON string resolve wrote, never an array through the matrix.
+    assert step["env"]["SIGNER_SHAS"] == "${{ matrix.signer_shas }}"
+    assert step["env"]["SIGNER"] == (
+        "https://github.com/${{ github.repository }}"
+        "/.github/workflows/build-containers.yml@refs/heads/main"
+    )
+    assert "${{" not in step["run"]
+
+
+def test_the_gate_tries_each_signer_commit_until_one_verifies(tmp_path: Path) -> None:
+    signers = ["a" * 40, "b" * 40, "c" * 40]
+
+    # Indented, over several lines: the gate parses any JSON layout.
+    proc, calls = _verify_signature(tmp_path, json.dumps(signers, indent=2), "c" * 40)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert calls == [_cosign_call(sha) for sha in signers]
+    assert f"is signed by {SIGNER} at {'c' * 40}." in proc.stdout
+
+
+def test_the_gate_fails_and_lists_every_commit_when_none_verifies(
+    tmp_path: Path,
+) -> None:
+    signers = ["a" * 40, "b" * 40, "c" * 40]
+
+    proc, calls = _verify_signature(tmp_path, json.dumps(signers), "d" * 40)
+
+    assert proc.returncode == 1
+    assert calls == [_cosign_call(sha) for sha in signers]
+    error = next(line for line in proc.stdout.splitlines() if "::error::" in line)
+    assert ", ".join(signers) in error
+    assert "its newest 200 ancestors and main's newest 200" in error
+
+
+@pytest.mark.parametrize(
+    "signer_shas",
+    [
+        json.dumps(["a" * 40, "A" * 40]),
+        json.dumps(["a" * 40, "g" * 40]),
+        json.dumps(["a" * 39]),
+        # Two commits in one entry, which jq -r would print as two lines.
+        json.dumps(["a" * 40 + "\n" + "b" * 40]),
+        # An object's values would be listed like a list's.
+        json.dumps({"sha": "a" * 40}),
+        json.dumps("a" * 40),
+        json.dumps([]),
+        json.dumps([40]),
+        "null",
+        "",
+    ],
+)
+def test_the_gate_refuses_a_malformed_signer_list_before_cosign_runs(
+    tmp_path: Path, signer_shas: str
+) -> None:
+    proc, calls = _verify_signature(tmp_path, signer_shas, "a" * 40)
+
+    assert proc.returncode == 1
+    assert "::error::" in proc.stdout
+    assert "Nothing was verified." in proc.stdout
+    assert calls == []
+
+
+def test_a_release_after_the_promotion_finds_the_merge_commit_that_signed(
+    tmp_path: Path,
+) -> None:
+    # 2d as it will normally look: build-containers ran on the promotion's merge
+    # commit M and signed there, the label names the develop head D it tested,
+    # and the tag went on L, a later promotion with the same tree, so main is
+    # what resolve takes.
+    repo, shas = _release_history(tmp_path)
+    second_parent_tree = _git(repo, tmp_path, "rev-parse", f"{shas['M']}^2^{{tree}}")
+    assert _git(repo, tmp_path, "rev-parse", f"{shas['M']}^{{tree}}") == (
+        second_parent_tree
+    )
+    assert shas["M"] not in (shas["L"], shas["D"])
+
+    _proc, images = _resolve_release(tmp_path, repo, shas["L"], shas["D"], False)
+    signers = images[0]["signer_shas"]
+    proc, calls = _verify_signature(tmp_path, signers, shas["M"], shas["D"])
+
+    assert shas["M"] in json.loads(signers)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert calls[-1] == _cosign_call(shas["M"])
+    assert f"is signed by {SIGNER} at {shas['M']}." in proc.stdout
+
+
+def test_an_old_release_finds_its_signer_however_far_main_has_moved(
+    tmp_path: Path,
+) -> None:
+    # A re-run of a release tagged on L, a promotion with D's tree, after main
+    # moved 250 commits on. The signer is M, the earlier promotion with the
+    # same tree: in L's own history, out of reach of main's newest 200.
+    repo, shas = _release_history(tmp_path)
+    tree = _git(repo, tmp_path, "rev-parse", f"{shas['Y']}^{{tree}}")
+    tip = shas["Y"]
+    for _ in range(250):
+        tip = _git(repo, tmp_path, "commit-tree", tree, "-p", tip, "-m", "later")
+    _git(repo, tmp_path, "update-ref", "refs/remotes/origin/main", tip)
+    tip_window = _git(
+        repo, tmp_path, "log", "--format=%H", "--max-count=200", tip
+    ).split()
+    assert shas["M"] not in tip_window
+
+    _proc, images = _resolve_release(tmp_path, repo, shas["L"], shas["D"], False)
+    signers = images[0]["signer_shas"]
+    proc, calls = _verify_signature(tmp_path, signers, shas["M"], shas["D"])
+
+    assert shas["M"] in json.loads(signers)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert calls[-1] == _cosign_call(shas["M"])
