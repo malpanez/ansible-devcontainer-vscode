@@ -1909,7 +1909,9 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/candidate-digest
 
-      # Fails unless the digests are exactly the images this run built.
+      # Fails unless the digests are exactly the images this run built. The
+      # attempt is this job's, which GitHub sets on every job; after a re-run
+      # it can be later than the candidate builds' (scripts/tested-digests.py).
       - name: Write the record of what this run tested
         env:
           IMAGES: ${{ needs.changes.outputs.images }}
@@ -1921,7 +1923,8 @@ jobs:
           TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
           python3 scripts/tested-digests.py write --digests "${RUNNER_TEMP}/candidate-digest" \
             --images "${IMAGES}" --base "${BASE}" --tree "${TREE}" --head "${HEAD_SHA}" \
-            --base-sha "${BASE_SHA}" --run-id "${GITHUB_RUN_ID}" > "${RUNNER_TEMP}/tested-digests.json"
+            --base-sha "${BASE_SHA}" --run-id "${GITHUB_RUN_ID}" --attempt "${GITHUB_RUN_ATTEMPT}" \
+            > "${RUNNER_TEMP}/tested-digests.json"
 
       # Candidate mode only: see the job's comment.
       - name: Login to GHCR

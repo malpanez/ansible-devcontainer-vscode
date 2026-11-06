@@ -14,12 +14,18 @@ commit as both head and base, but tags nothing.
 The record can also name no image, with an empty images map, and still prove
 its tree was tested:
 
-    {"base": <main's commit the run was based on>, "head": <the develop commit
-     built and tested>, "images": {<name>: <index digest>}, "run_id": <run>,
-     "tree": <the head's tree>}
+    {"attempt": <the run attempt that wrote it>, "base": <main's commit the run
+     was based on>, "head": <the develop commit built and tested>, "images":
+     {<name>: <index digest>}, "run_id": <run>, "tree": <the head's tree>}
+
+attempt is the run attempt whose Candidate tag job wrote the record. Only that
+record exists, as each attempt's upload replaces the last one's, and after
+"Re-run failed jobs" it can be later than the attempt whose jobs built the
+candidates. Records written before it existed have none, so verify accepts a
+record without it until publishing reads it (2d-2b).
 
   write --digests DIR --images JSON --base true|false --tree T --head H
-        --base-sha B --run-id N > tested-digests.json
+        --base-sha B --run-id N --attempt A > tested-digests.json
       Builds the record from the candidate builds' digest files in DIR, one
       {"name", "digest"} JSON file per image, and prints it on stdout. Their
       names must be exactly the images the changes job resolved, and base when
@@ -67,6 +73,7 @@ REPOSITORY_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*/[A-Za-z0-9_.][A-Za-z0-9
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 RECORD_KEYS = {"base", "head", "images", "run_id", "tree"}
+OPTIONAL_KEYS = {"attempt"}
 
 
 class RecordError(Exception):
@@ -90,6 +97,12 @@ def _repository(value: str) -> str:
 def _run_id(value: str | int) -> int:
     if isinstance(value, bool) or not re.fullmatch(r"[1-9][0-9]*", str(value)):
         raise RecordError(f"run_id is {json.dumps(value)}, not a run id")
+    return int(value)
+
+
+def _attempt(value: str | int) -> int:
+    if isinstance(value, bool) or not re.fullmatch(r"[1-9][0-9]*", str(value)):
+        raise RecordError(f"attempt is {json.dumps(value)}, not a run attempt")
     return int(value)
 
 
@@ -134,6 +147,7 @@ def build_record(
     head: str,
     base_sha: str,
     run_id: str,
+    attempt: str,
 ) -> dict[str, Any]:
     """The record, once the digests are exactly the images the run built."""
     if not isinstance(images, list) or not all(isinstance(i, str) for i in images):
@@ -149,6 +163,7 @@ def build_record(
             f" digests on record do not match (missing: {missing}; not built: {extra})"
         )
     return {
+        "attempt": _attempt(attempt),
         "base": _sha(base_sha, "base"),
         "head": _sha(head, "head"),
         "images": dict(sorted(digests.items())),
@@ -159,11 +174,21 @@ def build_record(
 
 def check_record(record: Any, tree: str, run_id: str) -> dict[str, str]:
     """The record's images, once it is well formed and names this tree and run."""
-    if not isinstance(record, dict) or set(record) != RECORD_KEYS:
+    if not isinstance(record, dict) or not (
+        RECORD_KEYS <= set(record) <= RECORD_KEYS | OPTIONAL_KEYS
+    ):
         keys = sorted(record) if isinstance(record, dict) else record
         raise RecordError(
             f"the record has {json.dumps(keys)}, not {sorted(RECORD_KEYS)}"
+            f" and maybe {sorted(OPTIONAL_KEYS)}"
         )
+    if "attempt" in record:
+        # A JSON number, as write puts it: its digits as a string are not one.
+        if not isinstance(record["attempt"], int):
+            raise RecordError(
+                f"attempt is {json.dumps(record['attempt'])}, not a run attempt"
+            )
+        _attempt(record["attempt"])
     _sha(record["base"], "base")
     _sha(record["head"], "head")
     images = _images(record["images"])
@@ -333,12 +358,14 @@ def _write(args: argparse.Namespace) -> int:
             args.head,
             args.base_sha,
             args.run_id,
+            args.attempt,
         )
     except (RecordError, ValueError) as exc:
         return _fail(exc)
     print(json.dumps(record, indent=2))
     print(
-        f"Tree {record['tree']} (develop {record['head']}), run {record['run_id']}:",
+        f"Tree {record['tree']} (develop {record['head']}), run {record['run_id']}"
+        f" attempt {record['attempt']}:",
         file=sys.stderr,
     )
     for name, digest in record["images"].items() or [("no image built", "")]:
@@ -379,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
     write.add_argument("--head", required=True, help="The develop commit built.")
     write.add_argument("--base-sha", required=True, help="main's commit.")
     write.add_argument("--run-id", required=True, help="This run's id.")
+    write.add_argument("--attempt", required=True, help="This run's attempt.")
     find = commands.add_parser("find-run", help="The run that tested a main push.")
     find.add_argument("--repository", required=True, help="owner/name.")
     find.add_argument("--sha", required=True, help="The commit pushed to main.")

@@ -62,6 +62,9 @@ def _write(
     images: str,
     base: str = "false",
     tree: str = TREE,
+    # A promotion's run is attempt 2: attempt 1 waits, parked, until
+    # promote-to-main.yml approves it.
+    attempt: str = "2",
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     output = tmp_path / "tested-digests.json"
     proc = _run(
@@ -80,6 +83,8 @@ def _write(
         BASE_SHA,
         "--run-id",
         "42",
+        "--attempt",
+        attempt,
     )
     # The record is stdout, as ci.yml redirects it to tested-digests.json.
     if proc.returncode == 0:
@@ -96,6 +101,7 @@ def test_the_record_names_the_tree_the_commits_the_run_and_each_digest(
 
     assert proc.returncode == 0, proc.stderr
     assert json.loads(output.read_text()) == {
+        "attempt": 2,
         "base": BASE_SHA,
         "head": HEAD_SHA,
         "images": {"ansible": OTHER_DIGEST, "base": DIGEST},
@@ -170,6 +176,17 @@ def test_bad_arguments_fail(tmp_path: Path, tree: str, base: str) -> None:
     assert not output.exists()
 
 
+@pytest.mark.parametrize("attempt", ["0", "-1", "two", "1.5", "02", ""])
+def test_an_attempt_that_is_not_a_positive_integer_fails(
+    tmp_path: Path, attempt: str
+) -> None:
+    proc, output = _write(tmp_path, tmp_path / "none", "[]", attempt=attempt)
+
+    assert proc.returncode == 1
+    assert "not a run attempt" in proc.stderr
+    assert not output.exists()
+
+
 def _record(tmp_path: Path, **overrides: Any) -> Path:
     record = {
         "base": BASE_SHA,
@@ -202,6 +219,25 @@ def test_a_record_of_no_image_passes(tmp_path: Path) -> None:
     proc = _verify(_record(tmp_path, images={}))
 
     assert proc.returncode == 0, proc.stderr
+
+
+# Until 2d-2b publishes from it, a record from before attempt existed passes;
+# _record writes none.
+def test_a_record_with_its_attempt_passes(tmp_path: Path) -> None:
+    proc = _verify(_record(tmp_path, attempt=3))
+
+    assert proc.returncode == 0, proc.stderr
+    assert f"golang {DIGEST}" in proc.stdout
+
+
+@pytest.mark.parametrize("attempt", [True, 0, -1, "2", 2.0, None])
+def test_a_record_whose_attempt_is_not_a_positive_integer_fails(
+    tmp_path: Path, attempt: Any
+) -> None:
+    proc = _verify(_record(tmp_path, attempt=attempt))
+
+    assert proc.returncode == 1
+    assert "not a run attempt" in proc.stderr
 
 
 def test_a_record_of_another_tree_fails_and_says_what_to_do(tmp_path: Path) -> None:
