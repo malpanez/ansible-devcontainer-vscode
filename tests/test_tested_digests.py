@@ -280,12 +280,30 @@ def _run_entry(
     }
 
 
+def _jobs_page(run_id: int, page: int) -> str:
+    return (
+        f"repos/{REPOSITORY}/actions/runs/{run_id}/jobs"
+        f"?filter=latest&per_page=100&page={page}"
+    )
+
+
+# A candidate run's jobs, Candidate tag among them, as one page.
+PASSED_JOBS = [
+    {"name": "Lint", "conclusion": "success"},
+    {"name": "Candidate tag", "conclusion": "success"},
+    {"name": "Provenance", "conclusion": "skipped"},
+]
+
+
 def _github(
     tmp_path: Path,
     pulls: Any,
     runs: list[dict[str, Any]],
     artifacts: dict[int, list[dict[str, Any]]],
+    jobs: dict[int, list[Any]] | None = None,
 ) -> dict[str, str]:
+    """Fixtures for find-run. jobs maps a run to the pages of its jobs; each
+    run with artifacts gets PASSED_JOBS when it is not given."""
     fixtures = tmp_path / "fixtures"
     fixtures.mkdir()
     _fixture(fixtures, PULLS, pulls)
@@ -293,6 +311,14 @@ def _github(
     for run_id, found in artifacts.items():
         path = f"repos/{REPOSITORY}/actions/runs/{run_id}/artifacts?name=tested-digests"
         _fixture(fixtures, path, {"artifacts": found})
+    pages = {run_id: [PASSED_JOBS] for run_id in artifacts} | (jobs or {})
+    for run_id, run_pages in pages.items():
+        total = sum(len(page) for page in run_pages if isinstance(page, list))
+        for number, page in enumerate(run_pages, start=1):
+            answer = (
+                {"total_count": total, "jobs": page} if isinstance(page, list) else page
+            )
+            _fixture(fixtures, _jobs_page(run_id, number), answer)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     gh = bin_dir / "gh"
@@ -444,3 +470,85 @@ def test_an_api_error_fails_closed(tmp_path: Path) -> None:
 
     assert proc.returncode == 1
     assert "not list" in proc.stderr
+
+
+def _job(name: str, conclusion: str | None) -> dict[str, Any]:
+    return {"name": name, "conclusion": conclusion}
+
+
+@pytest.mark.parametrize(
+    ("jobs", "found"),
+    [
+        # The run passed with the job skipped: nothing was tagged or recorded.
+        ([_job("Lint", "success"), _job("Candidate tag", "skipped")], "(skipped)"),
+        ([_job("Lint", "success")], "(no such job)"),
+        ([_job("Candidate tag", None)], "(None)"),
+        # Two jobs of that name: which one recorded is not known.
+        (
+            [_job("Candidate tag", "success"), _job("Candidate tag", "success")],
+            "(success, success)",
+        ),
+        ([_job("Candidate tags", "success")], "(no such job)"),
+    ],
+)
+def test_a_run_whose_candidate_tag_job_did_not_pass_fails(
+    tmp_path: Path, jobs: list[dict[str, Any]], found: str
+) -> None:
+    # The artifact is there, so only the job's result can fail the run.
+    env = _github(
+        tmp_path,
+        [_pull()],
+        [_run_entry(9, "2026-11-06T08:05:00Z")],
+        {9: ARTIFACT},
+        {9: [jobs]},
+    )
+
+    proc = _find(env)
+
+    assert proc.returncode == 1
+    assert 'no successful "Candidate tag" job' in proc.stderr
+    assert found in proc.stderr
+    assert "::error" in proc.stderr
+    assert proc.stdout == ""
+
+
+def test_the_candidate_tag_job_is_found_on_a_later_page(tmp_path: Path) -> None:
+    first = [_job(f"Image (golang, {index})", "success") for index in range(100)]
+    env = _github(
+        tmp_path,
+        [_pull()],
+        [_run_entry(9, "2026-11-06T08:05:00Z")],
+        {9: ARTIFACT},
+        {9: [first, [_job("Candidate tag", "success")]]},
+    )
+
+    proc = _find(env)
+
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines()[0] == "run_id=9"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        {"jobs": PASSED_JOBS},
+        {"total_count": "3", "jobs": PASSED_JOBS},
+        {"total_count": True, "jobs": PASSED_JOBS},
+        {"total_count": 3, "jobs": {"name": "Candidate tag"}},
+    ],
+)
+def test_a_jobs_answer_without_its_count_or_list_fails_closed(
+    tmp_path: Path, answer: dict[str, Any]
+) -> None:
+    env = _github(
+        tmp_path,
+        [_pull()],
+        [_run_entry(9, "2026-11-06T08:05:00Z")],
+        {9: ARTIFACT},
+        {9: [answer]},
+    )
+
+    proc = _find(env)
+
+    assert proc.returncode == 1
+    assert "has no jobs list and total_count" in proc.stderr

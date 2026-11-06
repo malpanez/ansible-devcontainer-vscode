@@ -9,10 +9,37 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # mode: see "Decide the image mode". A dispatch without it runs as every
+  # dispatch did before it existed.
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'verification: test what changed, as a pull request does. nightly: build, test and record every image'
+        required: false
+        default: verification
+        type: choice
+        options:
+          - verification
+          - nightly
+  # nightly.yml calls this workflow in nightly mode. Never a schedule here:
+  # GitHub disables a scheduled workflow in a public repository after 60 days
+  # without activity, and that disables every trigger it has, the pull
+  # request checks branch protection requires among them.
+  workflow_call:
+    inputs:
+      mode:
+        description: 'verification or nightly: see "Decide the image mode".'
+        required: true
+        type: string
 
+# A called workflow's github.workflow is its caller's name ("Reuse workflow
+# configurations", jobs.<job_id>.concurrency, in GitHub's docs), so a caller
+# grouped on ${{ github.workflow }}-${{ github.ref }} would share this group
+# and be cancelled by its own call. inputs.mode is set only on a call or a
+# dispatch, so those get a suffix no caller writes, and a push or a pull
+# request keeps the group it always had.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ inputs.mode && format('-ci.yml-{0}', inputs.mode) || '' }}
   cancel-in-progress: true
 
 env:
@@ -42,6 +69,7 @@ jobs:
       images: ${{ steps.images.outputs.images }}
       base: ${{ steps.images.outputs.base }}
       mode: ${{ steps.mode.outputs.mode }}
+      cache_write: ${{ steps.mode.outputs.cache_write }}
       legs: ${{ steps.legs.outputs.legs }}
       builds: ${{ steps.legs.outputs.builds }}
       base_platforms: ${{ steps.legs.outputs.base_platforms }}
@@ -65,16 +93,29 @@ jobs:
       # How this run tests images. Candidate mode is the develop -> main
       # promotion pull request, which promote-to-main.yml keeps open and every
       # develop push updates: main can take a tree only once that pull
-      # request's checks passed on it, and its paths-filter sees every file
-      # that differs from main. It builds each image that differs as
+      # request's checks passed on it. It builds every image as
       # build-containers.yml publishes it (multi-arch, pushed by digest),
       # tests the digest on every platform and tags it candidate-<tree12>.
-      # Every other pull request, and a dispatch, is verification mode: an
-      # amd64 build of each image, loaded and never pushed.
+      # Nightly mode builds and tests the same way, on the commit the run is
+      # for, and records the digests without tagging them; it tests images
+      # only. Every other run is verification mode, a dispatch without the
+      # nightly input among them: an amd64 build of each image that changed,
+      # loaded and never pushed.
       #
-      # All four conditions, never the branch name alone: a fork can name a
-      # branch develop, and candidate mode pushes to GHCR. pull_request, never
-      # pull_request_target, so a fork's run keeps its read-only token.
+      # Candidate mode takes all four conditions, never the branch name
+      # alone: a fork can name a branch develop, and candidate mode pushes to
+      # GHCR. pull_request, never pull_request_target, so a fork's run keeps
+      # its read-only token.
+      #
+      # Nightly mode takes the input and an event only someone with write
+      # access can start: a dispatch, or the schedule of a workflow on this
+      # repository's default branch (nightly.yml's, from 2d-2). Both run a
+      # workflow file from a branch of this repository. A pull_request run
+      # takes its workflow files from the pull request, a fork's included, so
+      # a caller there could ask for nightly mode: it fails instead, as does
+      # any mode this workflow does not know. A call from another repository
+      # runs with that repository's token and pushes to its owner's GHCR
+      # namespace, never this one.
       - name: Decide the image mode
         id: mode
         env:
@@ -83,17 +124,40 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
           REPOSITORY: ${{ github.repository }}
+          MODE_INPUT: ${{ inputs.mode || '' }}
+          RUN_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           MODE=verification
-          if [ "${EVENT_NAME}" = "pull_request" ] \
-            && [ "${HEAD_REPO}" = "${REPOSITORY}" ] \
-            && [ "${HEAD_REF}" = "develop" ] \
-            && [ "${BASE_REF}" = "main" ]; then
-            MODE=candidate
+          case "${MODE_INPUT}" in
+            '' | verification)
+              if [ "${EVENT_NAME}" = "pull_request" ] \
+                && [ "${HEAD_REPO}" = "${REPOSITORY}" ] \
+                && [ "${HEAD_REF}" = "develop" ] \
+                && [ "${BASE_REF}" = "main" ]; then
+                MODE=candidate
+              fi
+              ;;
+            nightly)
+              if [ "${EVENT_NAME}" != "workflow_dispatch" ] && [ "${EVENT_NAME}" != "schedule" ]; then
+                echo "::error::Nightly mode runs on a dispatch or a schedule, not on ${EVENT_NAME}."
+                exit 1
+              fi
+              MODE=nightly
+              ;;
+            *)
+              echo "::error::Unknown mode '${MODE_INPUT}': verification or nightly."
+              exit 1
+              ;;
+          esac
+          CACHE_WRITE=false
+          if [ "${MODE}" = "candidate" ] || { [ "${MODE}" = "nightly" ] && [ "${RUN_REF}" = "refs/heads/main" ]; }; then
+            CACHE_WRITE=true
           fi
           echo "Image mode: ${MODE}"
+          echo "Registry cache write: ${CACHE_WRITE}"
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "cache_write=${CACHE_WRITE}" >> "$GITHUB_OUTPUT"
 
       # Candidate mode builds, labels and records the pull request's head, the
       # develop commit, not refs/pull/N/merge: the image's revision label and
@@ -121,8 +185,11 @@ jobs:
           fi
           echo "main ${BASE_SHA} is an ancestor of develop ${HEAD_SHA}; both trees are ${HEAD_TREE}."
 
+      # Not in nightly mode: what changed decides nothing there. Every output
+      # of this step stays empty, so no job gated on one runs.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         id: filter
+        if: steps.mode.outputs.mode != 'nightly'
         with:
           filters: |
             # Note: .devcontainer/ (repo's dev environment) is intentionally excluded
@@ -316,6 +383,11 @@ jobs:
       # `any_changed`. A dispatch diffs only the last commit (or the branch
       # against main), usually nothing, so it runs every image.
       #
+      # Candidate and nightly mode build every image, base included, whatever
+      # changed: what they build is what 2d publishes, all eight images from
+      # one run, and each must carry the OS packages of the day it was built
+      # (see candidate-base), not those of the last promotion that changed it.
+      #
       # A push tests no image. Every develop commit came through a pull
       # request whose run tested its images, every main commit through the
       # promotion pull request's candidate run, and develop's merged state is
@@ -324,17 +396,23 @@ jobs:
       - name: Resolve the images to test
         id: images
         env:
+          MODE: ${{ steps.mode.outputs.mode }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
           set -euo pipefail
           ALL_IMAGES='["ansible","ansible-podman","ansible-aws","terraform","terraform-aws","golang","latex"]'
-          case "${GITHUB_EVENT_NAME}" in
-            push)
+          EVERY_FILTER="$(jq -c '["image-base"] + map("image-" + .)' <<< "${ALL_IMAGES}")"
+          case "${MODE}:${GITHUB_EVENT_NAME}" in
+            candidate:* | nightly:*)
+              echo "${MODE} mode tests every image."
+              MATCHED="${EVERY_FILTER}"
+              ;;
+            *:push)
               echo "A push tests no image: the pull request that brought each change tested them."
               MATCHED='[]'
               ;;
-            workflow_dispatch)
-              MATCHED="$(jq -c '["image-base"] + map("image-" + .)' <<< "${ALL_IMAGES}")"
+            *:workflow_dispatch)
+              MATCHED="${EVERY_FILTER}"
               ;;
             *)
               MATCHED="${CHANGES:?paths-filter gave no changes output}"
@@ -436,11 +514,16 @@ jobs:
       - name: Run pre-commit
         run: uv run --locked --no-build pre-commit run --all-files --show-diff-on-failure
 
+  # Nightly mode tests the images and nothing else. The jobs that test the
+  # repository skip in it: this one, powershell-lint, devcontainer-state,
+  # unit-tests, ansible-test, molecule and scenario-tests. The pull requests
+  # that brought the commit ran them, and no change is under test. Lint
+  # stays: the candidate builds need it.
   test-playbooks:
     name: Test Playbooks
     runs-on: ubuntu-24.04
     needs: changes
-    if: needs.changes.outputs.ansible == 'true'
+    if: needs.changes.outputs.mode != 'nightly' && needs.changes.outputs.ansible == 'true'
     timeout-minutes: 15
     permissions:
       contents: read
@@ -498,7 +581,7 @@ jobs:
     name: PowerShell Lint
     runs-on: ubuntu-24.04
     needs: changes
-    if: needs.changes.outputs.scripts == 'true'
+    if: needs.changes.outputs.mode != 'nightly' && needs.changes.outputs.scripts == 'true'
     timeout-minutes: 10
     permissions:
       contents: read
@@ -524,9 +607,10 @@ jobs:
     runs-on: ubuntu-24.04
     needs: changes
     if: >-
-      needs.changes.outputs.devcontainer == 'true'
+      needs.changes.outputs.mode != 'nightly'
+      && (needs.changes.outputs.devcontainer == 'true'
       || needs.changes.outputs.template_images == 'true'
-      || needs.changes.outputs.scripts == 'true'
+      || needs.changes.outputs.scripts == 'true')
     timeout-minutes: 10
     permissions:
       contents: read
@@ -571,19 +655,20 @@ jobs:
   # image build-containers.yml publishes, which is built again, multi-arch,
   # and gated again there.
   #
-  # In candidate mode (see "Decide the image mode") the candidate jobs build
-  # each image as build-containers.yml publishes it and push it untagged, by
-  # digest. The image job then runs the same checks on that digest, pulled on
-  # a runner of each platform it is published for, and candidate-tag tags
-  # and records it only once every leg and every other job passed.
+  # In candidate and nightly mode (see "Decide the image mode") the candidate
+  # jobs build each image as build-containers.yml publishes it and push it
+  # untagged, by digest. The image job then runs the same checks on that
+  # digest, pulled on a runner of each platform it is published for, and
+  # candidate-tag records it, and in candidate mode tags it, only once every
+  # leg and every other job passed.
 
   # base is built once, here, for its own checks and for the images built on
   # it, which take it as an artifact instead of building it again. One build
   # writes it twice: to an OCI layout, which the children read as a named
   # build context (the docker-container builder does not see the daemon's
   # images), and into Docker, for the checks. Verification mode only:
-  # candidate mode builds base in candidate-base and tests it in the image
-  # job, on both platforms, as it tests the others.
+  # candidate and nightly mode build base in candidate-base and test it in
+  # the image job, on both platforms, as they test the others.
   base:
     name: Image (base)
     runs-on: ubuntu-24.04
@@ -611,11 +696,15 @@ jobs:
         with:
           driver: docker-container
 
-      # Read-only. build-base in build-containers.yml is the one writer of
-      # this tag, and a cache export replaces the manifest at its tag, so a
-      # second writer here would overwrite it every run. The package is
-      # public, so reading needs no credentials and fork pull requests use it
-      # too. Probed first: buildx aborts on a missing cache-from ref.
+      # Read-only. candidate-base is the one writer of this tag, in candidate
+      # and nightly mode, and a cache export replaces the manifest at its tag,
+      # so a second writer here would overwrite it every run. It was
+      # build-containers.yml's :buildcache-publish, which stops moving once 2d
+      # publishes the candidates instead of building again; :buildcache holds
+      # the base the promotion and the nightly last built, as the children's
+      # :buildcache holds theirs. The package is public, so reading needs no
+      # credentials and fork pull requests use it too. Probed first: buildx
+      # aborts on a missing cache-from ref.
       #
       # The cache also keeps the children's own cache useful. rewrite-timestamp
       # clamps only the mtimes later than SOURCE_DATE_EPOCH, so cached base
@@ -626,7 +715,7 @@ jobs:
       - name: Resolve the base build cache
         id: base_cache
         env:
-          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache
         run: |
           set -euo pipefail
           if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
@@ -805,12 +894,13 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
-  # Candidate mode only: base as build-base in build-containers.yml publishes
-  # it, pushed untagged by digest, so that 2d can publish this very digest.
-  # The build step's settings are build-base's (tests/test_workflow_contracts.py
-  # compares them) but for the cache. The checkout is the pull request's head,
-  # so the labels and SOURCE_DATE_EPOCH name the develop commit (see "Check
-  # main is an ancestor of develop").
+  # Candidate and nightly mode only: base as build-base in
+  # build-containers.yml publishes it, pushed untagged by digest, so that 2d
+  # can publish this very digest. The build step's settings are build-base's
+  # (tests/test_workflow_contracts.py compares them) but for the cache. The
+  # checkout is the pull request's head, so the labels and SOURCE_DATE_EPOCH
+  # name the develop commit (see "Check main is an ancestor of develop"); in
+  # nightly mode, which has no pull request, the commit the run is for.
   #
   # Uncached, as the nightly publish builds: a candidate is what 2d publishes,
   # so it must hold today's OS packages. The first candidate run (#636,
@@ -820,8 +910,10 @@ jobs:
   # writes :buildcache, its one writer, for pull requests to read.
   #
   # packages: write on candidate-base, candidate-build and candidate-tag only,
-  # each behind the mode. The mode needs this repository's develop as the head,
-  # and pushing to develop already takes write access.
+  # each behind the mode. Candidate mode needs this repository's develop as
+  # the head, and pushing to develop already takes write access; nightly mode
+  # a dispatch or a schedule, which only write access starts. id-token and
+  # attestations: write on the two builds alone, for their attestation.
   candidate-base:
     name: Candidate (base)
     runs-on: ubuntu-24.04
@@ -831,14 +923,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
     needs: [changes, lint]
-    if: needs.changes.outputs.mode == 'candidate' && needs.changes.outputs.base == 'true'
+    if: contains(fromJSON('["candidate", "nightly"]'), needs.changes.outputs.mode) && needs.changes.outputs.base == 'true'
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.changes.outputs.mode == 'nightly' && github.sha || github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Derive SOURCE_DATE_EPOCH from the commit
@@ -895,7 +989,14 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           labels: ${{ steps.labels.outputs.labels }}
           build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache,mode=max,ignore-error=true
+          # :buildcache is what every pull request's base job builds from, so
+          # only the promotion and main's nightly write it (cache_write, see
+          # "Decide the image mode"). A nightly dispatched on another branch
+          # builds and tests as main's does, but must not replace it.
+          cache-to: >-
+            ${{ needs.changes.outputs.cache_write == 'true'
+            && format('type=registry,ref=ghcr.io/{0}/devcontainer-base:buildcache,mode=max,ignore-error=true', github.repository_owner)
+            || '' }}
           no-cache: true
           platforms: ${{ needs.changes.outputs.base_platforms }}
           provenance: true
@@ -918,6 +1019,20 @@ jobs:
             > "${RUNNER_TEMP}/candidate-digest/${IMAGE}.json"
           echo "devcontainer-${IMAGE}@${DIGEST}"
 
+      # SLSA build provenance, signed with this workflow's identity and pushed
+      # beside the digest, as build-containers.yml attests what it publishes:
+      # 2d publishes this digest and builds nothing to attest. It says what
+      # built the digest, from which commit, not that it passed; the record
+      # candidate-tag writes once every leg passed says that. After the
+      # digest was checked and before it is handed on, so every digest a leg
+      # pulls is attested.
+      - name: Attest the build
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
       # Two weeks: as long as cleanup-ghcr.yml keeps the untagged digest, so a
       # re-run of a failed leg can still pull it.
       - name: Upload the candidate digest
@@ -929,10 +1044,10 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
-  # Candidate mode only: every other image, as build-all in build-containers.yml
-  # publishes it, on the base candidate-base pushed. One job per image, for
-  # every platform scripts/release-images.py gives it. No max-parallel:
-  # build-all's 2 has no recorded reason.
+  # Candidate and nightly mode only: every other image, as build-all in
+  # build-containers.yml publishes it, on the base candidate-base pushed. One
+  # job per image, for every platform scripts/release-images.py gives it. No
+  # max-parallel: build-all's 2 has no recorded reason.
   candidate-build:
     name: Candidate (${{ matrix.image }})
     runs-on: ubuntu-24.04
@@ -941,13 +1056,15 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
     needs: [changes, lint, candidate-base]
     # Whatever candidate-base's result, as the image job takes base's: it is
     # skipped when no image here is built on it, and an image built on it
     # stops at "Check this run built the base".
     if: >-
       !cancelled()
-      && needs.changes.outputs.mode == 'candidate'
+      && contains(fromJSON('["candidate", "nightly"]'), needs.changes.outputs.mode)
       && needs.changes.result == 'success'
       && needs.lint.result == 'success'
       && needs.changes.outputs.builds != '[]'
@@ -958,7 +1075,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.changes.outputs.mode == 'nightly' && github.sha || github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Resolve the image's files
@@ -1029,7 +1146,11 @@ jobs:
           build-args: |
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
             ${{ steps.files.outputs.base_from_run == 'true' && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.candidate-base.outputs.digest) || '' }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}:buildcache,mode=max,ignore-error=true
+          # See candidate-base.
+          cache-to: >-
+            ${{ needs.changes.outputs.cache_write == 'true'
+            && format('type=registry,ref=ghcr.io/{0}/devcontainer-{1}:buildcache,mode=max,ignore-error=true', github.repository_owner, matrix.image)
+            || '' }}
           no-cache: true
           platforms: ${{ matrix.platforms }}
           provenance: true
@@ -1051,6 +1172,14 @@ jobs:
             > "${RUNNER_TEMP}/candidate-digest/${IMAGE}.json"
           echo "devcontainer-${IMAGE}@${DIGEST}"
 
+      # See candidate-base.
+      - name: Attest the build
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
       - name: Upload the candidate digest
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
@@ -1062,9 +1191,9 @@ jobs:
 
   # One leg per image and platform (see "Resolve the image legs"): the amd64
   # build in verification mode, every published platform of the candidate
-  # digest in candidate mode, base among them. Only how the image under test
-  # gets into the runner's Docker differs between the two; every check after
-  # "Record the image under test" runs on that image either way.
+  # digest in candidate and nightly mode, base among them. Only how the image
+  # under test gets into the runner's Docker differs between the two; every
+  # check after "Record the image under test" runs on that image either way.
   image:
     name: Image (${{ matrix.image }}, ${{ matrix.arch }})
     # From RUNNERS in scripts/release-images.py: ubuntu-24.04 and
@@ -1078,9 +1207,10 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
-      # Candidate mode pulls the candidate with it. The package is public, so
-      # this only spares the pulls the anonymous limits. Nothing here writes
-      # a registry: :buildcache has one writer, candidate mode's builds.
+      # Candidate and nightly mode pull the candidate with it. The package is
+      # public, so this only spares the pulls the anonymous limits. Nothing
+      # here writes a registry: :buildcache has one writer, the candidate
+      # builds.
       packages: read
     needs: [changes, lint, base, candidate-base, candidate-build]
     # Whatever base's result. It is skipped whenever no image in the list is
@@ -1104,9 +1234,10 @@ jobs:
       IMAGE_REF: devcontainer-${{ matrix.image }}:ci
       MODE: ${{ needs.changes.outputs.mode }}
       # One SBOM a leg: a candidate image has one per platform.
-      SBOM_NAME: ${{ needs.changes.outputs.mode == 'candidate' && 'candidate' || 'presubmit' }}-sbom-${{ matrix.image }}-${{ matrix.arch }}
+      SBOM_NAME: ${{ contains(fromJSON('["candidate", "nightly"]'), needs.changes.outputs.mode) && 'candidate' || 'presubmit' }}-sbom-${{ matrix.image }}-${{ matrix.arch }}
     steps:
-      # The head in candidate mode, as the candidate builds check it out.
+      # The head in candidate mode, as the candidate builds check it out. The
+      # default otherwise: the run's commit, which nightly mode builds.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ needs.changes.outputs.mode == 'candidate' && github.event.pull_request.head.sha || '' }}
@@ -1179,11 +1310,11 @@ jobs:
           echo "Base layout ${EXPECTED}: index and every blob verified."
 
       # Verification never writes a registry cache. :buildcache has one writer,
-      # candidate mode's builds (candidate-base, candidate-build), so no
-      # other pull request, Renovate's included, can put layers into the cache
-      # that the promotion builds from. A fork gets the Actions cache instead,
-      # from and to: its writes are scoped to the pull request's ref, which no
-      # other ref reads.
+      # the candidate builds (candidate-base, candidate-build) of candidate
+      # and nightly mode, so no other pull request, Renovate's included, can
+      # put layers into the cache every pull request builds from. A fork gets
+      # the Actions cache instead, from and to: its writes are scoped to the
+      # pull request's ref, which no other ref reads.
       - name: Determine cache strategy
         id: cache
         if: env.MODE == 'verification'
@@ -1267,10 +1398,10 @@ jobs:
             ${{ steps.cache.outputs.cache_to }}
           platforms: linux/amd64
 
-      # Candidate mode pulls the image instead: the digest its candidate build
-      # pushed, for this leg's platform.
+      # Candidate and nightly mode pull the image instead: the digest its
+      # candidate build pushed, for this leg's platform.
       - name: Login to GHCR
-        if: env.MODE == 'candidate'
+        if: contains(fromJSON('["candidate", "nightly"]'), env.MODE)
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
           registry: ghcr.io
@@ -1278,7 +1409,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download the candidate digest
-        if: env.MODE == 'candidate'
+        if: contains(fromJSON('["candidate", "nightly"]'), env.MODE)
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           name: candidate-digest-${{ matrix.image }}
@@ -1290,7 +1421,7 @@ jobs:
       # a runner label that stopped meaning arm64. Then the digest takes the
       # tag every check below uses, so they run unchanged.
       - name: Pull the candidate by digest
-        if: env.MODE == 'candidate'
+        if: contains(fromJSON('["candidate", "nightly"]'), env.MODE)
         env:
           RECORD: ${{ runner.temp }}/candidate-digest/${{ matrix.image }}.json
           REPOSITORY: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
@@ -1357,7 +1488,8 @@ jobs:
           docker run --rm "${IMAGE_REF}" \
             bash -lc "echo '${IMAGE} container is healthy' && whoami && which bash"
 
-      # The base job's smoke test, for base tested here in candidate mode.
+      # The base job's smoke test, for base tested here in candidate and
+      # nightly mode.
       - name: Smoke test base with its stack's checks
         if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.image == 'base' }}
         env:
@@ -1446,8 +1578,9 @@ jobs:
       # levels are relative to severity-cutoff, so at critical a high finding
       # reads as a warning, while the JSON names each finding's severity.
       # Verification blocks on critical, the owner's decision for pull
-      # requests. Candidate mode blocks on fixable high on every platform: the
-      # bar build-containers.yml tags at, and the digest is what 2d publishes.
+      # requests. Candidate and nightly mode block on fixable high on every
+      # platform: the bar build-containers.yml tags at, and the digest is what
+      # 2d publishes.
       - name: Scan image with Grype
         id: grype
         if: ${{ !cancelled() && steps.scan_image.outcome == 'success' }}
@@ -1456,7 +1589,7 @@ jobs:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
           image: ${{ env.IMAGE_REF }}
-          severity-cutoff: ${{ env.MODE == 'candidate' && 'high' || 'critical' }}
+          severity-cutoff: ${{ contains(fromJSON('["candidate", "nightly"]'), env.MODE) && 'high' || 'critical' }}
           only-fixed: true
           fail-build: "true"
           output-format: json
@@ -1465,7 +1598,8 @@ jobs:
       # CI blocks on critical, the owner's decision. build-containers.yml tags
       # nothing with a fixable high finding, so each warning here is one that
       # would hold back the publish of this image after the merge. In
-      # candidate mode the scan above failed on them; this lists them.
+      # candidate and nightly mode the scan above failed on them; this lists
+      # them.
       - name: Annotate fixable high findings
         if: ${{ !cancelled() && steps.grype.outputs.json != '' }}
         env:
@@ -1488,11 +1622,14 @@ jobs:
           for FINDING in "${FINDINGS[@]}"; do
             echo "::warning title=Fixable high finding in ${IMAGE_REF}::${FINDING}"
           done
-          if [ "${MODE}" = "candidate" ]; then
-            VERDICT="blocking this candidate"
-          else
-            VERDICT="not blocking here"
-          fi
+          case "${MODE}" in
+            candidate | nightly)
+              VERDICT="blocking this candidate"
+              ;;
+            *)
+              VERDICT="not blocking here"
+              ;;
+          esac
           {
             echo "### ${IMAGE_REF}: ${#FINDINGS[@]} fixable high finding(s), ${VERDICT}"
             echo ""
@@ -1703,14 +1840,21 @@ jobs:
           bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
           bash scripts/scenarios/run-latex-cv.sh --image "${IMAGE_REF}"
 
-  # Candidate mode only, and only once the run passed: every job CI Success
-  # aggregates ended in success or skipped, none failed or was cancelled. A
-  # record says "this tree passed CI", which a passing image job alone does
-  # not. Then each candidate digest gets the tag candidate-<first 12 of the
-  # head's tree>, and the run records what it tested in tested-digests.json
-  # (scripts/tested-digests.py), the record main's provenance job asks for and
-  # 2d publishes from. It is written when no image changed too, with no
-  # images, so main can prove its tree was tested either way.
+  # Candidate and nightly mode only, and only once the run passed: every job
+  # CI Success aggregates ended in success or skipped, none failed or was
+  # cancelled. A record says "this tree passed CI", which a passing image job
+  # alone does not. Then each candidate digest gets the tag candidate-<first
+  # 12 of the head's tree>, and the run records what it tested in
+  # tested-digests.json (scripts/tested-digests.py), the record main's
+  # provenance job asks for and 2d publishes from. It names every image:
+  # candidate and nightly mode build them all, whatever changed.
+  #
+  # Nightly mode records and does not tag: its tree is main's, which the
+  # promotion that put it there already tagged, and a nightly tag would move
+  # candidate-<tree12> off the digests that promotion tested. Its record names
+  # the commit it built as both head and base, as main has no other commit to
+  # be based on, and 2d publishes from it through this run's id. It still
+  # takes the whole run to pass, though the repository's own jobs skip.
   candidate-tag:
     name: Candidate tag
     runs-on: ubuntu-24.04
@@ -1735,13 +1879,13 @@ jobs:
       - scenario-tests
     if: >-
       !cancelled()
-      && needs.changes.outputs.mode == 'candidate'
+      && contains(fromJSON('["candidate", "nightly"]'), needs.changes.outputs.mode)
       && !contains(needs.*.result, 'failure')
       && !contains(needs.*.result, 'cancelled')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.changes.outputs.mode == 'nightly' && github.sha || github.event.pull_request.head.sha }}
           persist-credentials: false
 
       # Skipped is no failure, but legs that were resolved and skipped
@@ -1770,8 +1914,8 @@ jobs:
         env:
           IMAGES: ${{ needs.changes.outputs.images }}
           BASE: ${{ needs.changes.outputs.base }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ needs.changes.outputs.mode == 'nightly' && github.sha || github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ needs.changes.outputs.mode == 'nightly' && github.sha || github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
@@ -1779,7 +1923,9 @@ jobs:
             --images "${IMAGES}" --base "${BASE}" --tree "${TREE}" --head "${HEAD_SHA}" \
             --base-sha "${BASE_SHA}" --run-id "${GITHUB_RUN_ID}" > "${RUNNER_TEMP}/tested-digests.json"
 
+      # Candidate mode only: see the job's comment.
       - name: Login to GHCR
+        if: needs.changes.outputs.mode == 'candidate'
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
           registry: ghcr.io
@@ -1789,6 +1935,7 @@ jobs:
       # build-containers.yml's planned-digest check, then the tag, then the
       # read-back: see the script.
       - name: Tag the tested digests
+        if: needs.changes.outputs.mode == 'candidate'
         run: bash scripts/tag-candidates.sh "${RUNNER_TEMP}/tested-digests.json"
 
       # Last, once every tag resolves: 90 days, longer than a promotion waits
@@ -1807,6 +1954,8 @@ jobs:
   # port of malpanez/security's scripts/ci/provenance.sh, kept to the one
   # question 2c asks. It fails CI Success on main, loudly, when it cannot
   # prove the tree was tested, and 2d will publish only from its record.
+  # Never in nightly mode, which runs on a dispatch or a schedule only (see
+  # "Decide the image mode"), never on a push.
   provenance:
     name: Provenance
     runs-on: ubuntu-24.04
@@ -1855,7 +2004,7 @@ jobs:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
     needs: changes
-    if: needs.changes.outputs.python == 'true'
+    if: needs.changes.outputs.mode != 'nightly' && needs.changes.outputs.python == 'true'
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -1911,7 +2060,7 @@ jobs:
     name: Ansible Test
     runs-on: ubuntu-24.04
     needs: changes
-    if: needs.changes.outputs.ansible == 'true'
+    if: needs.changes.outputs.mode != 'nightly' && needs.changes.outputs.ansible == 'true'
     timeout-minutes: 15
     permissions:
       contents: read
@@ -1960,6 +2109,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [changes, test-playbooks]
     if: |
+      needs.changes.outputs.mode != 'nightly' &&
       needs.changes.outputs.ansible == 'true' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 45
@@ -2047,6 +2197,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: changes
     if: |
+      needs.changes.outputs.mode != 'nightly' &&
       needs.changes.outputs.terraform == 'true' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
@@ -2171,8 +2322,8 @@ jobs:
   # changes and lint are listed on purpose: when either fails, base and image
   # are skipped, and a skip passes, so without them this check stayed green
   # with no image tested at all. The candidate jobs are listed for the same
-  # reason: in candidate mode they build what the image legs test, and
-  # candidate-tag tags and records it.
+  # reason: in candidate and nightly mode they build what the image legs
+  # test, and candidate-tag records it.
   test-summary:
     name: Test Summary
     runs-on: ubuntu-24.04
