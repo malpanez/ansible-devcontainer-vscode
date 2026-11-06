@@ -169,21 +169,20 @@ brew install cosign
 
 # Verify SBOM signature
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode' \
+  --certificate-identity 'https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/build-containers.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   ghcr.io/malpanez/devcontainer-ansible:latest
 ```
 
 ### Verify Provenance
 
-Check where and how the image was built:
+Check where and how the image was built (how and from which commit, not that
+it passed: the signature above says that):
 
 ```bash
-cosign verify-attestation \
-  --type slsaprovenance \
-  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode' \
-  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  ghcr.io/malpanez/devcontainer-ansible:latest
+gh attestation verify oci://ghcr.io/malpanez/devcontainer-ansible:latest \
+  --repo malpanez/ansible-devcontainer-vscode \
+  --signer-workflow malpanez/ansible-devcontainer-vscode/.github/workflows/build-containers.yml@refs/heads/main
 ```
 
 ---
@@ -362,7 +361,7 @@ IMAGE="ghcr.io/malpanez/devcontainer-ansible:latest"
 
 echo "1. Verifying image signature..."
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode' \
+  --certificate-identity 'https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/build-containers.yml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   "$IMAGE"
 

@@ -2,15 +2,17 @@
 """The record of what a candidate run tested, and main's check of it.
 
 ci.yml runs candidate mode in the develop -> main promotion pull request: it
-builds every image that differs from main as build-containers.yml publishes it,
-pushes it untagged by digest, tests that digest on every platform and tags it
-candidate-<tree12>. Its candidate-tag job then writes tested-digests.json and
-uploads it as the run's `tested-digests` artifact. A push to main checks that
-the promotion run which tested its tree wrote one, and 2d publishes the digests
-it names without building them again.
+builds every image as build-containers.yml publishes it, pushes it untagged by
+digest, tests that digest on every platform and tags it candidate-<tree12>. Its
+candidate-tag job then writes tested-digests.json and uploads it as the run's
+`tested-digests` artifact. A push to main checks that the promotion run which
+tested its tree wrote one, and 2d publishes the digests it names without
+building them again. Nightly mode (nightly.yml) builds and tests every image
+of the commit it runs on the same way and writes the same record, with that
+commit as both head and base, but tags nothing.
 
-The record is written even when the promotion changed no image, with an empty
-images map, so main can prove its tree was tested either way:
+The record can also name no image, with an empty images map, and still prove
+its tree was tested:
 
     {"base": <main's commit the run was based on>, "head": <the develop commit
      built and tested>, "images": {<name>: <index digest>}, "run_id": <run>,
@@ -26,10 +28,11 @@ images map, so main can prove its tree was tested either way:
 
   find-run --repository R --sha S
       For a push to main: the pull request merged as S, which must come from
-      develop, and its newest successful ci.yml pull_request run, which must
-      have a tested-digests artifact. Prints run_id=, pr= and head= for
-      $GITHUB_OUTPUT. Reads the GitHub API through `gh api` (GH_TOKEN, with
-      actions: read and pull-requests: read).
+      develop, and its newest successful ci.yml pull_request run, whose
+      "Candidate tag" job must have passed and which must have a tested-digests
+      artifact. Prints run_id=, pr= and head= for $GITHUB_OUTPUT. Reads the
+      GitHub API through `gh api` (GH_TOKEN, with actions: read and
+      pull-requests: read).
 
   verify --tree T --run-id N < tested-digests.json
       Fails unless the record on stdin is well formed, came from run N and
@@ -54,6 +57,8 @@ from typing import Any
 
 WORKFLOW = "ci.yml"
 ARTIFACT = "tested-digests"
+CANDIDATE_TAG_JOB = "Candidate tag"
+JOBS_PER_PAGE = 100
 SOURCE_BRANCH = "develop"
 TARGET_BRANCH = "main"
 BASE = "base"
@@ -191,6 +196,29 @@ def _gh_api(path: str, kind: type) -> Any:
     return answer
 
 
+def _run_jobs(repository: str, run_id: int) -> list[Any]:
+    """Every job of the run's latest attempt, a page at a time."""
+    jobs: list[Any] = []
+    page = 1
+    while True:
+        answer = _gh_api(
+            f"repos/{repository}/actions/runs/{run_id}/jobs"
+            f"?filter=latest&per_page={JOBS_PER_PAGE}&page={page}",
+            dict,
+        )
+        found = answer.get("jobs")
+        total = answer.get("total_count")
+        if not isinstance(found, list) or type(total) is not int:
+            raise RecordError(
+                f"run {run_id}'s jobs page {page} has no jobs list and total_count"
+            )
+        jobs.extend(found)
+        # Each page adds a job or ends the loop, so it ends.
+        if not found or len(jobs) >= total:
+            return jobs
+        page += 1
+
+
 def find_run(repository: str, sha: str) -> dict[str, str]:
     """The promotion pull request merged as sha, and the run that tested it."""
     repository = _repository(repository)
@@ -253,6 +281,22 @@ def find_run(repository: str, sha: str) -> dict[str, str]:
             " run, then this job"
         )
     run_id = _run_id(passed[-1]["id"])
+    # A run concludes success with Candidate tag skipped, and that job is what
+    # tags and records the candidates. Its result in the run's latest attempt
+    # says it passed there; an artifact says only that some step uploaded it.
+    tags = [
+        job
+        for job in _run_jobs(repository, run_id)
+        if isinstance(job, dict) and job.get("name") == CANDIDATE_TAG_JOB
+    ]
+    if [job.get("conclusion") for job in tags] != ["success"]:
+        found = ", ".join(str(job.get("conclusion")) for job in tags) or "no such job"
+        raise RecordError(
+            f"run {run_id} of pull request #{number} has no successful"
+            f" {json.dumps(CANDIDATE_TAG_JOB)} job ({found}): the run passed without"
+            " tagging and recording what it tested. Re-run its candidate jobs, then"
+            " this job"
+        )
     artifacts = _gh_api(
         f"repos/{repository}/actions/runs/{run_id}/artifacts?name={ARTIFACT}", dict
     )

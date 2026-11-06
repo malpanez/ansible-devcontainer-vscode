@@ -1,0 +1,51 @@
+---
+name: Nightly
+
+# ci.yml in nightly mode: every image built uncached from the commit this run
+# is for, multi-arch, pushed by digest and attested, tested on every platform
+# with the promotion's checks, and recorded in this run's tested-digests
+# artifact. See "Decide the image mode" in ci.yml.
+#
+# Dispatch only, until 2d-2 adds the schedule and makes build-containers.yml
+# publish what this run recorded. The schedule belongs here, never in ci.yml:
+# GitHub disables a scheduled workflow in a public repository after 60 days
+# without activity, and that disables every trigger it has. Here that stops
+# the nightly; in ci.yml it would stop the required checks.
+
+on:
+  workflow_dispatch:
+
+# Nothing at the workflow level: the one job below grants what ci.yml's jobs
+# ask for.
+permissions: {}
+
+# Serialized, never cancelled: a run cancelled halfway leaves pushed digests
+# that nothing recorded. Not ci.yml's group: a called workflow evaluates
+# ${{ github.workflow }} to this workflow's name, so ci.yml suffixes its own
+# group on a call (see its concurrency), and this group has a prefix of its
+# own besides.
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    with:
+      mode: nightly
+    # A called workflow's job gets at most what its caller grants, and GitHub
+    # checks every job of ci.yml against it before the run starts, skipped
+    # jobs included: one that asks for more fails the whole run at startup.
+    # So this is every permission any job of ci.yml declares, at the highest
+    # level any of them asks for; tests/test_workflow_contracts.py keeps it
+    # equal. In nightly mode only candidate-base, candidate-build and
+    # candidate-tag use write access, and provenance (actions and
+    # pull-requests: read) never runs.
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+      pull-requests: read

@@ -16,18 +16,18 @@ workflow's inline list cannot.
         images=      the records, each with its platforms
         smoke_legs=  one row per image and platform, with the runner to use
 
-  ci-matrix --mode <verification|candidate> --images <json> --base <true|false>
+  ci-matrix --mode <verification|candidate|nightly> --images <json> --base <true|false>
       Prints, for $GITHUB_OUTPUT, the matrices of ci.yml's image jobs, from the
       images the changes job resolved (a JSON list, base not in it) and whether
       base is built:
         legs=            one row per image and platform the image job tests,
                          with the runner to use. Verification mode tests its
                          amd64 build of each image, and base in a job of its
-                         own. Candidate mode tests every platform of every
-                         image it built, base among them, as release.yml's
-                         smoke does.
-        builds=          candidate mode: each image but base, with the
-                         platforms build-containers.yml publishes it for.
+                         own. Candidate and nightly mode test every platform
+                         of every image they built, base among them, as
+                         release.yml's smoke does.
+        builds=          candidate and nightly mode: each image but base, with
+                         the platforms build-containers.yml publishes it for.
                          Empty in verification mode.
         base_platforms=  the platforms of base, for its candidate build.
 
@@ -126,7 +126,7 @@ def gate_outputs(records: Any) -> tuple[list[dict[str, Any]], list[dict[str, str
     return images, legs
 
 
-MODES = ("verification", "candidate")
+MODES = ("verification", "candidate", "nightly")
 
 
 def _ci_leg(name: str, platform: str) -> dict[str, str]:
@@ -141,7 +141,7 @@ def _ci_leg(name: str, platform: str) -> dict[str, str]:
 def ci_matrix(
     mode: str, images: Any, base: bool
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """List the image job's legs and, in candidate mode, the candidate builds."""
+    """List the image job's legs and the candidate builds (none in verification)."""
     if mode not in MODES:
         raise ValueError(f"mode {json.dumps(mode)} is not one of {', '.join(MODES)}")
     if not isinstance(images, list) or not all(isinstance(i, str) for i in images):
@@ -291,7 +291,7 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("names", help="Every image, one per line.")
     commands.add_parser("gate-outputs", help="Matrices of release.yml, from stdin.")
     ci = commands.add_parser("ci-matrix", help="Matrices of ci.yml's image jobs.")
-    ci.add_argument("--mode", required=True, help="verification or candidate.")
+    ci.add_argument("--mode", required=True, help="verification, candidate or nightly.")
     ci.add_argument(
         "--images", required=True, help="JSON list of the images, base not in it."
     )
