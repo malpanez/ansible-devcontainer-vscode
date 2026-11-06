@@ -821,51 +821,28 @@ def test_a_missing_registry_cache_is_not_read(tmp_path: Path) -> None:
     assert cache["cache_to"] == ""
 
 
-def _candidate_cache(tmp_path: Path, existing: str) -> dict[str, str]:
-    """resolve-candidate-cache.sh's outputs, with `existing` the tags GHCR has."""
-    _stub(
-        tmp_path / "bin",
-        "docker",
-        '#!/usr/bin/env bash\n[[ " ${FAKE_TAGS} " == *" ${4##*:} "* ]]\n',
-    )
-    proc = subprocess.run(
-        ["bash", str(REPO_ROOT / "scripts/resolve-candidate-cache.sh"), "golang"],
-        env={
-            **os.environ,
-            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
-            "FAKE_TAGS": existing,
-            "GITHUB_REPOSITORY_OWNER": "malpanez",
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stderr
-    lines = proc.stdout.splitlines()
-    delimiter = lines[0].removeprefix("from<<")
-    end = lines.index(delimiter)
-    return {"from": "\n".join(lines[1:end]), "to": lines[end + 1].removeprefix("to=")}
+CANDIDATE_CACHE = (
+    "type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-%s"
+    ":buildcache,mode=max,ignore-error=true"
+)
 
 
 @pytest.mark.parametrize(
-    ("existing", "read"),
-    [
-        ("buildcache buildcache-publish", ["buildcache-publish", "buildcache"]),
-        ("buildcache", ["buildcache"]),
-        ("buildcache-publish", ["buildcache-publish"]),
-        ("", []),
-    ],
+    ("job", "image"),
+    [("candidate-base", "base"), ("candidate-build", "${{ matrix.image }}")],
 )
-def test_a_candidate_reads_both_caches_it_finds_and_writes_only_its_own(
-    tmp_path: Path, existing: str, read: list[str]
+def test_candidates_build_uncached_and_write_only_their_own_cache(
+    job: str, image: str
 ) -> None:
-    cache = _candidate_cache(tmp_path, existing)
+    # A candidate is what 2d publishes: a cached upgrade layer shipped apt
+    # 3.0.3 and libexpat 2.9.0 in #636's first candidate run, when the fixed
+    # packages were already out. :buildcache-publish has one writer,
+    # build-containers.yml.
+    build = _build_step("ci", job)
 
-    assert cache["from"].splitlines() == [
-        f"type=registry,ref=ghcr.io/malpanez/devcontainer-golang:{tag}" for tag in read
-    ]
-    # build-containers.yml is :buildcache-publish's one writer.
-    assert cache["to"] == f"{REGISTRY_CACHE},mode=max,ignore-error=true"
+    assert build["no-cache"] is True
+    assert "cache-from" not in build
+    assert build["cache-to"] == CANDIDATE_CACHE % image
 
 
 def _candidate_job(job: dict[str, Any]) -> bool:
@@ -886,9 +863,8 @@ def test_only_candidate_jobs_write_a_registry_cache_on_a_pull_request() -> None:
                     ("ci", "candidate-build"),
                 ):
                     assert _candidate_job(job), job_name
-                    assert cache_to == "${{ steps.rcache.outputs.to }}"
-                    rcache = _step(job, "Resolve the build cache")["run"]
-                    assert "scripts/resolve-candidate-cache.sh" in rcache
+                    assert cache_to.startswith("type=registry,"), job_name
+                    assert ":buildcache," in cache_to, job_name
                     continue
                 assert cache_to in ("", "${{ steps.cache.outputs.cache_to }}"), (
                     name,
@@ -1812,7 +1788,8 @@ def test_the_verification_build_steps_skip_in_candidate_mode() -> None:
     assert names.index("Build ${{ matrix.image }}") < names.index("Login to GHCR")
 
 
-PUBLISH_ONLY = {"no-cache"}
+# build-containers.yml reads :buildcache-publish; candidates read no cache.
+PUBLISH_ONLY = {"cache-from"}
 # build-all's expressions, in candidate-build's words.
 BUILD_ALL_TO_CANDIDATE = {
     "${{ matrix.stack }}${{ matrix.variant }}": "${{ matrix.image }}",
@@ -1843,8 +1820,6 @@ def test_candidate_base_is_built_as_build_base_publishes_it() -> None:
     platforms = _workflow("build-containers")["jobs"]["build-base"]["env"]["PLATFORMS"]
     assert published["platforms"] == "${{ env.PLATFORMS }}"
     assert platforms == _release_images().IMAGES["base"]
-    assert candidate["cache-from"] == "${{ steps.rcache.outputs.from }}"
-    assert candidate["cache-to"] == "${{ steps.rcache.outputs.to }}"
 
 
 def test_candidate_builds_are_built_as_build_all_publishes_them(tmp_path: Path) -> None:

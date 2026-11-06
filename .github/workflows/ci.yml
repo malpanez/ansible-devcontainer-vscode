@@ -185,7 +185,6 @@ jobs:
               # its legs, and how candidate mode caches and tags the build.
               - 'scripts/resolve-image-files.sh'
               - 'scripts/release-images.py'
-              - 'scripts/resolve-candidate-cache.sh'
               - 'scripts/tag-candidates.sh'
             # Devcontainer State's: every image input, and what the image jobs
             # run.
@@ -809,9 +808,16 @@ jobs:
   # Candidate mode only: base as build-base in build-containers.yml publishes
   # it, pushed untagged by digest, so that 2d can publish this very digest.
   # The build step's settings are build-base's (tests/test_workflow_contracts.py
-  # compares them) but for the cache: scripts/resolve-candidate-cache.sh. The
-  # checkout is the pull request's head, so the labels and SOURCE_DATE_EPOCH
-  # name the develop commit (see "Check main is an ancestor of develop").
+  # compares them) but for the cache. The checkout is the pull request's head,
+  # so the labels and SOURCE_DATE_EPOCH name the develop commit (see "Check
+  # main is an ancestor of develop").
+  #
+  # Uncached, as the nightly publish builds: a candidate is what 2d publishes,
+  # so it must hold today's OS packages. The first candidate run (#636,
+  # 2026-11-06) read a cached upgrade layer and shipped apt 3.0.3 and libexpat
+  # 2.9.0 when trixie-security and Alpine 3.23 already had the fixed 3.0.4 and
+  # 2.10.0; the layer cache cannot know the package index moved. It still
+  # writes :buildcache, its one writer, for pull requests to read.
   #
   # packages: write on candidate-base, candidate-build and candidate-tag only,
   # each behind the mode. The mode needs this repository's develop as the head,
@@ -878,10 +884,6 @@ jobs:
           LABELS: ${{ steps.meta.outputs.labels }}
         run: bash scripts/strip-description-label.sh
 
-      - name: Resolve the build cache
-        id: rcache
-        run: bash scripts/resolve-candidate-cache.sh base >> "$GITHUB_OUTPUT"
-
       # Untagged: candidate-tag tags it once every leg and job passed.
       - name: Build and push base by digest
         id: build
@@ -893,8 +895,8 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           labels: ${{ steps.labels.outputs.labels }}
           build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
-          cache-from: ${{ steps.rcache.outputs.from }}
-          cache-to: ${{ steps.rcache.outputs.to }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache,mode=max,ignore-error=true
+          no-cache: true
           platforms: ${{ needs.changes.outputs.base_platforms }}
           provenance: true
           sbom: true
@@ -1012,14 +1014,8 @@ jobs:
           LABELS: ${{ steps.meta.outputs.labels }}
         run: bash scripts/strip-description-label.sh
 
-      - name: Resolve the build cache
-        id: rcache
-        env:
-          IMAGE: ${{ matrix.image }}
-        run: bash scripts/resolve-candidate-cache.sh "${IMAGE}" >> "$GITHUB_OUTPUT"
-
       # build-all's settings: the base by its candidate digest, as build-all
-      # takes the base its run built.
+      # takes the base its run built. Uncached: see candidate-base.
       - name: Build and push ${{ matrix.image }} by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
@@ -1033,8 +1029,8 @@ jobs:
           build-args: |
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
             ${{ steps.files.outputs.base_from_run == 'true' && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.candidate-base.outputs.digest) || '' }}
-          cache-from: ${{ steps.rcache.outputs.from }}
-          cache-to: ${{ steps.rcache.outputs.to }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}:buildcache,mode=max,ignore-error=true
+          no-cache: true
           platforms: ${{ matrix.platforms }}
           provenance: true
           sbom: true
@@ -1183,7 +1179,7 @@ jobs:
           echo "Base layout ${EXPECTED}: index and every blob verified."
 
       # Verification never writes a registry cache. :buildcache has one writer,
-      # candidate mode's builds (scripts/resolve-candidate-cache.sh), so no
+      # candidate mode's builds (candidate-base, candidate-build), so no
       # other pull request, Renovate's included, can put layers into the cache
       # that the promotion builds from. A fork gets the Actions cache instead,
       # from and to: its writes are scoped to the pull request's ref, which no
