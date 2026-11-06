@@ -1,7 +1,7 @@
 ---
 # devcontainer-ansible-aws is the ansible stack plus amazon.aws, boto3,
 # botocore and AWS CLI v2 (the ansible-aws stage of
-# devcontainers/ansible/Dockerfile), so test-containers.yml runs ansible.yaml
+# devcontainers/ansible/Dockerfile), so ci.yml's image job runs ansible.yaml
 # against it as well: that file's collection check expects amazon.aws exactly
 # when the AWS CLI is installed, and its stale-bytecode check covers the SDK.
 # This file holds only what the AWS layer adds; the AWS CLI checks repeat

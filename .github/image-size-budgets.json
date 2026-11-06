@@ -1,10 +1,10 @@
 {
-  "_doc": "Size budgets of the published images (devcontainer-<name>), in MiB (1024 * 1024 bytes), read by scripts/check-image-size.py. max_uncompressed_mib gates every pull request in ci.yml (devcontainer-build): docker image inspect .Size of the linux/amd64 image on the runner's classic overlay2 store, the sum of the files in its layers; over budget fails the build. max_compressed_mib is reported, never enforced, when build-containers.yml publishes: config plus layers of the linux/amd64 manifest in the registry, what a pull downloads. Raising a budget is a reviewed edit to this file: change the number and its reason in the same pull request and say what grew. See docs/IMAGE_PUBLISHING.md.",
+  "_doc": "Size budgets of the published images (devcontainer-<name>), in MiB (1024 * 1024 bytes), read by scripts/check-image-size.py. max_uncompressed_mib gates every pull request in ci.yml (the base and image jobs): docker image inspect .Size of the linux/amd64 image on the runner's classic overlay2 store, the sum of the files in its layers; over budget fails the build. max_compressed_mib is reported, never enforced, when build-containers.yml publishes: config plus layers of the linux/amd64 manifest in the registry, what a pull downloads. Raising a budget is a reviewed edit to this file: change the number and its reason in the same pull request and say what grew. See docs/IMAGE_PUBLISHING.md.",
   "images": {
     "base": {
       "max_uncompressed_mib": 360,
       "max_compressed_mib": 110,
-      "reason": "v2.0.0 amd64 320.4 MiB unpacked, 91.0 MiB zstd, +10% rounded up to 10 MiB. Pull requests never load base (ci.yml builds it into an OCI layout), so only the publish report reads it; its growth fails the ansible and ansible-aws gates, which are built on it."
+      "reason": "v2.0.0 amd64 320.4 MiB unpacked, 91.0 MiB zstd, +10% rounded up to 10 MiB. Gated in ci.yml's base job since base is loaded there; its growth also counts in the ansible and ansible-aws gates, which are built on it."
     },
     "ansible": {
       "max_uncompressed_mib": 470,

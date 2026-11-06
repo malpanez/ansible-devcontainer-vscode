@@ -1,7 +1,7 @@
 ---
 # devcontainer-terraform-aws is the terraform stack plus AWS CLI v2 (the
 # terraform-aws stage of devcontainers/terraform/Dockerfile), so
-# test-containers.yml runs terraform.yaml against it as well; this file holds
+# ci.yml's image job runs terraform.yaml against it as well; this file holds
 # only what the AWS layer adds. ansible-aws.yaml repeats the AWS CLI checks.
 schemaVersion: 2.0.0
 

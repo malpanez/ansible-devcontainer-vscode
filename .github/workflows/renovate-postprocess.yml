@@ -30,6 +30,7 @@ jobs:
     name: Post-process
     if: startsWith(github.head_ref, 'renovate/')
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:

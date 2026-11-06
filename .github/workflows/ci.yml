@@ -22,6 +22,8 @@ env:
   # the images. See scripts/derive-toolchain-versions.sh.
   # renovate: datasource=github-releases depName=astral-sh/uv
   UV_VERSION: "0.13.6"
+  # renovate: datasource=github-releases depName=GoogleContainerTools/container-structure-test
+  CST_VERSION: v1.22.1
 
 permissions:
   contents: read
@@ -37,6 +39,8 @@ jobs:
       ansible: ${{ steps.filter.outputs.ansible }}
       terraform: ${{ steps.filter.outputs.terraform }}
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
+      images: ${{ steps.images.outputs.images }}
+      base: ${{ steps.images.outputs.base }}
       template_images: ${{ steps.filter.outputs.template-images }}
       scripts: ${{ steps.filter.outputs.scripts }}
       python: ${{ steps.filter.outputs.python }}
@@ -57,7 +61,7 @@ jobs:
         with:
           filters: |
             # Note: .devcontainer/ (repo's dev environment) is intentionally excluded
-            # Only devcontainers/ (published stacks) triggers devcontainer builds
+            # Only devcontainers/ (published stacks) triggers the image jobs
             ansible:
               - 'playbooks/**'
               - 'roles/**'
@@ -77,49 +81,124 @@ jobs:
               - 'terraform/**'
               - 'infrastructure/**'
               - 'devcontainers/terraform/**'
-            devcontainer:
-              - 'devcontainers/**'
-              # The Dockerfiles copy these into the images.
-              - 'templates/**'
-              # The CLI pin belongs here too: the devcontainer-cli-test jobs
-              # are the only thing that exercises `npm ci` against it, and
-              # without this a change to how the CLI is installed skips the
-              # very jobs that would prove it still works. Same blind spot as
-              # a published image with no gating scan.
-              - 'scripts/devcontainers-cli/**'
+            # What every image job runs, reads or is judged by, so a change to
+            # any of it runs every image, as a Dockerfile change runs its own.
+            # Each image-<name> filter below starts with this list. Named
+            # images-all, not image-all: the image list keeps only the
+            # image-<name> filters.
+            images-all: &images-all
+              # This workflow: a change to the image jobs, their runner or
+              # their gates must run them. PR #606 (2026-10-30) changed only
+              # the build job's runs-on, every build job skipped and CI went
+              # green without running on the new runner.
+              - '.github/workflows/ci.yml'
               # The scan ignore policy decides what the image scan blocks, so
               # a change to it must run that scan. PR #546 (2026-10-12) changed
               # only this file, every build job skipped and CI went green
               # without exercising the policy it was changing.
               - '.grype.yaml'
-              # Both ansible Dockerfiles install exactly this export, so a
-              # lock bump changes the image as much as a Dockerfile edit and
-              # must be built and scanned the same way.
-              - 'requirements-ansible.txt'
-              # Same for ansible-aws: boto3 and botocore come from this export.
-              - 'requirements-aws.txt'
-              # Same for base, terraform, golang and latex: pre-commit and
-              # yamllint come from this export.
-              - 'requirements-devcontainer-tools.txt'
-              # The size gate in devcontainer-build: a budget edit, or a
-              # change to how the size is judged, must run that gate against
-              # the images it judges, as a .grype.yaml change runs the scan.
+              # The size gate: a budget edit, or a change to how the size is
+              # judged, must run that gate against the images it judges, as a
+              # .grype.yaml change runs the scan.
               - '.github/image-size-budgets.json'
               - 'scripts/check-image-size.py'
-              # What devcontainer-cli-test checks inside the container: a
-              # change to it must run that job against the images it judges.
+              # The structure tests, and what the jobs check inside the
+              # container: the template's workload and the Docker profiles.
+              - 'tests/container-structure/**'
               - 'scripts/check-devcontainer-workload.sh'
-              # Same for the Docker profiles.
               - 'scripts/test-devcontainer-profile.sh'
-              # This workflow: a change to the build job, its runner or its
-              # gates must run that job. PR #606 (2026-10-30) changed only the
-              # job's runs-on, every build job skipped and CI went green
-              # without running on the new runner.
-              - '.github/workflows/ci.yml'
+              - 'scripts/assert-image-id.sh'
+              # The CLI pin: these jobs are the only thing that exercises
+              # `npm ci` against it, and without this a change to how the CLI
+              # is installed skips the very jobs that would prove it still
+              # works.
+              - 'scripts/devcontainers-cli/**'
+              # How the jobs build: the commit's epoch and the labels.
+              - 'scripts/derive-source-date-epoch.sh'
+              - 'scripts/strip-description-label.sh'
+            # Devcontainer State's: every image input, and what the image jobs
+            # run.
+            devcontainer:
+              - *images-all
+              - 'devcontainers/**'
+              # The Dockerfiles copy these into the images.
+              - 'templates/**'
+              - 'requirements-ansible.txt'
+              - 'requirements-aws.txt'
+              - 'requirements-devcontainer-tools.txt'
+            # One filter per image, after the inputs its Dockerfile reads:
+            # what it COPYs or bind-mounts, the uv.lock export it installs and,
+            # for ansible and ansible-aws, devcontainers/base/, which they are
+            # built on here. A lock bump changes an image as much as a
+            # Dockerfile edit, so the exports are here too. The directory of a
+            # stack also holds the template and the profiles brought up on its
+            # image. images-all has the paths every image shares.
+            image-base:
+              - *images-all
+              - 'devcontainers/base/**'
+              - 'requirements-devcontainer-tools.txt'
+              # The base job's smoke test.
+              - 'scripts/smoke-devcontainer-image.sh'
+            image-ansible:
+              - *images-all
+              - 'devcontainers/ansible/**'
+              - 'devcontainers/base/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
+              - 'templates/pre-commit/ansible/**'
+              - 'requirements-ansible.txt'
+              - 'requirements-devcontainer-tools.txt'
+            image-ansible-podman:
+              - *images-all
+              - 'devcontainers/ansible/Dockerfile.podman'
+              - 'devcontainers/ansible/collections*.txt'
+              - 'devcontainers/ansible/install-collections.sh'
+              # The profile brought up on this image.
+              - 'devcontainers/ansible/devcontainer.podman.json'
+              - 'devcontainers/scripts/**'
+              - 'templates/ansible/**'
+              - 'templates/pre-commit/ansible/**'
+              - 'requirements-ansible.txt'
+            image-ansible-aws:
+              - *images-all
+              - 'devcontainers/ansible/**'
+              - 'devcontainers/base/**'
+              - 'devcontainers/scripts/**'
+              - 'templates/pre-commit/ansible/**'
+              - 'requirements-ansible.txt'
+              - 'requirements-aws.txt'
+              - 'requirements-devcontainer-tools.txt'
+            image-terraform:
+              - *images-all
+              - 'devcontainers/terraform/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
+              - 'templates/pre-commit/terraform/**'
+              - 'requirements-devcontainer-tools.txt'
+            image-terraform-aws:
+              - *images-all
+              - 'devcontainers/terraform/**'
+              - 'devcontainers/scripts/**'
+              - 'templates/pre-commit/terraform/**'
+              - 'requirements-devcontainer-tools.txt'
+            image-golang:
+              - *images-all
+              - 'devcontainers/golang/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
+              - 'templates/pre-commit/golang/**'
+              - 'requirements-devcontainer-tools.txt'
+            image-latex:
+              - *images-all
+              - 'devcontainers/latex/**'
+              - 'devcontainers/scripts/ensure-precommit.sh'
+              - 'templates/pre-commit/latex/**'
+              - 'requirements-devcontainer-tools.txt'
+              # The LaTeX scenario this image's job runs, and the smoke test it
+              # starts with.
+              - 'scripts/scenarios/run-latex-cv.sh'
+              - 'scripts/smoke-devcontainer-image.sh'
+              - 'docs/scenarios/examples/**'
             # The files that name the images the templates and examples open
             # from, checked by Devcontainer State. A filter of its own, not
-            # more paths under devcontainer: examples/ is no image input, and
-            # that filter also starts the image builds.
+            # more paths under devcontainer: examples/ is no image input.
             template-images:
               - 'devcontainers/**/devcontainer*.json'
               - '.devcontainer/**/devcontainer*.json'
@@ -159,6 +238,34 @@ jobs:
               - '.github/workflows/*.yml'
               - 'Makefile'
               - '.pre-commit-config.yaml'
+
+      # The image job's matrix: the images whose image-<name> filter matched,
+      # and whether the base job must run, for base itself or for an image
+      # built on it (ansible and ansible-aws, whose Dockerfile takes
+      # BASE_IMAGE). paths-filter lists every filter that matched, never an
+      # `any_changed`. A dispatch diffs only the last commit (or the branch
+      # against main), usually nothing, so it runs every image.
+      - name: Resolve the images to test
+        id: images
+        env:
+          CHANGES: ${{ steps.filter.outputs.changes }}
+        run: |
+          set -euo pipefail
+          ALL_IMAGES='["ansible","ansible-podman","ansible-aws","terraform","terraform-aws","golang","latex"]'
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            MATCHED="$(jq -c '["image-base"] + map("image-" + .)' <<< "${ALL_IMAGES}")"
+          else
+            MATCHED="${CHANGES:?paths-filter gave no changes output}"
+          fi
+          IMAGES="$(jq -c --argjson matched "${MATCHED}" \
+            'map(. as $image | select(any($matched[]; . == "image-" + $image)))' <<< "${ALL_IMAGES}")"
+          BASE="$(jq -r --argjson images "${IMAGES}" \
+            'any(.[]; . == "image-base") or any($images[]; . == "ansible" or . == "ansible-aws")' <<< "${MATCHED}")"
+          echo "Images to test: ${IMAGES}; base: ${BASE}"
+          {
+            echo "images=${IMAGES}"
+            echo "base=${BASE}"
+          } >> "$GITHUB_OUTPUT"
 
   # The only lint in CI: the pre-commit hooks, the same run as `make lint`.
   # The script-lint, dockerfile-lint and terraform-ci jobs here and
@@ -352,74 +459,36 @@ jobs:
         run: python3 scripts/check-devcontainer-images.py
 
 
-  devcontainer-build:
-    name: Build Devcontainer (${{ matrix.stack }}${{ matrix.variant }})
-    # Not ubuntu-latest: that label moves to Ubuntu 26.04 by 2026-11-19, with
-    # Docker 29 where 24.04 has Docker 28. The size gate below needs the classic
-    # overlay2 store its budgets were measured on, and fails on the containerd
-    # store, the default for a new Docker 29 install. Renovate ignores runner
-    # labels, so move this by hand and re-measure the budgets in that change.
+  # The image jobs build each image once and run every image check on that
+  # build. Each check used to build the image for itself: up to five builds
+  # of each image per pull request, in devcontainer-build and
+  # devcontainer-cli-test here, scenario-tests, test-containers.yml and
+  # sbom-verification.yml. Every check now asserts, before it runs, that the
+  # image still has the ID the build gave it (scripts/assert-image-id.sh).
+  # The checks after the build run whether or not an earlier one failed, as
+  # they did when they were separate jobs, so one run reports them all.
+  #
+  # What these jobs test is a presubmit build: amd64 only, loaded into the
+  # runner's Docker and never pushed. It is not the image build-containers.yml
+  # publishes, which is built again, multi-arch, and gated again there.
+
+  # base is built once, here, for its own checks and for the images built on
+  # it, which take it as an artifact instead of building it again. One build
+  # writes it twice: to an OCI layout, which the children read as a named
+  # build context (the docker-container builder does not see the daemon's
+  # images), and into Docker, for the checks.
+  base:
+    name: Image (base)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
-      packages: write
-      security-events: write
     needs: [changes, lint]
-    if: needs.changes.outputs.devcontainer == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # base_from_run marks the entries whose Dockerfile consumes
-          # BASE_IMAGE: this job builds base from the same commit first and
-          # builds them on it, as build-containers.yml's build-all does. Only
-          # devcontainers/ansible/Dockerfile does (ansible and ansible-aws);
-          # the podman variant starts
-          # from python:3.14-slim-trixie and golang, terraform and latex do
-          # not reference it at all, so they must not be handed an unconsumed
-          # build-arg.
-          - stack: ansible
-            dockerfile: Dockerfile
-            variant: ""
-            platforms: linux/amd64
-            base_from_run: true
-          - stack: terraform
-            dockerfile: Dockerfile
-            variant: ""
-            platforms: linux/amd64
-          - stack: golang
-            dockerfile: Dockerfile
-            variant: ""
-            platforms: linux/amd64
-          - stack: latex
-            dockerfile: Dockerfile
-            variant: ""
-            platforms: linux/amd64
-          # The podman variant is published by build-containers.yml, whose
-          # Grype step is report-only (fail-build false, continue-on-error),
-          # and it was absent from this matrix -- the one image with no
-          # blocking scan anywhere. It silently accumulated 23 CRITICAL
-          # alerts by 2026-09-13 while every gated image sat at zero.
-          - stack: ansible
-            dockerfile: Dockerfile.podman
-            variant: -podman
-            platforms: linux/amd64
-          # The -aws images are a stage of the stack's Dockerfile, selected
-          # by target; the entries above leave it empty and build the last
-          # stage, the plain image. Gated here for the same reason as podman.
-          - stack: terraform
-            dockerfile: Dockerfile
-            variant: -aws
-            target: terraform-aws
-            platforms: linux/amd64
-          - stack: ansible
-            dockerfile: Dockerfile
-            variant: -aws
-            target: ansible-aws
-            platforms: linux/amd64
-            base_from_run: true
-
+    if: needs.changes.outputs.base == 'true'
+    env:
+      IMAGE_REF: devcontainer-base:ci
+    outputs:
+      digest: ${{ steps.layout.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -430,43 +499,419 @@ jobs:
         id: epoch
         run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver: docker-container
 
+      # Read-only. build-base in build-containers.yml is the one writer of
+      # this tag, and a cache export replaces the manifest at its tag, so a
+      # second writer here would overwrite it every run. The package is
+      # public, so reading needs no credentials and fork pull requests use it
+      # too. Probed first: buildx aborts on a missing cache-from ref.
+      #
+      # The cache also keeps the children's own cache useful. rewrite-timestamp
+      # clamps only the mtimes later than SOURCE_DATE_EPOCH, so cached base
+      # layers older than the commit come out byte-identical on every commit
+      # and the stack layers above them still hit. Built fresh, after the
+      # commit, base changes with every commit's epoch and the stacks rebuild
+      # in full.
+      - name: Resolve the base build cache
+        id: base_cache
+        env:
+          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+          else
+            echo "from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF}; building base uncached."
+          fi
+
+      # The ansible Dockerfile pins BASE_IMAGE to the devcontainer-base that
+      # build-containers.yml last published, and only main publishes it. On
+      # that pin CI scanned every pull request on the base main already ships,
+      # never on the PR's own devcontainers/base/Dockerfile. The move to Python
+      # 3.14.10 for CVE-2026-115557 (2026-10-30) could not pass the gate: the
+      # image scanned still ran main's 3.14.8, on every pull request up to the
+      # develop -> main promotion that would publish the fix. Built from this
+      # commit, base is what a merge would publish.
+      #
+      # Same epoch and timestamp rewrite on both outputs, as build-base
+      # publishes it. No provenance: the layout never leaves this run, and
+      # without an attestation manifest its index names the amd64 image
+      # manifest itself.
+      - name: Build base
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          # The repository root: the Dockerfile bind-mounts
+          # requirements-devcontainer-tools.txt.
+          context: .
+          file: devcontainers/base/Dockerfile
+          outputs: |
+            type=oci,dest=${{ runner.temp }}/devcontainer-base,tar=false,rewrite-timestamp=true
+            type=docker,name=${{ env.IMAGE_REF }},rewrite-timestamp=true
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          cache-from: ${{ steps.base_cache.outputs.from }}
+          platforms: linux/amd64
+          provenance: false
+
+      # The checks below run on the image in Docker and the children build on
+      # the layout, so the two must be one image: the same layers. The
+      # layout's manifest digest is this job's output, which every child
+      # checks the artifact against.
+      - name: Check the loaded base is the layout's image
+        id: layout
+        env:
+          LAYOUT: ${{ runner.temp }}/devcontainer-base
+        run: |
+          set -euo pipefail
+          blob() {
+            cat "${LAYOUT}/blobs/sha256/${1#sha256:}"
+          }
+          COUNT="$(jq '.manifests | length' "${LAYOUT}/index.json")"
+          if [ "${COUNT}" != "1" ]; then
+            echo "::error::The base layout's index lists ${COUNT} manifests, not one"
+            exit 1
+          fi
+          MANIFEST="$(jq -r '.manifests[0].digest' "${LAYOUT}/index.json")"
+          if [[ ! "${MANIFEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::The base layout's index names no manifest digest (${MANIFEST})"
+            exit 1
+          fi
+          CONFIG="$(blob "${MANIFEST}" | jq -r '.config.digest')"
+          LAYOUT_LAYERS="$(blob "${CONFIG}" | jq -c '.rootfs.diff_ids')"
+          LOADED_LAYERS="$(docker image inspect --format '{{json .RootFS.Layers}}' -- "${IMAGE_REF}" | jq -c .)"
+          if [ "${LAYOUT_LAYERS}" != "${LOADED_LAYERS}" ]; then
+            echo "::error::${IMAGE_REF} has layers ${LOADED_LAYERS}, the layout ${LAYOUT_LAYERS}"
+            exit 1
+          fi
+          IMAGE_ID="$(docker image inspect --format '{{.Id}}' -- "${IMAGE_REF}")"
+          echo "${IMAGE_REF} is ${IMAGE_ID}; layout manifest ${MANIFEST}"
+          {
+            echo "digest=${MANIFEST}"
+            echo "id=${IMAGE_ID}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Only for the children in this run, hence one day. The blobs are
+      # compressed layers already.
+      - name: Upload the base layout
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: devcontainer-base-layout
+          path: ${{ runner.temp }}/devcontainer-base
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+
+      # What the LaTeX scenario used to check of base on develop and main,
+      # where it built base for a latex image that does not take it.
+      - name: Smoke test base
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.layout.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          bash scripts/smoke-devcontainer-image.sh --stack base --image "${IMAGE_REF}"
+
+      # Gated now that base is loaded here, against the budget only the
+      # publish report used to read: see the size gate in the image job.
+      - name: Check base image size against its budget
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.layout.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          python3 scripts/check-image-size.py local --image "${IMAGE_REF}" --name base
+
+      - name: Install container-structure-test
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
+        run: |
+          # Pinned, over HTTPS, and checked against the release's
+          # checksums.txt before the binary is ever made executable.
+          set -euo pipefail
+          BASE_URL="https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}"
+          DEST="$(mktemp -d)"
+          # --retry: a 504 from GitHub releases broke builds on 2026-09-14.
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${BASE_URL}/container-structure-test-linux-amd64" -o "${DEST}/container-structure-test-linux-amd64"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${BASE_URL}/checksums.txt" -o "${DEST}/checksums.txt"
+          (cd "${DEST}" && grep ' container-structure-test-linux-amd64$' checksums.txt | sha256sum --check --strict -)
+          install -m 0755 "${DEST}/container-structure-test-linux-amd64" /usr/local/bin/container-structure-test
+          rm -rf "${DEST}"
+
+      - name: Run the structure tests for base
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.layout.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          container-structure-test test --image "${IMAGE_REF}" \
+            --config tests/container-structure/base.yaml
+
+      - name: Assert the image before its SBOM
+        id: sbom_image
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.layout.outputs.id }}
+        run: bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+
+      - name: Generate the SBOM of base
+        if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
+        with:
+          image: ${{ env.IMAGE_REF }}
+          # The upload step below names it: the action's own upload would add
+          # a second artifact.
+          upload-artifact: false
+          output-file: ${{ runner.temp }}/presubmit-sbom-base.spdx.json
+          format: spdx-json
+
+      # What sbom-verification.yml's checks could fail on: an SBOM that is not
+      # JSON, or that has no package list. Its NTIA, license and Grype steps
+      # could not fail and are gone. An empty list fails too: an SBOM of
+      # nothing describes no image.
+      - name: Check the SBOM of base
+        if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
+        env:
+          SBOM: ${{ runner.temp }}/presubmit-sbom-base.spdx.json
+        run: |
+          set -euo pipefail
+          PACKAGES="$(jq -e '.packages | if type == "array" and length > 0 then length else error("no packages") end' "${SBOM}")"
+          echo "${IMAGE_REF}: ${PACKAGES} packages in the SBOM"
+
+      # presubmit: the SBOM of this run's amd64 build, not of a published
+      # image. release.yml attaches the released digests' SBOMs.
+      - name: Upload the SBOM of base
+        if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: presubmit-sbom-base
+          path: ${{ runner.temp }}/presubmit-sbom-base.spdx.json
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: true
+
+  image:
+    name: Image (${{ matrix.image }})
+    # Not ubuntu-latest: that label moves to Ubuntu 26.04 by 2026-11-19, with
+    # Docker 29 where 24.04 has Docker 28. The size gate below needs the classic
+    # overlay2 store its budgets were measured on, and fails on the containerd
+    # store, the default for a new Docker 29 install. Renovate ignores runner
+    # labels, so move this by hand and re-measure the budgets in that change.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # For the registry cache, which only a push writes (see "Determine cache
+      # strategy"). A permission cannot depend on the event, so a pull request
+      # from this repository gets a token that carries it too. That grants
+      # its author nothing new: a branch in this repository takes write
+      # access, which can already change this workflow. No step logs in with
+      # it there, and a fork's token is read-only.
+      packages: write
+    needs: [changes, lint, base]
+    # Whatever base's result. It is skipped whenever no image in the list is
+    # built on it, and under the implicit success() a skipped need would skip
+    # this job too (actions/runner#2205). An image not built on base does not
+    # need it, so a failed base check must not hide that image's results; an
+    # image built on it fails at "Check this run built the base" when base did
+    # not succeed. A failed base fails the base job, and the summaries with
+    # it.
+    if: >-
+      !cancelled()
+      && needs.changes.result == 'success'
+      && needs.lint.result == 'success'
+      && needs.changes.outputs.images != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.changes.outputs.images) }}
+    env:
+      IMAGE_REF: devcontainer-${{ matrix.image }}:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Every image is devcontainers/<image>/Dockerfile tested with
+      # <image>.yaml, except the variants, which are a stack plus one layer:
+      # ansible-podman, built from Dockerfile.podman, and the -aws images,
+      # built from the stack's Dockerfile with --target <image>. The stack's
+      # file holds for them unchanged (user, workdir, tools, the bytecode
+      # check), so they run it and <variant>.yaml for the layer, instead of a
+      # copy. terraform and ansible, built without a target (their
+      # Dockerfile's last stage), also run no-aws.yaml: it fails if that last
+      # stage ever became an -aws image. base_from_run marks the images whose
+      # Dockerfile consumes BASE_IMAGE: only devcontainers/ansible/Dockerfile
+      # does. Dockerfile.podman starts from python:3.14-slim-trixie, and the
+      # others do not reference it at all, so they must not be handed an
+      # unconsumed build-arg. template marks the images whose stack's
+      # devcontainer.json is brought up on them; cli, the images with a
+      # Dev Containers CLI check at all.
+      - name: Resolve the image's files
+        id: files
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          TARGET=""
+          case "${IMAGE}" in
+            ansible-podman)
+              DOCKERFILE=devcontainers/ansible/Dockerfile.podman
+              CONFIGS="ansible ansible-podman"
+              ;;
+            terraform-aws|ansible-aws)
+              DOCKERFILE="devcontainers/${IMAGE%-aws}/Dockerfile"
+              TARGET="${IMAGE}"
+              CONFIGS="${IMAGE%-aws} ${IMAGE}"
+              ;;
+            terraform|ansible)
+              DOCKERFILE="devcontainers/${IMAGE}/Dockerfile"
+              CONFIGS="${IMAGE} no-aws"
+              ;;
+            *)
+              DOCKERFILE="devcontainers/${IMAGE}/Dockerfile"
+              CONFIGS="${IMAGE}"
+              ;;
+          esac
+          case "${IMAGE}" in
+            ansible|ansible-aws)
+              BASE_FROM_RUN=true
+              ;;
+            *)
+              BASE_FROM_RUN=false
+              ;;
+          esac
+          case "${IMAGE}" in
+            ansible|terraform|golang|latex)
+              TEMPLATE=true
+              CLI=true
+              ;;
+            ansible-podman)
+              TEMPLATE=false
+              CLI=true
+              ;;
+            *)
+              TEMPLATE=false
+              CLI=false
+              ;;
+          esac
+          {
+            echo "dockerfile=${DOCKERFILE}"
+            echo "target=${TARGET}"
+            echo "configs=${CONFIGS}"
+            echo "base_from_run=${BASE_FROM_RUN}"
+            echo "template=${TEMPLATE}"
+            echo "cli=${CLI}"
+          } >> "$GITHUB_OUTPUT"
+
+      # This job runs whatever base's result (see its if). An image built on
+      # base has no layout to build on when base did not succeed, and building
+      # it on any other base would test another image: stop here, saying so,
+      # instead of at the layout's download.
+      - name: Check this run built the base
+        if: steps.files.outputs.base_from_run == 'true' && needs.base.result != 'success'
+        env:
+          BASE_RESULT: ${{ needs.base.result }}
+        run: |
+          echo "::error::base ${BASE_RESULT} in this run; not testing ${IMAGE_REF} on another base."
+          exit 1
+
+      # As build-containers.yml publishes: see scripts/derive-source-date-epoch.sh.
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
+      # Not made the default builder: the Dev Containers CLI builds its feature
+      # and UID layers FROM the image this job loads, and only the daemon's own
+      # builder sees the daemon's images. The build below names this one.
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver: docker-container
+          use: false
+
+      - name: Download the base layout
+        if: steps.files.outputs.base_from_run == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: devcontainer-base-layout
+          path: ${{ runner.temp }}/devcontainer-base
+
+      # The layout must be the base the base job built and checked: its index
+      # names that job's manifest digest and nothing else, and every blob is
+      # named after its own sha256, so one that changed on the way fails here.
+      - name: Check the base layout
+        if: steps.files.outputs.base_from_run == 'true'
+        env:
+          EXPECTED: ${{ needs.base.outputs.digest }}
+          LAYOUT: ${{ runner.temp }}/devcontainer-base
+        run: |
+          set -euo pipefail
+          DIGESTS="$(jq -r '.manifests[].digest' "${LAYOUT}/index.json")"
+          if [ -z "${EXPECTED}" ] || [ "${DIGESTS}" != "${EXPECTED}" ]; then
+            echo "::error::The base layout holds ${DIGESTS:-nothing}, not the base built in this run (${EXPECTED:-no digest})"
+            exit 1
+          fi
+          cd "${LAYOUT}/blobs/sha256"
+          for BLOB in *; do
+            printf '%s  %s\n' "${BLOB}" "${BLOB}"
+          done | sha256sum --check --strict --quiet
+          echo "Base layout ${EXPECTED}: index and every blob verified."
+
+      # Registry cache-to only on a push: a pull request reads the cache
+      # and never writes it, so no pull request, Renovate's included, can
+      # put layers into the cache that develop and main build from. A fork
+      # gets the Actions cache instead, from and to: its writes are scoped to
+      # the pull request's ref, which no other ref reads.
       - name: Determine cache strategy
         id: cache
         env:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
-          IMAGE_STACK: ${{ matrix.stack }}${{ matrix.variant }}
+          IMAGE: ${{ matrix.image }}
         run: |
+          set -euo pipefail
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] \
             && [ "${HEAD_REPO}" != "${GITHUB_REPOSITORY}" ]; then
-            echo "cache_from=type=gha,scope=${IMAGE_STACK}" >>"$GITHUB_OUTPUT"
-            echo "cache_to=type=gha,scope=${IMAGE_STACK}" >>"$GITHUB_OUTPUT"
-            echo "use_registry=false" >>"$GITHUB_OUTPUT"
+            {
+              echo "cache_from=type=gha,scope=${IMAGE}"
+              echo "cache_to=type=gha,scope=${IMAGE}"
+              echo "login=false"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CACHE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${IMAGE}:buildcache"
+          # Probed, as build-containers.yml does: a missing cache-from ref
+          # has been a fatal error in some BuildKit versions, and a new image
+          # has no :buildcache until a push writes the first.
+          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
+            echo "cache_from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
           else
-            CACHE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${IMAGE_STACK}:buildcache"
-            # Probed, as build-containers.yml does: a missing cache-from ref
-            # has been a fatal error in some BuildKit versions, and a new
-            # image (the -aws ones) has no :buildcache until this job's
-            # cache-to writes the first.
-            if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
-              echo "cache_from=type=registry,ref=${CACHE_REF}" >>"$GITHUB_OUTPUT"
-            else
-              echo "cache_from=" >>"$GITHUB_OUTPUT"
-              echo "::notice::No cache at ${CACHE_REF} yet; building uncached and seeding it."
-            fi
-            echo "cache_to=type=registry,ref=${CACHE_REF},mode=max" >>"$GITHUB_OUTPUT"
-            echo "use_registry=true" >>"$GITHUB_OUTPUT"
+            echo "cache_from=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            {
+              echo "cache_to=type=registry,ref=${CACHE_REF},mode=max"
+              echo "login=true"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "cache_to="
+              echo "login=false"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Login to GHCR
-        if: steps.cache.outputs.use_registry == 'true'
+        if: steps.cache.outputs.login == 'true'
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
           registry: ghcr.io
@@ -477,7 +922,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.stack }}${{ matrix.variant }}
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
           tags: type=raw,value=ci
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -493,151 +938,235 @@ jobs:
           LABELS: ${{ steps.meta.outputs.labels }}
         run: bash scripts/strip-description-label.sh
 
-      # For the base build below, read-only. build-base is the one writer of
-      # this tag, and a cache export replaces the manifest at its tag, so a
-      # second writer here would overwrite it every run. The package is
-      # public, so reading needs no credentials and fork pull requests use it
-      # too. Probed first: see build-containers.yml's build-all.
-      #
-      # The cache also keeps the stack's own cache useful. rewrite-timestamp
-      # clamps only the mtimes later than SOURCE_DATE_EPOCH, so cached base
-      # layers older than the commit come out byte-identical on every commit
-      # and the stack layers above them still hit. Built fresh, after the
-      # commit, base changes with every commit's epoch and the stack rebuilds
-      # in full.
-      - name: Resolve the base build cache
-        id: base_cache
-        if: matrix.base_from_run
-        env:
-          CACHE_REF: ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache-publish
-        run: |
-          set -euo pipefail
-          if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
-            echo "from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
-          else
-            echo "from=" >> "$GITHUB_OUTPUT"
-            echo "::notice::No cache at ${CACHE_REF}; building base uncached."
-          fi
-
-      # The ansible Dockerfile pins BASE_IMAGE to the devcontainer-base that
-      # build-containers.yml last published, and only main publishes it. On
-      # that pin this job scanned every pull request on the base main
-      # already ships, never on the PR's own devcontainers/base/Dockerfile.
-      # The move to Python 3.14.10 for CVE-2026-115557 (2026-10-30) could
-      # not pass the gate: the image scanned still ran main's 3.14.8, on
-      # every pull request up to the develop -> main promotion that would
-      # publish the fix, and CI Success is required on both branches. Built
-      # from this commit, base is what a merge would publish.
-      #
-      # Nothing is pushed. The base goes to an OCI layout on the runner and
-      # the next step reads it as a named build context. Loading it into
-      # Docker would not work: the docker-container builder does not see the
-      # daemon's images, so FROM would look the name up in a registry. Same
-      # epoch and timestamp rewrite as the stack, as build-base publishes it.
-      - name: Build base for ${{ matrix.stack }}${{ matrix.variant }}
-        if: matrix.base_from_run
+      - name: Build ${{ matrix.image }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
-          # The repository root: the Dockerfile bind-mounts
-          # requirements-devcontainer-tools.txt.
+          builder: ${{ steps.buildx.outputs.name }}
           context: .
-          file: devcontainers/base/Dockerfile
-          outputs: type=oci,dest=${{ runner.temp }}/devcontainer-base,tar=false,rewrite-timestamp=true
-          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
-          cache-from: ${{ steps.base_cache.outputs.from }}
-          platforms: ${{ matrix.platforms }}
-
-      - name: Build ${{ matrix.stack }}${{ matrix.variant }} image
-        id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          file: devcontainers/${{ matrix.stack }}/${{ matrix.dockerfile }}
-          target: ${{ matrix.target }}
+          file: ${{ steps.files.outputs.dockerfile }}
+          target: ${{ steps.files.outputs.target }}
           push: false
-          # The load `load: true` did, plus the timestamp rewrite the
-          # published images get, so what this job smoke-tests and scans is
-          # built the way build-containers.yml publishes it.
+          # Loaded like `load: true`, plus the timestamp rewrite the published
+          # images get, so what this job tests is built the way
+          # build-containers.yml publishes it: the stale-bytecode structure
+          # test can only fail on an image whose mtimes were rewritten.
           outputs: type=docker,rewrite-timestamp=true
-          tags: devcontainer-${{ matrix.stack }}${{ matrix.variant }}:ci
+          tags: ${{ env.IMAGE_REF }}
           labels: ${{ steps.labels.outputs.labels }}
           # BASE_IMAGE names the build context below, which a FROM resolves
-          # before any registry, so the stack sits on the base built in the
-          # step above. Without the context the name would be looked up as
-          # docker.io/library/devcontainer-base, which does not exist: the
-          # build fails instead of falling back to the pin. An entry without
-          # base_from_run gets neither line.
+          # before any registry, so the image sits on the base this run built,
+          # by the digest checked above. Without the context the name would be
+          # looked up as docker.io/library/devcontainer-base, which does not
+          # exist: the build fails instead of falling back to the pin. An
+          # image without base_from_run gets neither line.
           build-args: |
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
-            ${{ matrix.base_from_run && 'BASE_IMAGE=devcontainer-base' || '' }}
+            ${{ steps.files.outputs.base_from_run == 'true' && 'BASE_IMAGE=devcontainer-base' || '' }}
           build-contexts: |
-            ${{ matrix.base_from_run && format('devcontainer-base=oci-layout://{0}/devcontainer-base', runner.temp) || '' }}
+            ${{ steps.files.outputs.base_from_run == 'true' && format('devcontainer-base=oci-layout://{0}/devcontainer-base@{1}', runner.temp, needs.base.outputs.digest) || '' }}
           cache-from: |
             ${{ steps.cache.outputs.cache_from }}
           cache-to: |
             ${{ steps.cache.outputs.cache_to }}
-          platforms: ${{ matrix.platforms }}
+          platforms: linux/amd64
 
-      # Size gate, before the smoke test and the scan, so an oversized image
-      # fails in seconds. It compares `docker image inspect` .Size with the
-      # image's max_uncompressed_mib in .github/image-size-budgets.json and
-      # fails the job when it is over. Uncompressed because that is the one
-      # faithful size here: nothing is pushed, so there is no registry
-      # manifest to read, and the layers this job exports are not compressed
-      # the way build-containers.yml publishes them (zstd), so their size
-      # would not be the download either. On this runner's classic overlay2
-      # store .Size is the sum of the files in the image's layers, which is
-      # what the budgets were measured as. The script also fails closed
-      # (exit 2) when it cannot judge: an image with no budget, a budgets
-      # file it cannot read, a docker error, or a Docker on the containerd
-      # image store, where .Size counts something else. base is not loaded
-      # in this job (see its build above), so its budget is only reported
-      # on publish; ansible and ansible-aws, built on it, carry its growth
-      # into their own gates. Raising a budget is a reviewed edit to that
-      # file.
-      - name: Check ${{ matrix.stack }}${{ matrix.variant }} image size against its budget
-        env:
-          IMAGE_STACK: ${{ matrix.stack }}${{ matrix.variant }}
+      # The ID every check below asserts before it runs.
+      - name: Record the image under test
+        id: image
         run: |
-          python3 scripts/check-image-size.py local \
-            --image "devcontainer-${IMAGE_STACK}:ci" --name "${IMAGE_STACK}"
+          set -euo pipefail
+          IMAGE_ID="$(docker image inspect --format '{{.Id}}' -- "${IMAGE_REF}")"
+          echo "${IMAGE_REF} is ${IMAGE_ID}"
+          echo "id=${IMAGE_ID}" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke test ${{ matrix.stack }}${{ matrix.variant }} container
+      # Size gate, first, so an oversized image fails in seconds. It compares
+      # `docker image inspect` .Size with the image's max_uncompressed_mib in
+      # .github/image-size-budgets.json and fails the job when it is over.
+      # Uncompressed because that is the one faithful size here: nothing is
+      # pushed, so there is no registry manifest to read, and the layers this
+      # job exports are not compressed the way build-containers.yml publishes
+      # them (zstd), so their size would not be the download either. On this
+      # runner's classic overlay2 store .Size is the sum of the files in the
+      # image's layers, which is what the budgets were measured as. The script
+      # also fails closed (exit 2) when it cannot judge: an image with no
+      # budget, a budgets file it cannot read, a docker error, or a Docker on
+      # the containerd image store, where .Size counts something else.
+      # Raising a budget is a reviewed edit to that file.
+      - name: Check ${{ matrix.image }} image size against its budget
+        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
         env:
-          IMAGE_STACK: ${{ matrix.stack }}${{ matrix.variant }}
+          IMAGE: ${{ matrix.image }}
+          IMAGE_ID: ${{ steps.image.outputs.id }}
         run: |
-          docker run --rm "devcontainer-${IMAGE_STACK}:ci" \
-            bash -lc "echo '${IMAGE_STACK} container is healthy' && whoami && which bash"
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          python3 scripts/check-image-size.py local --image "${IMAGE_REF}" --name "${IMAGE}"
 
+      - name: Smoke test ${{ matrix.image }} container
+        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
+        env:
+          IMAGE: ${{ matrix.image }}
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          docker run --rm "${IMAGE_REF}" \
+            bash -lc "echo '${IMAGE} container is healthy' && whoami && which bash"
+
+      - name: Install container-structure-test
+        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
+        run: |
+          # Pinned, over HTTPS, and checked against the release's
+          # checksums.txt before the binary is ever made executable.
+          set -euo pipefail
+          BASE_URL="https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}"
+          DEST="$(mktemp -d)"
+          # --retry: a 504 from GitHub releases broke builds on 2026-09-14.
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${BASE_URL}/container-structure-test-linux-amd64" -o "${DEST}/container-structure-test-linux-amd64"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
+            "${BASE_URL}/checksums.txt" -o "${DEST}/checksums.txt"
+          (cd "${DEST}" && grep ' container-structure-test-linux-amd64$' checksums.txt | sha256sum --check --strict -)
+          install -m 0755 "${DEST}/container-structure-test-linux-amd64" /usr/local/bin/container-structure-test
+          rm -rf "${DEST}"
+
+      - name: Run the structure tests for ${{ matrix.image }}
+        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+          STRUCTURE_TESTS: ${{ steps.files.outputs.configs }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          read -r -a TEST_FILES <<< "${STRUCTURE_TESTS}"
+          ARGS=()
+          for TEST_FILE in "${TEST_FILES[@]}"; do
+            ARGS+=(--config "tests/container-structure/${TEST_FILE}.yaml")
+          done
+          container-structure-test test --image "${IMAGE_REF}" "${ARGS[@]}"
+
+      # The structure tests only ask podman for its version, and `podman run`
+      # failed in the image for lack of pasta with all of them green. Privileged
+      # because Docker's default seccomp profile stops rootless podman at
+      # "cannot clone: Operation not permitted". Retried for quay.io, which the
+      # script pulls from.
+      - name: Run the podman smoke test
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.image == 'ansible-podman' }}
+        env:
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          for ATTEMPT in 1 2 3; do
+            if docker run --rm --privileged "${IMAGE_REF}" podman-smoke-test; then
+              exit 0
+            fi
+            echo "::warning::podman smoke test attempt ${ATTEMPT} failed; retrying"
+            sleep "$((ATTEMPT * 20))"
+          done
+          echo "::error::podman smoke test failed after 3 attempts"
+          exit 1
+
+      - name: Assert the image before the scan
+        id: scan_image
+        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+
+      # JSON rather than the default SARIF, which nothing here uploads: its
+      # levels are relative to severity-cutoff, so at critical a high finding
+      # reads as a warning, while the JSON names each finding's severity.
       - name: Scan image with Grype
+        id: grype
+        if: ${{ !cancelled() && steps.scan_image.outcome == 'success' }}
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         env:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
-          image: devcontainer-${{ matrix.stack }}${{ matrix.variant }}:ci
+          image: ${{ env.IMAGE_REF }}
           severity-cutoff: critical
           only-fixed: true
           fail-build: "true"
+          output-format: json
 
-  devcontainer-cli-test:
-    name: DevContainer CLI (${{ matrix.stack }})
-    runs-on: ubuntu-24.04
-    needs: [changes, devcontainer-build]
-    if: needs.changes.outputs.devcontainer == 'true'
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        stack: [ansible, golang, terraform, latex]
+      # Fixable high findings do not fail a pull request: CI blocks on
+      # critical, the owner's decision. build-containers.yml tags nothing
+      # with a fixable high finding, so each warning here is one that would
+      # hold back the publish of this image after the merge.
+      - name: Annotate fixable high findings
+        if: ${{ !cancelled() && steps.grype.outputs.json != '' }}
+        env:
+          REPORT: ${{ steps.grype.outputs.json }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "${REPORT}" ] || ! jq -e '.matches | type == "array"' "${REPORT}" >/dev/null; then
+            echo "::warning::No readable Grype report for ${IMAGE_REF}; its fixable high findings are not listed"
+            exit 0
+          fi
+          mapfile -t FINDINGS < <(jq -r '.matches[]
+            | select(.vulnerability.severity == "High")
+            | "\(.vulnerability.id) in \(.artifact.name) \(.artifact.version), fixed in \(.vulnerability.fix.versions // [] | join(", "))"' \
+            "${REPORT}" | sort -u)
+          echo "Fixable high findings in ${IMAGE_REF}: ${#FINDINGS[@]}"
+          if [ "${#FINDINGS[@]}" -eq 0 ]; then
+            exit 0
+          fi
+          # GitHub shows ten annotations a step; the summary lists them all.
+          for FINDING in "${FINDINGS[@]}"; do
+            echo "::warning title=Fixable high finding in ${IMAGE_REF}::${FINDING}"
+          done
+          {
+            echo "### ${IMAGE_REF}: ${#FINDINGS[@]} fixable high finding(s), not blocking here"
+            echo ""
+            printf -- '- %s\n' "${FINDINGS[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Assert the image before its SBOM
+        id: sbom_image
+        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
+        env:
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+
+      - name: Generate the SBOM of ${{ matrix.image }}
+        if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
         with:
-          persist-credentials: false
+          image: ${{ env.IMAGE_REF }}
+          # The upload step below names it: the action's own upload would add
+          # a second artifact.
+          upload-artifact: false
+          output-file: ${{ runner.temp }}/presubmit-sbom-${{ matrix.image }}.spdx.json
+          format: spdx-json
+
+      # What sbom-verification.yml's checks could fail on: an SBOM that is not
+      # JSON, or that has no package list. Its NTIA, license and Grype steps
+      # could not fail and are gone. An empty list fails too: an SBOM of
+      # nothing describes no image.
+      - name: Check the SBOM of ${{ matrix.image }}
+        if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
+        env:
+          SBOM: ${{ runner.temp }}/presubmit-sbom-${{ matrix.image }}.spdx.json
+        run: |
+          set -euo pipefail
+          PACKAGES="$(jq -e '.packages | if type == "array" and length > 0 then length else error("no packages") end' "${SBOM}")"
+          echo "${IMAGE_REF}: ${PACKAGES} packages in the SBOM"
+
+      # presubmit: the SBOM of this run's amd64 build, not of a published
+      # image. release.yml attaches the released digests' SBOMs.
+      - name: Upload the SBOM of ${{ matrix.image }}
+        if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: presubmit-sbom-${{ matrix.image }}
+          path: ${{ runner.temp }}/presubmit-sbom-${{ matrix.image }}.spdx.json
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: true
 
       - name: Cache npm packages
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && steps.files.outputs.cli == 'true' }}
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ~/.npm
@@ -645,6 +1174,7 @@ jobs:
           restore-keys: npm-devcontainers-${{ runner.os }}-
 
       - name: Install Dev Containers CLI
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && steps.files.outputs.cli == 'true' }}
         run: |
           # npm ci against a committed lockfile, not `npm install <pkg>@<ver>`.
           # The version pin alone left the transitive tree free to resolve
@@ -652,73 +1182,52 @@ jobs:
           # Scorecard counted it under Pinned-Dependencies, and it is the same
           # class of hole the bare `pip install` steps had. The lock carries an
           # integrity hash per package; Renovate manages the version in
-          # scripts/devcontainers-cli/package.json through its npm manager, so
-          # the '# renovate:' annotation this step used to carry is no longer
-          # needed.
+          # scripts/devcontainers-cli/package.json through its npm manager.
           #
           # --ignore-scripts: no lifecycle script from the package or its deps
           # runs at install time.
           npm ci --ignore-scripts --prefix scripts/devcontainers-cli
           echo "${GITHUB_WORKSPACE}/scripts/devcontainers-cli/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # devcontainer.json opens the published image, so bringing it up here
-      # would test GHCR rather than this pull request.
-      # local-build/devcontainer.json is the same file built from the stack's
-      # Dockerfile; scripts/check-devcontainer-images.py keeps the two
-      # identical apart from name, image and build, so its lifecycle commands
-      # are the image variant's too.
       - name: Verify devcontainer config
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && steps.files.outputs.template == 'true' }}
         env:
-          STACK: ${{ matrix.stack }}
+          STACK: ${{ matrix.image }}
         run: |
-          for config in devcontainer.json local-build/devcontainer.json; do
-            if [ ! -f "devcontainers/${STACK}/${config}" ]; then
-              echo "::error::devcontainers/${STACK}/${config} is missing"
+          set -euo pipefail
+          for CONFIG in devcontainer.json local-build/devcontainer.json; do
+            if [ ! -f "devcontainers/${STACK}/${CONFIG}" ]; then
+              echo "::error::devcontainers/${STACK}/${CONFIG} is missing"
               exit 1
             fi
-            echo "Checking devcontainers/${STACK}/${config}"
-            jq . "devcontainers/${STACK}/${config}"
+            echo "Checking devcontainers/${STACK}/${CONFIG}"
+            jq . "devcontainers/${STACK}/${CONFIG}"
           done
 
-      # devcontainers/ansible/Dockerfile resolves its BASE_IMAGE pin unless told
-      # otherwise, and the pin trails the base Dockerfile until main publishes
-      # it and Renovate moves it. The checks below look at what base sets up
-      # (the login shell), so on the pin a fix to base could not pass here in
-      # the pull request that makes it. Built from this commit, as in
-      # devcontainer-build; this job's builder is the daemon's own, so it sees
-      # the loaded image.
-      - name: Build base from this commit
-        if: matrix.stack == 'ansible'
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            docker buildx build --load -t devcontainer-base:ci -f devcontainers/base/Dockerfile . && break
-            [ "${attempt}" -lt 3 ] || exit 1
-            sleep "$((attempt * 20))"
-          done
-
+      # The stack's devcontainer.json as it ships, on the image this job built
+      # instead of the published one it pins: its lifecycle commands, mounts
+      # and users are the template's. It used to be local-build/, which
+      # scripts/check-devcontainer-images.py keeps identical apart from name,
+      # image and build, rebuilding the image from its Dockerfile.
       - name: Test devcontainer up
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && steps.files.outputs.template == 'true' }}
         env:
-          STACK: ${{ matrix.stack }}
+          STACK: ${{ matrix.image }}
+          IMAGE_ID: ${{ steps.image.outputs.id }}
         run: |
           set -euo pipefail
-          # From the repository root: the build variant's context is
-          # ${localWorkspaceFolder}, which must be the root that the
-          # Dockerfile COPYs from.
-          CONFIG="devcontainers/${STACK}/local-build/devcontainer.json"
-          if [ "${STACK}" = "ansible" ]; then
-            # On the base the step above built. Build arguments can only come
-            # from the config, and a copy elsewhere needs the Dockerfile's full
-            # path; the CLI takes no other file name.
-            CONFIG_DIR="$(mktemp -d)"
-            jq --arg dockerfile "${PWD}/devcontainers/ansible/Dockerfile" \
-              '.build.dockerfile = $dockerfile | .build.args.BASE_IMAGE = "devcontainer-base:ci"' \
-              "${CONFIG}" > "${CONFIG_DIR}/devcontainer.json"
-            CONFIG="${CONFIG_DIR}/devcontainer.json"
-          fi
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          # A directory of its own: the CLI takes no other file name than
+          # devcontainer.json.
+          CONFIG_DIR="$(mktemp -d)"
+          CONFIG="${CONFIG_DIR}/devcontainer.json"
+          jq --arg image "${IMAGE_REF}" '.image = $image' \
+            "devcontainers/${STACK}/devcontainer.json" > "${CONFIG}"
+          # From the repository root: the template's workspaceMount is
+          # ${localWorkspaceFolder}.
           DEVCONTAINER_ARGS=(--workspace-folder . --config "${CONFIG}")
-          # The CLI builds through a generated Dockerfile-with-features whose
-          # own '# syntax=docker/dockerfile:1.27' directive forces an
+          # The CLI builds through a generated Dockerfile whose own
+          # '# syntax=docker/dockerfile:1.27' directive forces an
           # unauthenticated docker.io pull on every run. Anonymous Docker Hub
           # pulls are rate-limited per source IP and runners share a NAT pool,
           # so this resolves outside our control and fails in bursts: on
@@ -733,16 +1242,16 @@ jobs:
           # container behind, attempt 2 reused it, skipped the lifecycle and
           # reported success, and the job went green on a template that fails
           # for every user who opens it (run 41140335315, latex).
-          for attempt in 1 2 3; do
+          for ATTEMPT in 1 2 3; do
             if devcontainer up --remove-existing-container "${DEVCONTAINER_ARGS[@]}"; then
               break
             fi
-            if [ "${attempt}" -eq 3 ]; then
+            if [ "${ATTEMPT}" -eq 3 ]; then
               echo "::error::devcontainer up failed after 3 attempts"
               exit 1
             fi
-            echo "::warning::devcontainer up attempt ${attempt} failed; retrying"
-            sleep "$((attempt * 20))"
+            echo "::warning::devcontainer up attempt ${ATTEMPT} failed; retrying"
+            sleep "$((ATTEMPT * 20))"
           done
           # jq fails on a mount written as an object, instead of skipping it.
           VOLUME_TARGETS="$(jq -r '.mounts // [] | .[]
@@ -761,12 +1270,15 @@ jobs:
       # dockerd from the container's entrypoint, through sudo unless the
       # container runs as root, and the images have no working sudo (no rules
       # since 1a62ea6, no package since): no dockerd, and `devcontainer up` still
-      # reported success. The script runs it on the image built from this commit.
+      # reported success. The script brings it up on the image this job built.
       - name: Test the docker-in-docker profile
-        if: matrix.stack == 'ansible'
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.image == 'ansible' }}
         env:
-          BASE_IMAGE: devcontainer-base:ci
-        run: bash scripts/test-devcontainer-profile.sh ansible devcontainer.dind.json 'docker info'
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          IMAGE="${IMAGE_REF}" bash scripts/test-devcontainer-profile.sh ansible devcontainer.dind.json 'docker info'
 
       # The docker-socket profile, which ansible and terraform have. It used to
       # mount the socket and stop there: the images have no docker CLI, vscode
@@ -774,26 +1286,44 @@ jobs:
       # feature adds both, again from an entrypoint that needs root. docker
       # version asks the runner's own daemon, so it fails without that access.
       - name: Test the docker-socket profile
-        if: matrix.stack == 'ansible' || matrix.stack == 'terraform'
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && (matrix.image == 'ansible' || matrix.image == 'terraform') }}
         env:
-          STACK: ${{ matrix.stack }}
-          BASE_IMAGE: ${{ matrix.stack == 'ansible' && 'devcontainer-base:ci' || '' }}
-        run: bash scripts/test-devcontainer-profile.sh "${STACK}" devcontainer.docker-socket.json 'docker version'
+          STACK: ${{ matrix.image }}
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          IMAGE="${IMAGE_REF}" bash scripts/test-devcontainer-profile.sh "${STACK}" devcontainer.docker-socket.json 'docker version'
 
       # The podman profile, which only ansible has, on the image Dockerfile.podman
-      # builds. test-containers.yml runs the smoke test under `docker run
-      # --privileged`, so it never saw the template, whose --userns=keep-id stopped
-      # Docker at once with "invalid USER mode". The check is the smoke test plus a
-      # playbook in the Execution Environment, what the profile is for and nothing
-      # ran before: a 1.4 GB pull from ghcr.io, about two minutes on top of building
-      # the image. Two attempts, for ghcr.io and quay.io: there is no daemon to wait
-      # for here, and the default 30 would take most of this job's timeout to fail.
+      # builds. The podman smoke test above runs under `docker run --privileged`,
+      # so it never saw the template, whose --userns=keep-id stopped Docker at
+      # once with "invalid USER mode". The check is the smoke test plus a
+      # playbook in the Execution Environment, what the profile is for and
+      # nothing ran before: a 1.4 GB pull from ghcr.io. Two attempts, for
+      # ghcr.io and quay.io: there is no daemon to wait for here, and the
+      # default 30 would take most of this job's timeout to fail.
       - name: Test the podman profile
-        if: matrix.stack == 'ansible'
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.image == 'ansible-podman' }}
         env:
-          DOCKERFILE: Dockerfile.podman
-          CHECK_ATTEMPTS: 2
-        run: bash scripts/test-devcontainer-profile.sh ansible devcontainer.podman.json 'podman-smoke-test --ee'
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          IMAGE="${IMAGE_REF}" CHECK_ATTEMPTS=2 \
+            bash scripts/test-devcontainer-profile.sh ansible devcontainer.podman.json 'podman-smoke-test --ee'
+
+      # resume.tex compiled with tectonic on the image this job built. It used
+      # to run only on develop and main pushes, in scenario-tests, on a latex
+      # and a base image of its own (base, which latex does not take).
+      - name: Run the LaTeX scenario
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.image == 'latex' }}
+        env:
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          bash scripts/scenarios/run-latex-cv.sh --image "${IMAGE_REF}"
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
@@ -983,12 +1513,16 @@ jobs:
           TEST_DISTRO: ${{ matrix.distro }}
           TEST_IMAGE: geerlingguy/docker-${{ matrix.distro }}-ansible:latest
 
+  # The Terraform scenario. The LaTeX one runs in the latex image job, on
+  # the image that job built; it built its own here. Both used to wait for
+  # devcontainer-build, so a skipped build skipped them too.
   scenario-tests:
     name: Scenario Tests
     runs-on: ubuntu-24.04
-    needs: [changes, devcontainer-build]
+    needs: changes
     if: |
-      github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+      needs.changes.outputs.terraform == 'true' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
     permissions:
       contents: read
@@ -998,22 +1532,14 @@ jobs:
           persist-credentials: false
 
       - name: Set up Terraform
-        if: needs.changes.outputs.terraform == 'true'
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
         with:
           terraform_version: ${{ needs.changes.outputs.terraform_version }}
 
       - name: Run Terraform scenario
-        if: needs.changes.outputs.terraform == 'true'
         run: |
           if [ -x "./scripts/scenarios/run-terraform-proxmox.sh" ]; then
             ./scripts/scenarios/run-terraform-proxmox.sh
-          fi
-
-      - name: Run LaTeX scenario
-        run: |
-          if [ -x "./scripts/scenarios/run-latex-cv.sh" ]; then
-            ./scripts/scenarios/run-latex-cv.sh
           fi
 
   ci-success:
@@ -1022,9 +1548,10 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-    # Every job but quality-summary, which only repeats Lint's result under
-    # another name. There is no filesystem Grype scan here any more: it sat
-    # outside this check on purpose, so it decided nothing. A scan of the
+    # Every job but the three aliases of required checks below, which only
+    # repeat results already here under other names. There is no filesystem
+    # Grype scan here any more: it sat outside this check on purpose, so it
+    # decided nothing. A scan of the
     # checkout against the database of the day must not become a need: an
     # advisory published overnight for a package this repository already
     # pins would block every pull request but the fix (11 on 2026-10-26, 12
@@ -1035,8 +1562,8 @@ jobs:
       - powershell-lint
       - test-playbooks
       - devcontainer-state
-      - devcontainer-build
-      - devcontainer-cli-test
+      - base
+      - image
       - unit-tests
       - ansible-test
       - molecule
@@ -1104,3 +1631,120 @@ jobs:
             exit 1
           fi
           echo "Lint passed."
+
+  # TEMPORARY ALIAS for branch protection. Develop and main require a check
+  # named "Test Summary", which test-containers.yml produced. Its structure
+  # tests run in the image jobs above now, on the image each one built, and
+  # the workflow is gone. This job keeps the required name alive. Delete it
+  # when protection moves to the single ci-gate check.
+  #
+  # changes and lint are listed on purpose: when either fails, base and image
+  # are skipped, and a skip passes, so without them this check stayed green
+  # with no image tested at all.
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    needs: [changes, lint, base, image]
+    if: always()
+    steps:
+      - name: Check results
+        env:
+          # Through env, not expanded inside the script: needs carries the
+          # outputs of the changes job, and a quote in one of them would end a
+          # single-quoted shell string.
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          BASE_RESULT: ${{ needs.base.result }}
+          IMAGE_RESULT: ${{ needs.image.result }}
+        run: |
+          set -euo pipefail
+          echo "Checking image test results..."
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
+
+          # Allow-list, as CI Success: only "success" and "skipped" pass. A
+          # skipped job is a job the filter decided was irrelevant, and it has
+          # to stay green or every filtered pull request would be blocked.
+          # "cancelled" fails with "failure": a job that hits its
+          # timeout-minutes ends as cancelled, and a cancelled job proved
+          # nothing. Any other result fails closed. A run superseded through
+          # cancel-in-progress therefore reports this as failed on the OLD
+          # commit. That is intended; the new commit gets its own run.
+          FAILED=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "${NEEDS_JSON}")
+
+          {
+            echo "# Image Tests"
+            echo ""
+            if [ -n "${FAILED}" ]; then
+              echo "❌ Jobs that did not pass: ${FAILED}"
+            elif [ "${BASE_RESULT}" = "skipped" ] && [ "${IMAGE_RESULT}" = "skipped" ]; then
+              echo "No image changed, so no image was built or tested."
+            else
+              echo "✅ All image tests passed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${FAILED}" ]; then
+            echo "::error::Jobs that did not pass: ${FAILED}"
+            exit 1
+          fi
+
+  # TEMPORARY ALIAS for branch protection. Develop and main require a check
+  # named "SBOM Verification Success", which sbom-verification.yml produced.
+  # Each image job above now generates its image's SBOM and fails when it is
+  # unusable; the workflow's other checks (NTIA, licenses, a Grype scan of
+  # the SBOMs) could not fail and are gone, with the workflow. This job keeps
+  # the required name alive, and passes when the jobs that make the SBOMs
+  # passed or were skipped. Delete it when protection moves to the single
+  # ci-gate check.
+  sbom-verification-success:
+    name: SBOM Verification Success
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    # changes and lint are listed for the reason given at Test Summary.
+    needs: [changes, lint, base, image]
+    if: always()
+    steps:
+      - name: Check results
+        env:
+          # Through env: see Test Summary.
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          BASE_RESULT: ${{ needs.base.result }}
+          IMAGE_RESULT: ${{ needs.image.result }}
+        run: |
+          set -euo pipefail
+          echo "Checking SBOM results..."
+          jq . <<< "${NEEDS_JSON:?needs context is empty}"
+
+          # Allow-list, as Test Summary: only "success" and "skipped" pass.
+          FAILED=$(jq -r '
+            [to_entries[]
+             | select(.value.result != "success" and .value.result != "skipped")
+             | "\(.key) (\(.value.result))"]
+            | join(", ")
+          ' <<< "${NEEDS_JSON}")
+
+          {
+            echo "# SBOMs"
+            echo ""
+            if [ -n "${FAILED}" ]; then
+              echo "❌ Jobs that did not pass: ${FAILED}"
+            elif [ "${BASE_RESULT}" = "skipped" ] && [ "${IMAGE_RESULT}" = "skipped" ]; then
+              echo "No image changed, so no SBOM was generated."
+            else
+              echo "✅ Every image built here has a usable SBOM (presubmit-sbom-* artifacts)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${FAILED}" ]; then
+            echo "::error::Jobs that did not pass: ${FAILED}"
+            exit 1
+          fi
