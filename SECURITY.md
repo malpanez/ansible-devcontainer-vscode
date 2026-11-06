@@ -33,28 +33,47 @@ We support the latest tagged release and the `main` branch. Older tags may remai
 
 ## Verifying Published Images
 
-Every image digest published to GHCR carries a keyless Cosign signature and a
-GitHub build-provenance attestation. To verify before use:
+Every image digest published to GHCR carries a keyless Cosign signature made
+by `build-containers.yml` on `main`, only after the digest passed the scan
+gate. That signature is what says a digest was published. Check it with the
+exact identity, never a pattern: the promotion pull request and the nightly
+also sign build attestations for candidate digests, published or not, from
+`ci.yml`, and a pattern over this repository's workflows accepts those.
 
 ```bash
-# Cosign signature (keyless, Fulcio certificate tied to the publishing workflow)
+# Published: signed by build-containers.yml on main
 cosign verify \
-  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode/\.github/workflows/.+' \
+  --certificate-identity 'https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/build-containers.yml@refs/heads/main' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   ghcr.io/malpanez/devcontainer-ansible:main
+```
 
-# Build provenance attestation (SLSA)
+A build-provenance attestation says how and from which commit a digest was
+built, not that it passed or was published. Name the repository and the
+workflow that signed it, never only the owner: `--owner` accepts any of the
+owner's repositories.
+
+```bash
+# Built and attested by build-containers.yml on main
 gh attestation verify oci://ghcr.io/malpanez/devcontainer-ansible:main \
-  --owner malpanez
+  --repo malpanez/ansible-devcontainer-vscode \
+  --signer-workflow malpanez/ansible-devcontainer-vscode/.github/workflows/build-containers.yml@refs/heads/main
+
+# Candidate digests, built and attested by ci.yml in the promotion pull
+# request or the nightly
+gh attestation verify oci://ghcr.io/malpanez/devcontainer-ansible@sha256:<digest> \
+  --repo malpanez/ansible-devcontainer-vscode \
+  --signer-workflow malpanez/ansible-devcontainer-vscode/.github/workflows/ci.yml
 ```
 
 Tagged releases additionally attach per-image SPDX SBOMs to the GitHub
-release, each with a keyless Cosign signature bundle (`.sigstore`):
+release, each with a keyless Cosign signature bundle (`.sigstore`) made by
+`release.yml` for that tag:
 
 ```bash
 cosign verify-blob devcontainer-ansible.spdx.json \
   --bundle devcontainer-ansible.sigstore \
-  --certificate-identity-regexp 'https://github.com/malpanez/ansible-devcontainer-vscode/\.github/workflows/.+' \
+  --certificate-identity 'https://github.com/malpanez/ansible-devcontainer-vscode/.github/workflows/release.yml@refs/tags/<tag>' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
