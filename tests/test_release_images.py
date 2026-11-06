@@ -211,6 +211,80 @@ def test_gate_outputs_fail_closed_on_bad_records(stdin: str) -> None:
     assert proc.stdout == ""
 
 
+# ci.yml's image legs and candidate builds
+
+
+def _ci_matrix(mode: str, images: str, base: str) -> dict[str, str]:
+    proc = _run("ci-matrix", "--mode", mode, "--images", images, "--base", base)
+    assert proc.returncode == 0, proc.stderr
+    return dict(line.split("=", 1) for line in proc.stdout.splitlines())
+
+
+def test_verification_tests_the_amd64_build_of_each_image_and_builds_nothing() -> None:
+    lines = _ci_matrix("verification", '["golang","latex"]', "true")
+
+    assert json.loads(lines["legs"]) == [
+        {
+            "image": name,
+            "platform": "linux/amd64",
+            "arch": "amd64",
+            "runner": "ubuntu-24.04",
+        }
+        for name in ("golang", "latex")
+    ]
+    assert json.loads(lines["builds"]) == []
+
+
+def test_candidate_tests_every_published_platform_base_first(
+    module: ModuleType,
+) -> None:
+    stacks = [name for name in module.IMAGES if name != "base"]
+
+    lines = _ci_matrix("candidate", json.dumps(stacks), "true")
+
+    legs = json.loads(lines["legs"])
+    assert [leg["image"] for leg in legs[:2]] == ["base", "base"]
+    assert len(legs) == 2 * len(module.IMAGES) - 1
+    assert {leg["image"] for leg in legs if leg["arch"] == "arm64"} == set(
+        module.IMAGES
+    ) - {"latex"}
+    assert all(leg["runner"] == module.RUNNERS[leg["platform"]] for leg in legs)
+    assert json.loads(lines["builds"]) == [
+        {"image": name, "platforms": module.IMAGES[name]} for name in stacks
+    ]
+    assert lines["base_platforms"] == module.IMAGES["base"]
+
+
+def test_candidate_without_base_tests_no_base() -> None:
+    lines = _ci_matrix("candidate", '["latex"]', "false")
+
+    assert [leg["image"] for leg in json.loads(lines["legs"])] == ["latex"]
+    assert json.loads(lines["builds"]) == [
+        {"image": "latex", "platforms": "linux/amd64"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mode", "images", "base"),
+    [
+        ("publish", "[]", "false"),
+        ("", "[]", "false"),
+        ("candidate", "not json", "false"),
+        ("candidate", '{"golang": 1}', "false"),
+        ("candidate", '["base"]', "true"),
+        ("candidate", '["unknown"]', "false"),
+        ("candidate", '["golang","golang"]', "false"),
+        ("candidate", "[]", "yes"),
+    ],
+)
+def test_ci_matrix_fails_closed_on_bad_input(mode: str, images: str, base: str) -> None:
+    proc = _run("ci-matrix", "--mode", mode, "--images", images, "--base", base)
+
+    assert proc.returncode == 1
+    assert "::error::" in proc.stderr
+    assert proc.stdout == ""
+
+
 # The nightly scan's targets
 
 
