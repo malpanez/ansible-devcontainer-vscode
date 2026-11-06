@@ -69,6 +69,7 @@ jobs:
       images: ${{ steps.images.outputs.images }}
       base: ${{ steps.images.outputs.base }}
       mode: ${{ steps.mode.outputs.mode }}
+      cache_write: ${{ steps.mode.outputs.cache_write }}
       legs: ${{ steps.legs.outputs.legs }}
       builds: ${{ steps.legs.outputs.builds }}
       base_platforms: ${{ steps.legs.outputs.base_platforms }}
@@ -124,6 +125,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           REPOSITORY: ${{ github.repository }}
           MODE_INPUT: ${{ inputs.mode || '' }}
+          RUN_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           MODE=verification
@@ -148,8 +150,14 @@ jobs:
               exit 1
               ;;
           esac
+          CACHE_WRITE=false
+          if [ "${MODE}" = "candidate" ] || { [ "${MODE}" = "nightly" ] && [ "${RUN_REF}" = "refs/heads/main" ]; }; then
+            CACHE_WRITE=true
+          fi
           echo "Image mode: ${MODE}"
+          echo "Registry cache write: ${CACHE_WRITE}"
           echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "cache_write=${CACHE_WRITE}" >> "$GITHUB_OUTPUT"
 
       # Candidate mode builds, labels and records the pull request's head, the
       # develop commit, not refs/pull/N/merge: the image's revision label and
@@ -981,7 +989,14 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
           labels: ${{ steps.labels.outputs.labels }}
           build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache,mode=max,ignore-error=true
+          # :buildcache is what every pull request's base job builds from, so
+          # only the promotion and main's nightly write it (cache_write, see
+          # "Decide the image mode"). A nightly dispatched on another branch
+          # builds and tests as main's does, but must not replace it.
+          cache-to: >-
+            ${{ needs.changes.outputs.cache_write == 'true'
+            && format('type=registry,ref=ghcr.io/{0}/devcontainer-base:buildcache,mode=max,ignore-error=true', github.repository_owner)
+            || '' }}
           no-cache: true
           platforms: ${{ needs.changes.outputs.base_platforms }}
           provenance: true
@@ -1131,7 +1146,11 @@ jobs:
           build-args: |
             SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
             ${{ steps.files.outputs.base_from_run == 'true' && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.candidate-base.outputs.digest) || '' }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}:buildcache,mode=max,ignore-error=true
+          # See candidate-base.
+          cache-to: >-
+            ${{ needs.changes.outputs.cache_write == 'true'
+            && format('type=registry,ref=ghcr.io/{0}/devcontainer-{1}:buildcache,mode=max,ignore-error=true', github.repository_owner, matrix.image)
+            || '' }}
           no-cache: true
           platforms: ${{ matrix.platforms }}
           provenance: true

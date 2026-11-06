@@ -832,19 +832,23 @@ def test_a_missing_registry_cache_is_not_read(tmp_path: Path) -> None:
     assert cache["cache_to"] == ""
 
 
-CANDIDATE_CACHE = (
-    "type=registry,ref=ghcr.io/${{ github.repository_owner }}/devcontainer-%s"
-    ":buildcache,mode=max,ignore-error=true"
-)
+CANDIDATE_CACHE = {
+    "candidate-base": (
+        "${{ needs.changes.outputs.cache_write == 'true'"
+        " && format('type=registry,ref=ghcr.io/{0}/devcontainer-base:buildcache"
+        ",mode=max,ignore-error=true', github.repository_owner) || '' }}"
+    ),
+    "candidate-build": (
+        "${{ needs.changes.outputs.cache_write == 'true'"
+        " && format('type=registry,ref=ghcr.io/{0}/devcontainer-{1}:buildcache"
+        ",mode=max,ignore-error=true', github.repository_owner, matrix.image)"
+        " || '' }}"
+    ),
+}
 
 
-@pytest.mark.parametrize(
-    ("job", "image"),
-    [("candidate-base", "base"), ("candidate-build", "${{ matrix.image }}")],
-)
-def test_candidates_build_uncached_and_write_only_their_own_cache(
-    job: str, image: str
-) -> None:
+@pytest.mark.parametrize("job", ["candidate-base", "candidate-build"])
+def test_candidates_build_uncached_and_write_only_their_own_cache(job: str) -> None:
     # A candidate is what 2d publishes: a cached upgrade layer shipped apt
     # 3.0.3 and libexpat 2.9.0 in #636's first candidate run, when the fixed
     # packages were already out. :buildcache-publish has one writer,
@@ -853,7 +857,56 @@ def test_candidates_build_uncached_and_write_only_their_own_cache(
 
     assert build["no-cache"] is True
     assert "cache-from" not in build
-    assert build["cache-to"] == CANDIDATE_CACHE % image
+    assert build["cache-to"] == CANDIDATE_CACHE[job]
+
+
+@pytest.mark.parametrize(
+    ("event", "head_repo", "head_ref", "base_ref", "mode_input", "ref", "write"),
+    [
+        (
+            "pull_request",
+            REPOSITORY,
+            "develop",
+            "main",
+            "",
+            "refs/pull/1/merge",
+            "true",
+        ),
+        ("schedule", "", "", "", "nightly", "refs/heads/main", "true"),
+        ("workflow_dispatch", "", "", "", "nightly", "refs/heads/main", "true"),
+        # A writer may dispatch nightly mode on any branch to test it. That
+        # build must not become what every pull request's base builds from.
+        ("workflow_dispatch", "", "", "", "nightly", "refs/heads/feature", "false"),
+        ("workflow_dispatch", "", "", "", "nightly", "refs/heads/develop", "false"),
+        (
+            "pull_request",
+            REPOSITORY,
+            "feature",
+            "develop",
+            "",
+            "refs/pull/2/merge",
+            "false",
+        ),
+        ("push", "", "", "", "", "refs/heads/main", "false"),
+        ("workflow_dispatch", "", "", "", "", "refs/heads/main", "false"),
+    ],
+)
+def test_only_the_promotion_and_main_s_nightly_write_the_shared_cache(
+    tmp_path: Path,
+    event: str,
+    head_repo: str,
+    head_ref: str,
+    base_ref: str,
+    mode_input: str,
+    ref: str,
+    write: str,
+) -> None:
+    proc, output = _decide_mode(
+        tmp_path, event, head_repo, head_ref, base_ref, mode_input, ref
+    )
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _outputs(output)["cache_write"] == write
 
 
 def _candidate_job(job: dict[str, Any]) -> bool:
@@ -874,7 +927,10 @@ def test_only_candidate_jobs_write_a_registry_cache_on_a_pull_request() -> None:
                     ("ci", "candidate-build"),
                 ):
                     assert _candidate_job(job), job_name
-                    assert cache_to.startswith("type=registry,"), job_name
+                    assert cache_to.startswith(
+                        "${{ needs.changes.outputs.cache_write == 'true' && "
+                    ), job_name
+                    assert "format('type=registry," in cache_to, job_name
                     assert ":buildcache," in cache_to, job_name
                     continue
                 assert cache_to in ("", "${{ steps.cache.outputs.cache_to }}"), (
@@ -1510,6 +1566,7 @@ def _decide_mode(
     head_ref: str,
     base_ref: str,
     mode_input: str = "",
+    ref: str = "refs/pull/1/merge",
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     output = tmp_path / "mode"
     proc = _run_step(
@@ -1523,6 +1580,7 @@ def _decide_mode(
             "BASE_REF": base_ref,
             "REPOSITORY": REPOSITORY,
             "MODE_INPUT": mode_input,
+            "RUN_REF": ref,
             "GITHUB_OUTPUT": str(output),
         },
     )
@@ -1583,7 +1641,9 @@ def test_the_mode_reads_the_event_not_the_branch_name_alone() -> None:
         "BASE_REF": "${{ github.base_ref }}",
         "REPOSITORY": "${{ github.repository }}",
         "MODE_INPUT": "${{ inputs.mode || '' }}",
+        "RUN_REF": "${{ github.ref }}",
     }
+    assert changes["outputs"]["cache_write"] == "${{ steps.mode.outputs.cache_write }}"
 
 
 def test_no_workflow_runs_on_pull_request_target() -> None:
@@ -2592,7 +2652,9 @@ def test_the_pull_request_base_reads_the_cache_the_candidates_write() -> None:
         cache_ref
         == "ghcr.io/${{ github.repository_owner }}/devcontainer-base:buildcache"
     )
-    assert written.startswith(f"type=registry,ref={cache_ref},")
+    # The candidate build formats the owner in: {0} is github.repository_owner.
+    written_ref = cache_ref.replace("${{ github.repository_owner }}", "{0}")
+    assert f"format('type=registry,ref={written_ref}," in written
     build = _build_step("ci", "base")
     assert build["cache-from"] == "${{ steps.base_cache.outputs.from }}"
     assert "cache-to" not in build
@@ -2828,3 +2890,29 @@ def test_a_nightly_record_names_the_commit_it_built(tmp_path: Path) -> None:
         "run_id": 77,
         "tree": _git(repo, tmp_path, "rev-parse", "HEAD^{tree}"),
     }
+
+
+def _tracked_markdown() -> list[Path]:
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [REPO_ROOT / name for name in listed.split("\0") if name]
+
+
+def test_the_docs_verify_images_by_exact_identity() -> None:
+    # The promotion pull request and the nightly sign build attestations for
+    # candidate digests, published or not. A pattern over this repository's
+    # workflows, or the owner alone, accepts those as if they were published.
+    docs = _tracked_markdown()
+    assert REPO_ROOT / "SECURITY.md" in docs
+    for doc in docs:
+        text = doc.read_text(encoding="utf-8")
+        assert "certificate-identity-regexp" not in text, doc
+        for command in re.findall(r"gh attestation verify(?:[^\n]*\\\n)*[^\n]*", text):
+            assert "--owner" not in command, (doc, command)
+            assert "--repo malpanez/ansible-devcontainer-vscode" in command, doc
+            assert "--signer-workflow" in command, doc
