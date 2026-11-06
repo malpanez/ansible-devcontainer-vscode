@@ -42,8 +42,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          # The fallback check diffs the tagged commit against the commit an
-          # image was built from.
+          # The checks compare the tagged commit with the commit an image was
+          # built from, and the signer commits come from origin/main: every
+          # commit, and every branch as refs/remotes/origin/*.
           fetch-depth: 0
           persist-credentials: false
 
@@ -107,10 +108,16 @@ jobs:
       # Every image is pinned to a digest here, once, and the later jobs use
       # only that digest: a nightly build moving main or sha-<commit> while
       # the release runs cannot change what gets scanned and tagged.
-      # sha-<commit> is build-containers' gated image of the tagged commit.
-      # Without it (the commit changed no image) main is used, but only when
-      # nothing that makes build-containers rebuild changed between the
-      # commit main was built from and the tagged one.
+      # sha-<commit> is build-containers' gated image of the tagged commit,
+      # and the commit its revision label names must have the tagged
+      # commit's tree. Today that is the tagged commit itself. Once
+      # build-containers publishes the digests ci.yml's candidate runs
+      # tested (2d), the label names the develop head the run built, a
+      # commit with the tree of the promotion's merge commit. Without the tag
+      # (the commit changed no image) main is used, but only when it was
+      # built from a commit with the tagged tree, or when nothing that makes
+      # build-containers rebuild changed between that commit and the tagged
+      # one.
       - name: Resolve the digest to release for every image
         id: resolve
         env:
@@ -155,8 +162,42 @@ jobs:
             echo "::error::${VERSION} is not a usable image tag (v<major>.<minor>.<patch>[-suffix])."
             exit 1
           fi
+          if ! [[ "${TAG_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The tagged commit '${TAG_SHA}' is not a 40-character SHA-1."
+            exit 1
+          fi
           PYTAG="$(bash scripts/derive-python-tag.sh)"
           SHA_TAG="sha-${TAG_SHA:0:7}"
+          TAG_TREE="$(git rev-parse "${TAG_SHA}^{tree}")"
+
+          # The commits whose build-containers run may have signed an image,
+          # for the gate's cosign check (see there): the tagged commit, the
+          # image's revision label, then the commits with the tagged tree
+          # among the tagged commit's newest 200 ancestors and among main's
+          # newest 200. The tag's own history comes first: sha-<commit> is
+          # signed by the publish run of the promotion that gave the tag its
+          # tree, at or before the tag however far main has moved since, so
+          # a re-run of an old release still finds it. main's tip covers a
+          # nightly that signed after the tag, which matters only for the
+          # main fallback. Nothing else the image or a record says names a
+          # signer. The checkout fetched every branch (fetch-depth 0), so
+          # origin/main is there; without it the list would quietly lose the
+          # commits the gate may need.
+          MAIN_COMMITS=200
+          if ! git rev-parse --verify --quiet 'refs/remotes/origin/main^{commit}' >/dev/null; then
+            echo "::error::The checkout has no origin/main, so the commits that may have signed the images" \
+              "cannot be listed. Nothing was tagged or released."
+            exit 1
+          fi
+          SAME_TREE=()
+          for FROM in "${TAG_SHA}" refs/remotes/origin/main; do
+            LOG="$(git log --format='%H %T' --max-count="${MAIN_COMMITS}" "${FROM}")"
+            while read -r COMMIT TREE; do
+              if [ "${TREE}" = "${TAG_TREE}" ]; then
+                SAME_TREE+=("${COMMIT}")
+              fi
+            done <<<"${LOG}"
+          done
           # The push paths of build-containers.yml: what makes it rebuild.
           # requirements-ansible.txt was missing, so a lock bump that no build
           # had published could be released as :main's older image.
@@ -205,27 +246,49 @@ jobs:
               FAILED=1
               continue
             fi
-            if [ "${SOURCE}" = "${SHA_TAG}" ] && [ "${REVISION}" != "${TAG_SHA}" ]; then
-              echo "::error::${IMAGE}:${SOURCE} was built from ${REVISION}, not from ${TAG_SHA}."
+            if ! git cat-file -e "${REVISION}^{commit}" 2>/dev/null; then
+              echo "::error::${IMAGE}:${SOURCE} was built from ${REVISION}, which is not in this repository's history."
               FAILED=1
               continue
             fi
-            if [ "${SOURCE}" = "main" ]; then
-              if ! git cat-file -e "${REVISION}^{commit}" 2>/dev/null; then
-                echo "::error::${IMAGE}:main was built from ${REVISION}, which is not in this repository's history."
+            REVISION_TREE="$(git rev-parse "${REVISION}^{tree}")"
+            ACCEPTED="it has the tagged tree"
+            if [ "${REVISION_TREE}" != "${TAG_TREE}" ]; then
+              if [ "${SOURCE}" = "${SHA_TAG}" ]; then
+                echo "::error::${IMAGE}:${SOURCE} was built from ${REVISION}, whose tree ${REVISION_TREE} is not" \
+                  "the tree ${TAG_TREE} of ${TAG_SHA}."
                 FAILED=1
                 continue
               fi
+              # A commit that changed no image has no sha-<commit> until
+              # 2d-2b, and main was built from an older commit, whose tree
+              # differs, so the tree rule alone would refuse every such
+              # release. This rule stays until every promotion publishes all
+              # eight images as sha-<main commit>, and then goes.
               if ! git diff --quiet "${REVISION}" "${TAG_SHA}" -- "${IMAGE_INPUTS[@]}" "${IMAGE_INPUTS_EXCLUDED[@]}"; then
                 INPUTS_TEXT="${IMAGE_INPUTS[*]}"
-                echo "::error::${IMAGE} has no ${SHA_TAG}, and its main tag was built from ${REVISION}, but" \
-                  "${INPUTS_TEXT// / or } changed between that commit and ${TAG_SHA}: the images of this" \
-                  "commit have not passed build-containers. Dispatch build-containers on main (stack 'all')," \
-                  "then re-run this workflow."
+                echo "::error::${IMAGE} has no ${SHA_TAG}, and its main tag was built from ${REVISION}, which" \
+                  "neither has the tree of ${TAG_SHA} nor matches it in ${INPUTS_TEXT// / or }: the images of" \
+                  "this commit have not passed build-containers. Dispatch build-containers on main" \
+                  "(stack 'all'), then re-run this workflow."
                 FAILED=1
                 continue
               fi
+              ACCEPTED="no image input changed since"
             fi
+
+            SIGNER_CANDIDATES=("${TAG_SHA}" "${REVISION}" "${SAME_TREE[@]}")
+            for SHA in "${SIGNER_CANDIDATES[@]}"; do
+              if ! [[ "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "::error::'${SHA}' would be a signer commit of ${IMAGE}, but it is not a 40-character SHA-1."
+                exit 1
+              fi
+            done
+            # As a JSON string in the record, not an array: the gate's matrix
+            # then carries a plain string, and the gate parses and checks it.
+            SIGNER_SHAS="$(jq -cn '$ARGS.positional
+              | reduce .[] as $sha ([]; if any(.[]; . == $sha) then . else . + [$sha] end)' \
+              --args "${SIGNER_CANDIDATES[@]}")"
 
             # A version tag is published once. A re-run may add it again to
             # the same digest, never move it.
@@ -243,12 +306,15 @@ jobs:
               continue
             fi
 
-            echo "${IMAGE}:${VERSION_TAG} <- ${SOURCE} ${DIGEST} (built from ${REVISION})"
+            echo "${IMAGE}:${VERSION_TAG} <- ${SOURCE} ${DIGEST} (built from ${REVISION}: ${ACCEPTED})"
+            echo "  signer commits to try: $(jq -r 'join(", ")' <<<"${SIGNER_SHAS}")"
             RECORDS="$(jq -c \
               --arg name "${NAME}" --arg image "${IMAGE}" --arg digest "${DIGEST}" \
               --arg source "${SOURCE}" --arg revision "${REVISION}" --arg version_tag "${VERSION_TAG}" \
+              --argjson signer_shas "${SIGNER_SHAS}" \
               '. + [{name: $name, image: $image, digest: $digest, source: $source,
-                     revision: $revision, version_tag: $version_tag}]' <<<"${RECORDS}")"
+                     revision: $revision, version_tag: $version_tag,
+                     signer_shas: ($signer_shas | tojson)}]' <<<"${RECORDS}")"
           done
 
           if [ "${FAILED}" -ne 0 ]; then
@@ -296,24 +362,80 @@ jobs:
 
       # build-containers.yml signs keyless with its run's GitHub OIDC identity
       # and, since its scan gate (#578), only digests that passed it; the scan
-      # below judges the image either way. The workflow-sha claim binds the
-      # signature to the commit the revision label names, so the release
-      # notes cannot credit an image to the wrong commit.
+      # below judges the image either way. The identity is exact, never a
+      # regexp: cosign also accepts an attestation as a signature, and ci.yml
+      # attests candidates that were never published, so a pattern over this
+      # repository's workflows would accept those.
+      #
+      # --certificate-github-workflow-sha is the commit the signing run ran
+      # on, and cosign enforces it. resolve lists the commits it may name
+      # (matrix.signer_shas), taken only from the tagged commit, the revision
+      # label and main's history, never from anything else the image or a
+      # record says: the tagged commit, the revision label's commit, then the
+      # commits with the tagged commit's tree among its newest 200 ancestors
+      # and among main's newest 200. A list,
+      # because once build-containers publishes the digests ci.yml's
+      # candidate runs tested (2d), a digest's revision label names the
+      # develop head the candidate run built, while the run that signs it
+      # runs on main's merge commit: another commit, with the same tree, so
+      # the same build-containers.yml and the same gate. A tag placed more
+      # than 200 commits after the commit that signed its images finds no
+      # signer and fails; it needs the images published again (dispatch
+      # build-containers on main) and a release of that commit.
+      #
+      # Each commit is tried in turn because cosign cannot say which one
+      # signed: for the bundles build-containers writes, `cosign verify
+      # --output json` leaves every entry's `optional` empty (cosign 3.1.3 on
+      # devcontainer-base:latest, sha256:355bbf38..., 2026-11), so the
+      # certificate's workflow sha cannot be read from it.
       - name: Verify build-containers signed ${{ matrix.name }} on main
         env:
           IMAGE: ${{ matrix.image }}
           DIGEST: ${{ matrix.digest }}
           REVISION: ${{ matrix.revision }}
+          SIGNER_SHAS: ${{ matrix.signer_shas }}
           SIGNER: https://github.com/${{ github.repository }}/.github/workflows/build-containers.yml@refs/heads/main
         run: |
           set -euo pipefail
-          cosign verify \
-            --certificate-identity "${SIGNER}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
-            --certificate-github-workflow-sha "${REVISION}" \
-            "${IMAGE}@${DIGEST}" >/dev/null
-          echo "${IMAGE}@${DIGEST} is signed by ${SIGNER} at ${REVISION}."
+          # Checked again here, before any of it reaches cosign: a list of
+          # 40-character strings, each of them 40 hex digits.
+          if ! SHAS_TEXT="$(jq -er 'if type == "array" and length > 0
+              and all(.[]; type == "string" and length == 40)
+              then .[] else error("not a list of commits") end' <<<"${SIGNER_SHAS}" 2>/dev/null)"; then
+            echo "::error::resolve handed over no list of signer commits for ${IMAGE} ('${SIGNER_SHAS}')." \
+              "Nothing was verified."
+            exit 1
+          fi
+          mapfile -t SHAS <<<"${SHAS_TEXT}"
+          for SHA in "${SHAS[@]}"; do
+            if ! [[ "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::'${SHA}', a signer commit of ${IMAGE}, is not a 40-character SHA-1. Nothing was verified."
+              exit 1
+            fi
+          done
+          ERR="$(mktemp)"
+          for SHA in "${SHAS[@]}"; do
+            if cosign verify \
+              --certificate-identity "${SIGNER}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
+              --certificate-github-workflow-sha "${SHA}" \
+              "${IMAGE}@${DIGEST}" >/dev/null 2>"${ERR}"; then
+              rm -f "${ERR}"
+              echo "${IMAGE}@${DIGEST} (built from ${REVISION}) is signed by ${SIGNER} at ${SHA}."
+              exit 0
+            fi
+            echo "Not signed at ${SHA}:"
+            sed 's/^/  /' "${ERR}"
+          done
+          rm -f "${ERR}"
+          TRIED="${SHAS[*]}"
+          echo "::error::${IMAGE}@${DIGEST} has no signature of ${SIGNER} made at any commit tried:" \
+            "${TRIED// /, }. Those are the tagged commit, the revision label and the commits with the tagged" \
+            "tree among its newest 200 ancestors and main's newest 200; images signed further back need" \
+            "publishing again (dispatch" \
+            "build-containers on main) and a release of that commit."
+          exit 1
 
       # The gate's policy (build-containers.yml): .grype.yaml, fixable
       # high/critical findings block. Advisories published since the image
