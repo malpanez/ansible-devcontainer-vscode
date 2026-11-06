@@ -41,6 +41,10 @@ jobs:
       devcontainer: ${{ steps.filter.outputs.devcontainer }}
       images: ${{ steps.images.outputs.images }}
       base: ${{ steps.images.outputs.base }}
+      mode: ${{ steps.mode.outputs.mode }}
+      legs: ${{ steps.legs.outputs.legs }}
+      builds: ${{ steps.legs.outputs.builds }}
+      base_platforms: ${{ steps.legs.outputs.base_platforms }}
       template_images: ${{ steps.filter.outputs.template-images }}
       scripts: ${{ steps.filter.outputs.scripts }}
       python: ${{ steps.filter.outputs.python }}
@@ -48,13 +52,74 @@ jobs:
       terraform_version: ${{ steps.toolchain.outputs.terraform_version }}
       tflint_version: ${{ steps.toolchain.outputs.tflint_version }}
     steps:
+      # Full history, for the ancestor check below: 2 MiB of packs.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Derive toolchain versions from the Dockerfiles
         id: toolchain
         run: bash scripts/derive-toolchain-versions.sh >> "$GITHUB_OUTPUT"
+
+      # How this run tests images. Candidate mode is the develop -> main
+      # promotion pull request, which promote-to-main.yml keeps open and every
+      # develop push updates: main can take a tree only once that pull
+      # request's checks passed on it, and its paths-filter sees every file
+      # that differs from main. It builds each image that differs as
+      # build-containers.yml publishes it (multi-arch, pushed by digest),
+      # tests the digest on every platform and tags it candidate-<tree12>.
+      # Every other pull request, and a dispatch, is verification mode: an
+      # amd64 build of each image, loaded and never pushed.
+      #
+      # All four conditions, never the branch name alone: a fork can name a
+      # branch develop, and candidate mode pushes to GHCR. pull_request, never
+      # pull_request_target, so a fork's run keeps its read-only token.
+      - name: Decide the image mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MODE=verification
+          if [ "${EVENT_NAME}" = "pull_request" ] \
+            && [ "${HEAD_REPO}" = "${REPOSITORY}" ] \
+            && [ "${HEAD_REF}" = "develop" ] \
+            && [ "${BASE_REF}" = "main" ]; then
+            MODE=candidate
+          fi
+          echo "Image mode: ${MODE}"
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+
+      # Candidate mode builds, labels and records the pull request's head, the
+      # develop commit, not refs/pull/N/merge: the image's revision label and
+      # SOURCE_DATE_EPOCH must name a real commit, one main will contain. The
+      # two have the same tree only while main is an ancestor of develop, as
+      # sync-main-to-develop.yml keeps it. When it is not, the run would test
+      # a tree that is not the one the merge gives main.
+      - name: Check main is an ancestor of develop
+        if: steps.mode.outputs.mode == 'candidate'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "${BASE_SHA}" "${HEAD_SHA}"; then
+            echo "::error::main (${BASE_SHA}) is not an ancestor of develop (${HEAD_SHA}): merge main into develop first. Candidate mode builds develop's commit, which must have the tree this pull request would give main."
+            exit 1
+          fi
+          HEAD_TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
+          MERGE_TREE="$(git rev-parse "${MERGE_SHA}^{tree}")"
+          if [ "${HEAD_TREE}" != "${MERGE_TREE}" ]; then
+            echo "::error::develop (${HEAD_SHA}) has tree ${HEAD_TREE}, the merge ${MERGE_SHA} tree ${MERGE_TREE}: merge main into develop first."
+            exit 1
+          fi
+          echo "main ${BASE_SHA} is an ancestor of develop ${HEAD_SHA}; both trees are ${HEAD_TREE}."
 
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         id: filter
@@ -116,6 +181,12 @@ jobs:
               # How the jobs build: the commit's epoch and the labels.
               - 'scripts/derive-source-date-epoch.sh'
               - 'scripts/strip-description-label.sh'
+              # What each image is built from, the platforms and runners of
+              # its legs, and how candidate mode caches and tags the build.
+              - 'scripts/resolve-image-files.sh'
+              - 'scripts/release-images.py'
+              - 'scripts/resolve-candidate-cache.sh'
+              - 'scripts/tag-candidates.sh'
             # Devcontainer State's: every image input, and what the image jobs
             # run.
             devcontainer:
@@ -245,6 +316,12 @@ jobs:
       # BASE_IMAGE). paths-filter lists every filter that matched, never an
       # `any_changed`. A dispatch diffs only the last commit (or the branch
       # against main), usually nothing, so it runs every image.
+      #
+      # A push tests no image. Every develop commit came through a pull
+      # request whose run tested its images, every main commit through the
+      # promotion pull request's candidate run, and develop's merged state is
+      # tested together at that promotion. build-containers.yml still builds
+      # and publishes main until 2d publishes the candidates instead.
       - name: Resolve the images to test
         id: images
         env:
@@ -252,11 +329,18 @@ jobs:
         run: |
           set -euo pipefail
           ALL_IMAGES='["ansible","ansible-podman","ansible-aws","terraform","terraform-aws","golang","latex"]'
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            MATCHED="$(jq -c '["image-base"] + map("image-" + .)' <<< "${ALL_IMAGES}")"
-          else
-            MATCHED="${CHANGES:?paths-filter gave no changes output}"
-          fi
+          case "${GITHUB_EVENT_NAME}" in
+            push)
+              echo "A push tests no image: the pull request that brought each change tested them."
+              MATCHED='[]'
+              ;;
+            workflow_dispatch)
+              MATCHED="$(jq -c '["image-base"] + map("image-" + .)' <<< "${ALL_IMAGES}")"
+              ;;
+            *)
+              MATCHED="${CHANGES:?paths-filter gave no changes output}"
+              ;;
+          esac
           IMAGES="$(jq -c --argjson matched "${MATCHED}" \
             'map(. as $image | select(any($matched[]; . == "image-" + $image)))' <<< "${ALL_IMAGES}")"
           BASE="$(jq -r --argjson images "${IMAGES}" \
@@ -266,6 +350,21 @@ jobs:
             echo "images=${IMAGES}"
             echo "base=${BASE}"
           } >> "$GITHUB_OUTPUT"
+
+      # The image job's legs, one per image and platform, and the candidate
+      # builds, from scripts/release-images.py: the one list of the platforms
+      # each image is published for and the runner of each platform, which
+      # tests/test_release_images.py keeps equal to build-containers.yml.
+      - name: Resolve the image legs
+        id: legs
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          IMAGES: ${{ steps.images.outputs.images }}
+          BASE: ${{ steps.images.outputs.base }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release-images.py ci-matrix --mode "${MODE}" --images "${IMAGES}" --base "${BASE}" \
+            | tee -a "$GITHUB_OUTPUT"
 
   # The only lint in CI: the pre-commit hooks, the same run as `make lint`.
   # The script-lint, dockerfile-lint and terraform-ci jobs here and
@@ -468,15 +567,24 @@ jobs:
   # The checks after the build run whether or not an earlier one failed, as
   # they did when they were separate jobs, so one run reports them all.
   #
-  # What these jobs test is a presubmit build: amd64 only, loaded into the
-  # runner's Docker and never pushed. It is not the image build-containers.yml
-  # publishes, which is built again, multi-arch, and gated again there.
+  # In verification mode what these jobs test is a presubmit build: amd64
+  # only, loaded into the runner's Docker and never pushed. It is not the
+  # image build-containers.yml publishes, which is built again, multi-arch,
+  # and gated again there.
+  #
+  # In candidate mode (see "Decide the image mode") the candidate jobs build
+  # each image as build-containers.yml publishes it and push it untagged, by
+  # digest. The image job then runs the same checks on that digest, pulled on
+  # a runner of each platform it is published for, and candidate-tag tags
+  # and records it only once every leg and every other job passed.
 
   # base is built once, here, for its own checks and for the images built on
   # it, which take it as an artifact instead of building it again. One build
   # writes it twice: to an OCI layout, which the children read as a named
   # build context (the docker-container builder does not see the daemon's
-  # images), and into Docker, for the checks.
+  # images), and into Docker, for the checks. Verification mode only:
+  # candidate mode builds base in candidate-base and tests it in the image
+  # job, on both platforms, as it tests the others.
   base:
     name: Image (base)
     runs-on: ubuntu-24.04
@@ -484,7 +592,7 @@ jobs:
     permissions:
       contents: read
     needs: [changes, lint]
-    if: needs.changes.outputs.base == 'true'
+    if: needs.changes.outputs.mode == 'verification' && needs.changes.outputs.base == 'true'
     env:
       IMAGE_REF: devcontainer-base:ci
     outputs:
@@ -698,126 +806,331 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
-  image:
-    name: Image (${{ matrix.image }})
-    # Not ubuntu-latest: that label moves to Ubuntu 26.04 by 2026-11-19, with
-    # Docker 29 where 24.04 has Docker 28. The size gate below needs the classic
-    # overlay2 store its budgets were measured on, and fails on the containerd
-    # store, the default for a new Docker 29 install. Renovate ignores runner
-    # labels, so move this by hand and re-measure the budgets in that change.
+  # Candidate mode only: base as build-base in build-containers.yml publishes
+  # it, pushed untagged by digest, so that 2d can publish this very digest.
+  # The build step's settings are build-base's (tests/test_workflow_contracts.py
+  # compares them) but for the cache: scripts/resolve-candidate-cache.sh. The
+  # checkout is the pull request's head, so the labels and SOURCE_DATE_EPOCH
+  # name the develop commit (see "Check main is an ancestor of develop").
+  #
+  # packages: write on candidate-base, candidate-build and candidate-tag only,
+  # each behind the mode. The mode needs this repository's develop as the head,
+  # and pushing to develop already takes write access.
+  candidate-base:
+    name: Candidate (base)
     runs-on: ubuntu-24.04
+    # build-base's build step took 30-467 s cached and 47-497 s uncached, both
+    # platforms under QEMU.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    needs: [changes, lint]
+    if: needs.changes.outputs.mode == 'candidate' && needs.changes.outputs.base == 'true'
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver: docker-container
+
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # build-base's labels. On a pull_request event the action labels the
+      # merge commit unless DOCKER_METADATA_PR_HEAD_SHA is true: then {{sha}},
+      # type=sha and the revision label take the pull request's head
+      # (src/context.ts at this pin, lines 70-77).
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: "true"
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          tags: type=sha
+          labels: |
+            org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
+
+      # Each Dockerfile labels its own description; metadata-action's
+      # repository-wide one would replace it.
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
+      - name: Resolve the build cache
+        id: rcache
+        run: bash scripts/resolve-candidate-cache.sh base >> "$GITHUB_OUTPUT"
+
+      # Untagged: candidate-tag tags it once every leg and job passed.
+      - name: Build and push base by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: devcontainers/base/Dockerfile
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
+          tags: ghcr.io/${{ github.repository_owner }}/devcontainer-base
+          labels: ${{ steps.labels.outputs.labels }}
+          build-args: SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+          cache-from: ${{ steps.rcache.outputs.from }}
+          cache-to: ${{ steps.rcache.outputs.to }}
+          platforms: ${{ needs.changes.outputs.base_platforms }}
+          provenance: true
+          sbom: true
+
+      # A matrix job has one set of outputs, the last leg's, so each build
+      # hands its digest to the legs and to candidate-tag as an artifact.
+      - name: Record the candidate digest
+        env:
+          IMAGE: base
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::The build of ${IMAGE} gave no digest ('${DIGEST}')."
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/candidate-digest"
+          jq -n --arg name "${IMAGE}" --arg digest "${DIGEST}" '{name: $name, digest: $digest}' \
+            > "${RUNNER_TEMP}/candidate-digest/${IMAGE}.json"
+          echo "devcontainer-${IMAGE}@${DIGEST}"
+
+      # Two weeks: as long as cleanup-ghcr.yml keeps the untagged digest, so a
+      # re-run of a failed leg can still pull it.
+      - name: Upload the candidate digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: candidate-digest-base
+          path: ${{ runner.temp }}/candidate-digest/base.json
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
+
+  # Candidate mode only: every other image, as build-all in build-containers.yml
+  # publishes it, on the base candidate-base pushed. One job per image, for
+  # every platform scripts/release-images.py gives it. No max-parallel:
+  # build-all's 2 has no recorded reason.
+  candidate-build:
+    name: Candidate (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    # build-all's build step took 30-467 s cached and 47-497 s uncached.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    needs: [changes, lint, candidate-base]
+    # Whatever candidate-base's result, as the image job takes base's: it is
+    # skipped when no image here is built on it, and an image built on it
+    # stops at "Check this run built the base".
+    if: >-
+      !cancelled()
+      && needs.changes.outputs.mode == 'candidate'
+      && needs.changes.result == 'success'
+      && needs.lint.result == 'success'
+      && needs.changes.outputs.builds != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Resolve the image's files
+        id: files
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: bash scripts/resolve-image-files.sh "${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Check this run built the base
+        if: steps.files.outputs.base_from_run == 'true' && needs.candidate-base.result != 'success'
+        env:
+          BASE_RESULT: ${{ needs.candidate-base.result }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          echo "::error::candidate-base ${BASE_RESULT} in this run; not building ${IMAGE} on another base."
+          exit 1
+
+      - name: Derive SOURCE_DATE_EPOCH from the commit
+        id: epoch
+        run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver: docker-container
+
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # build-all's labels, of the head: see candidate-base.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: "true"
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
+          tags: type=sha
+          labels: |
+            org.opencontainers.image.created=${{ steps.epoch.outputs.created }}
+            org.opencontainers.image.version=sha-{{sha}}
+
+      - name: Keep the Dockerfile's description label
+        id: labels
+        env:
+          LABELS: ${{ steps.meta.outputs.labels }}
+        run: bash scripts/strip-description-label.sh
+
+      - name: Resolve the build cache
+        id: rcache
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: bash scripts/resolve-candidate-cache.sh "${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      # build-all's settings: the base by its candidate digest, as build-all
+      # takes the base its run built.
+      - name: Build and push ${{ matrix.image }} by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: ${{ steps.files.outputs.dockerfile }}
+          target: ${{ steps.files.outputs.target }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=12,force-compression=true,oci-mediatypes=true,rewrite-timestamp=true
+          tags: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
+          labels: ${{ steps.labels.outputs.labels }}
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.epoch }}
+            ${{ steps.files.outputs.base_from_run == 'true' && format('BASE_IMAGE=ghcr.io/{0}/devcontainer-base@{1}', github.repository_owner, needs.candidate-base.outputs.digest) || '' }}
+          cache-from: ${{ steps.rcache.outputs.from }}
+          cache-to: ${{ steps.rcache.outputs.to }}
+          platforms: ${{ matrix.platforms }}
+          provenance: true
+          sbom: true
+
+      # See candidate-base.
+      - name: Record the candidate digest
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::The build of ${IMAGE} gave no digest ('${DIGEST}')."
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/candidate-digest"
+          jq -n --arg name "${IMAGE}" --arg digest "${DIGEST}" '{name: $name, digest: $digest}' \
+            > "${RUNNER_TEMP}/candidate-digest/${IMAGE}.json"
+          echo "devcontainer-${IMAGE}@${DIGEST}"
+
+      - name: Upload the candidate digest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: candidate-digest-${{ matrix.image }}
+          path: ${{ runner.temp }}/candidate-digest/${{ matrix.image }}.json
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
+
+  # One leg per image and platform (see "Resolve the image legs"): the amd64
+  # build in verification mode, every published platform of the candidate
+  # digest in candidate mode, base among them. Only how the image under test
+  # gets into the runner's Docker differs between the two; every check after
+  # "Record the image under test" runs on that image either way.
+  image:
+    name: Image (${{ matrix.image }}, ${{ matrix.arch }})
+    # From RUNNERS in scripts/release-images.py: ubuntu-24.04 and
+    # ubuntu-24.04-arm. Not ubuntu-latest: that label moves to Ubuntu 26.04 by
+    # 2026-11-19, with Docker 29 where 24.04 has Docker 28. The size gate below
+    # needs the classic overlay2 store its budgets were measured on, and fails
+    # on the containerd store, the default for a new Docker 29 install.
+    # Renovate ignores runner labels, so move them by hand and re-measure the
+    # budgets in that change.
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
       contents: read
-      # For the registry cache, which only a push writes (see "Determine cache
-      # strategy"). A permission cannot depend on the event, so a pull request
-      # from this repository gets a token that carries it too. That grants
-      # its author nothing new: a branch in this repository takes write
-      # access, which can already change this workflow. No step logs in with
-      # it there, and a fork's token is read-only.
-      packages: write
-    needs: [changes, lint, base]
+      # Candidate mode pulls the candidate with it. The package is public, so
+      # this only spares the pulls the anonymous limits. Nothing here writes
+      # a registry: :buildcache has one writer, candidate mode's builds.
+      packages: read
+    needs: [changes, lint, base, candidate-base, candidate-build]
     # Whatever base's result. It is skipped whenever no image in the list is
     # built on it, and under the implicit success() a skipped need would skip
     # this job too (actions/runner#2205). An image not built on base does not
     # need it, so a failed base check must not hide that image's results; an
     # image built on it fails at "Check this run built the base" when base did
     # not succeed. A failed base fails the base job, and the summaries with
-    # it.
+    # it. The same holds for the candidate builds: a leg whose candidate was
+    # not built fails at "Download the candidate digest".
     if: >-
       !cancelled()
       && needs.changes.result == 'success'
       && needs.lint.result == 'success'
-      && needs.changes.outputs.images != '[]'
+      && needs.changes.outputs.legs != '[]'
     strategy:
       fail-fast: false
       matrix:
-        image: ${{ fromJSON(needs.changes.outputs.images) }}
+        include: ${{ fromJSON(needs.changes.outputs.legs) }}
     env:
       IMAGE_REF: devcontainer-${{ matrix.image }}:ci
+      MODE: ${{ needs.changes.outputs.mode }}
+      # One SBOM a leg: a candidate image has one per platform.
+      SBOM_NAME: ${{ needs.changes.outputs.mode == 'candidate' && 'candidate' || 'presubmit' }}-sbom-${{ matrix.image }}-${{ matrix.arch }}
     steps:
+      # The head in candidate mode, as the candidate builds check it out.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ needs.changes.outputs.mode == 'candidate' && github.event.pull_request.head.sha || '' }}
           persist-credentials: false
 
-      # Every image is devcontainers/<image>/Dockerfile tested with
-      # <image>.yaml, except the variants, which are a stack plus one layer:
-      # ansible-podman, built from Dockerfile.podman, and the -aws images,
-      # built from the stack's Dockerfile with --target <image>. The stack's
-      # file holds for them unchanged (user, workdir, tools, the bytecode
-      # check), so they run it and <variant>.yaml for the layer, instead of a
-      # copy. terraform and ansible, built without a target (their
-      # Dockerfile's last stage), also run no-aws.yaml: it fails if that last
-      # stage ever became an -aws image. base_from_run marks the images whose
-      # Dockerfile consumes BASE_IMAGE: only devcontainers/ansible/Dockerfile
-      # does. Dockerfile.podman starts from python:3.14-slim-trixie, and the
-      # others do not reference it at all, so they must not be handed an
-      # unconsumed build-arg. template marks the images whose stack's
-      # devcontainer.json is brought up on them; cli, the images with a
-      # Dev Containers CLI check at all.
+      # Its Dockerfile and stage, structure tests and Dev Containers checks:
+      # see the script.
       - name: Resolve the image's files
         id: files
         env:
           IMAGE: ${{ matrix.image }}
-        run: |
-          set -euo pipefail
-          TARGET=""
-          case "${IMAGE}" in
-            ansible-podman)
-              DOCKERFILE=devcontainers/ansible/Dockerfile.podman
-              CONFIGS="ansible ansible-podman"
-              ;;
-            terraform-aws|ansible-aws)
-              DOCKERFILE="devcontainers/${IMAGE%-aws}/Dockerfile"
-              TARGET="${IMAGE}"
-              CONFIGS="${IMAGE%-aws} ${IMAGE}"
-              ;;
-            terraform|ansible)
-              DOCKERFILE="devcontainers/${IMAGE}/Dockerfile"
-              CONFIGS="${IMAGE} no-aws"
-              ;;
-            *)
-              DOCKERFILE="devcontainers/${IMAGE}/Dockerfile"
-              CONFIGS="${IMAGE}"
-              ;;
-          esac
-          case "${IMAGE}" in
-            ansible|ansible-aws)
-              BASE_FROM_RUN=true
-              ;;
-            *)
-              BASE_FROM_RUN=false
-              ;;
-          esac
-          case "${IMAGE}" in
-            ansible|terraform|golang|latex)
-              TEMPLATE=true
-              CLI=true
-              ;;
-            ansible-podman)
-              TEMPLATE=false
-              CLI=true
-              ;;
-            *)
-              TEMPLATE=false
-              CLI=false
-              ;;
-          esac
-          {
-            echo "dockerfile=${DOCKERFILE}"
-            echo "target=${TARGET}"
-            echo "configs=${CONFIGS}"
-            echo "base_from_run=${BASE_FROM_RUN}"
-            echo "template=${TEMPLATE}"
-            echo "cli=${CLI}"
-          } >> "$GITHUB_OUTPUT"
+        run: bash scripts/resolve-image-files.sh "${IMAGE}" >> "$GITHUB_OUTPUT"
 
-      # This job runs whatever base's result (see its if). An image built on
-      # base has no layout to build on when base did not succeed, and building
-      # it on any other base would test another image: stop here, saying so,
-      # instead of at the layout's download.
+      # Verification mode builds the image here, from "Check this run built
+      # the base" to the build step. This job runs whatever base's result (see
+      # its if). An image built on base has no layout to build on when base did
+      # not succeed, and building it on any other base would test another
+      # image: stop here, saying so, instead of at the layout's download.
       - name: Check this run built the base
-        if: steps.files.outputs.base_from_run == 'true' && needs.base.result != 'success'
+        if: env.MODE == 'verification' && steps.files.outputs.base_from_run == 'true' && needs.base.result != 'success'
         env:
           BASE_RESULT: ${{ needs.base.result }}
         run: |
@@ -827,6 +1140,7 @@ jobs:
       # As build-containers.yml publishes: see scripts/derive-source-date-epoch.sh.
       - name: Derive SOURCE_DATE_EPOCH from the commit
         id: epoch
+        if: env.MODE == 'verification'
         run: bash scripts/derive-source-date-epoch.sh >> "$GITHUB_OUTPUT"
 
       # Not made the default builder: the Dev Containers CLI builds its feature
@@ -834,13 +1148,14 @@ jobs:
       # builder sees the daemon's images. The build below names this one.
       - name: Set up Docker Buildx
         id: buildx
+        if: env.MODE == 'verification'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver: docker-container
           use: false
 
       - name: Download the base layout
-        if: steps.files.outputs.base_from_run == 'true'
+        if: env.MODE == 'verification' && steps.files.outputs.base_from_run == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           name: devcontainer-base-layout
@@ -850,7 +1165,7 @@ jobs:
       # names that job's manifest digest and nothing else, and every blob is
       # named after its own sha256, so one that changed on the way fails here.
       - name: Check the base layout
-        if: steps.files.outputs.base_from_run == 'true'
+        if: env.MODE == 'verification' && steps.files.outputs.base_from_run == 'true'
         env:
           EXPECTED: ${{ needs.base.outputs.digest }}
           LAYOUT: ${{ runner.temp }}/devcontainer-base
@@ -867,13 +1182,15 @@ jobs:
           done | sha256sum --check --strict --quiet
           echo "Base layout ${EXPECTED}: index and every blob verified."
 
-      # Registry cache-to only on a push: a pull request reads the cache
-      # and never writes it, so no pull request, Renovate's included, can
-      # put layers into the cache that develop and main build from. A fork
-      # gets the Actions cache instead, from and to: its writes are scoped to
-      # the pull request's ref, which no other ref reads.
+      # Verification never writes a registry cache. :buildcache has one writer,
+      # candidate mode's builds (scripts/resolve-candidate-cache.sh), so no
+      # other pull request, Renovate's included, can put layers into the cache
+      # that the promotion builds from. A fork gets the Actions cache instead,
+      # from and to: its writes are scoped to the pull request's ref, which no
+      # other ref reads.
       - name: Determine cache strategy
         id: cache
+        if: env.MODE == 'verification'
         env:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
           IMAGE: ${{ matrix.image }}
@@ -884,42 +1201,24 @@ jobs:
             {
               echo "cache_from=type=gha,scope=${IMAGE}"
               echo "cache_to=type=gha,scope=${IMAGE}"
-              echo "login=false"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
           CACHE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER}/devcontainer-${IMAGE}:buildcache"
           # Probed, as build-containers.yml does: a missing cache-from ref
           # has been a fatal error in some BuildKit versions, and a new image
-          # has no :buildcache until a push writes the first.
+          # has no :buildcache until a candidate build writes the first.
           if docker buildx imagetools inspect "${CACHE_REF}" >/dev/null 2>&1; then
             echo "cache_from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
           else
             echo "cache_from=" >> "$GITHUB_OUTPUT"
             echo "::notice::No cache at ${CACHE_REF} yet; building uncached."
           fi
-          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-            {
-              echo "cache_to=type=registry,ref=${CACHE_REF},mode=max"
-              echo "login=true"
-            } >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "cache_to="
-              echo "login=false"
-            } >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Login to GHCR
-        if: steps.cache.outputs.login == 'true'
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          echo "cache_to=" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata
         id: meta
+        if: env.MODE == 'verification'
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           images: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
@@ -934,11 +1233,13 @@ jobs:
       # repository-wide one would replace it.
       - name: Keep the Dockerfile's description label
         id: labels
+        if: env.MODE == 'verification'
         env:
           LABELS: ${{ steps.meta.outputs.labels }}
         run: bash scripts/strip-description-label.sh
 
       - name: Build ${{ matrix.image }}
+        if: env.MODE == 'verification'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           builder: ${{ steps.buildx.outputs.name }}
@@ -970,6 +1271,51 @@ jobs:
             ${{ steps.cache.outputs.cache_to }}
           platforms: linux/amd64
 
+      # Candidate mode pulls the image instead: the digest its candidate build
+      # pushed, for this leg's platform.
+      - name: Login to GHCR
+        if: env.MODE == 'candidate'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download the candidate digest
+        if: env.MODE == 'candidate'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: candidate-digest-${{ matrix.image }}
+          path: ${{ runner.temp }}/candidate-digest
+
+      # docker picks the runner's platform from the index, and fails when the
+      # index does not hold it. The comparison is what makes a green leg
+      # evidence about this platform, as in release.yml's smoke: it would catch
+      # a runner label that stopped meaning arm64. Then the digest takes the
+      # tag every check below uses, so they run unchanged.
+      - name: Pull the candidate by digest
+        if: env.MODE == 'candidate'
+        env:
+          RECORD: ${{ runner.temp }}/candidate-digest/${{ matrix.image }}.json
+          REPOSITORY: ghcr.io/${{ github.repository_owner }}/devcontainer-${{ matrix.image }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          DIGEST="$(jq -r '.digest // ""' "${RECORD}")"
+          if [[ ! "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::${RECORD} holds no digest ('${DIGEST}')."
+            exit 1
+          fi
+          REF="${REPOSITORY}@${DIGEST}"
+          docker pull "${REF}"
+          PULLED="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' -- "${REF}")"
+          if [ "${PULLED}" != "${PLATFORM}" ]; then
+            echo "::error::${REF} pulled as ${PULLED} on the ${PLATFORM} leg, so it proves nothing about ${PLATFORM}."
+            exit 1
+          fi
+          docker tag "${REF}" "${IMAGE_REF}"
+          echo "${REF} is ${PULLED}, tagged ${IMAGE_REF}; the runner is $(uname -m)."
+
       # The ID every check below asserts before it runs.
       - name: Record the image under test
         id: image
@@ -991,9 +1337,11 @@ jobs:
       # also fails closed (exit 2) when it cannot judge: an image with no
       # budget, a budgets file it cannot read, a docker error, or a Docker on
       # the containerd image store, where .Size counts something else.
-      # Raising a budget is a reviewed edit to that file.
+      # Raising a budget is a reviewed edit to that file. amd64 only: the
+      # budgets were measured there, and it is the larger platform of every
+      # image. The one check that differs by platform.
       - name: Check ${{ matrix.image }} image size against its budget
-        if: ${{ !cancelled() && steps.image.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.arch == 'amd64' }}
         env:
           IMAGE: ${{ matrix.image }}
           IMAGE_ID: ${{ steps.image.outputs.id }}
@@ -1013,21 +1361,45 @@ jobs:
           docker run --rm "${IMAGE_REF}" \
             bash -lc "echo '${IMAGE} container is healthy' && whoami && which bash"
 
+      # The base job's smoke test, for base tested here in candidate mode.
+      - name: Smoke test base with its stack's checks
+        if: ${{ !cancelled() && steps.image.outcome == 'success' && matrix.image == 'base' }}
+        env:
+          IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
+          bash scripts/smoke-devcontainer-image.sh --stack base --image "${IMAGE_REF}"
+
+      # The runner's own architecture: the release publishes linux-amd64 and
+      # linux-arm64 builds, each with its line in checksums.txt.
       - name: Install container-structure-test
         if: ${{ !cancelled() && steps.image.outcome == 'success' }}
         run: |
           # Pinned, over HTTPS, and checked against the release's
           # checksums.txt before the binary is ever made executable.
           set -euo pipefail
+          case "$(uname -m)" in
+            x86_64)
+              ASSET=container-structure-test-linux-amd64
+              ;;
+            aarch64)
+              ASSET=container-structure-test-linux-arm64
+              ;;
+            *)
+              echo "::error::container-structure-test ${CST_VERSION} has no build for $(uname -m)"
+              exit 1
+              ;;
+          esac
           BASE_URL="https://github.com/GoogleContainerTools/container-structure-test/releases/download/${CST_VERSION}"
           DEST="$(mktemp -d)"
           # --retry: a 504 from GitHub releases broke builds on 2026-09-14.
           curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
-            "${BASE_URL}/container-structure-test-linux-amd64" -o "${DEST}/container-structure-test-linux-amd64"
+            "${BASE_URL}/${ASSET}" -o "${DEST}/${ASSET}"
           curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 \
             "${BASE_URL}/checksums.txt" -o "${DEST}/checksums.txt"
-          (cd "${DEST}" && grep ' container-structure-test-linux-amd64$' checksums.txt | sha256sum --check --strict -)
-          install -m 0755 "${DEST}/container-structure-test-linux-amd64" /usr/local/bin/container-structure-test
+          (cd "${DEST}" && grep " ${ASSET}\$" checksums.txt | sha256sum --check --strict -)
+          install -m 0755 "${DEST}/${ASSET}" /usr/local/bin/container-structure-test
           rm -rf "${DEST}"
 
       - name: Run the structure tests for ${{ matrix.image }}
@@ -1077,6 +1449,9 @@ jobs:
       # JSON rather than the default SARIF, which nothing here uploads: its
       # levels are relative to severity-cutoff, so at critical a high finding
       # reads as a warning, while the JSON names each finding's severity.
+      # Verification blocks on critical, the owner's decision for pull
+      # requests. Candidate mode blocks on fixable high on every platform: the
+      # bar build-containers.yml tags at, and the digest is what 2d publishes.
       - name: Scan image with Grype
         id: grype
         if: ${{ !cancelled() && steps.scan_image.outcome == 'success' }}
@@ -1085,15 +1460,16 @@ jobs:
           GRYPE_CONFIG: ${{ github.workspace }}/.grype.yaml
         with:
           image: ${{ env.IMAGE_REF }}
-          severity-cutoff: critical
+          severity-cutoff: ${{ env.MODE == 'candidate' && 'high' || 'critical' }}
           only-fixed: true
           fail-build: "true"
           output-format: json
 
-      # Fixable high findings do not fail a pull request: CI blocks on
-      # critical, the owner's decision. build-containers.yml tags nothing
-      # with a fixable high finding, so each warning here is one that would
-      # hold back the publish of this image after the merge.
+      # Fixable high findings do not fail a pull request in verification mode:
+      # CI blocks on critical, the owner's decision. build-containers.yml tags
+      # nothing with a fixable high finding, so each warning here is one that
+      # would hold back the publish of this image after the merge. In
+      # candidate mode the scan above failed on them; this lists them.
       - name: Annotate fixable high findings
         if: ${{ !cancelled() && steps.grype.outputs.json != '' }}
         env:
@@ -1116,8 +1492,13 @@ jobs:
           for FINDING in "${FINDINGS[@]}"; do
             echo "::warning title=Fixable high finding in ${IMAGE_REF}::${FINDING}"
           done
+          if [ "${MODE}" = "candidate" ]; then
+            VERDICT="blocking this candidate"
+          else
+            VERDICT="not blocking here"
+          fi
           {
-            echo "### ${IMAGE_REF}: ${#FINDINGS[@]} fixable high finding(s), not blocking here"
+            echo "### ${IMAGE_REF}: ${#FINDINGS[@]} fixable high finding(s), ${VERDICT}"
             echo ""
             printf -- '- %s\n' "${FINDINGS[@]}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -1137,7 +1518,7 @@ jobs:
           # The upload step below names it: the action's own upload would add
           # a second artifact.
           upload-artifact: false
-          output-file: ${{ runner.temp }}/presubmit-sbom-${{ matrix.image }}.spdx.json
+          output-file: ${{ runner.temp }}/${{ env.SBOM_NAME }}.spdx.json
           format: spdx-json
 
       # What sbom-verification.yml's checks could fail on: an SBOM that is not
@@ -1147,20 +1528,21 @@ jobs:
       - name: Check the SBOM of ${{ matrix.image }}
         if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
         env:
-          SBOM: ${{ runner.temp }}/presubmit-sbom-${{ matrix.image }}.spdx.json
+          SBOM: ${{ runner.temp }}/${{ env.SBOM_NAME }}.spdx.json
         run: |
           set -euo pipefail
           PACKAGES="$(jq -e '.packages | if type == "array" and length > 0 then length else error("no packages") end' "${SBOM}")"
           echo "${IMAGE_REF}: ${PACKAGES} packages in the SBOM"
 
-      # presubmit: the SBOM of this run's amd64 build, not of a published
-      # image. release.yml attaches the released digests' SBOMs.
+      # presubmit-: the SBOM of this run's amd64 build, not of a published
+      # image. candidate-: of the candidate digest on this leg's platform.
+      # release.yml attaches the released digests' SBOMs.
       - name: Upload the SBOM of ${{ matrix.image }}
         if: ${{ !cancelled() && steps.sbom_image.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
-          name: presubmit-sbom-${{ matrix.image }}
-          path: ${{ runner.temp }}/presubmit-sbom-${{ matrix.image }}.spdx.json
+          name: ${{ env.SBOM_NAME }}
+          path: ${{ runner.temp }}/${{ env.SBOM_NAME }}.spdx.json
           retention-days: 90
           if-no-files-found: error
           overwrite: true
@@ -1324,6 +1706,154 @@ jobs:
           set -euo pipefail
           bash scripts/assert-image-id.sh "${IMAGE_REF}" "${IMAGE_ID}"
           bash scripts/scenarios/run-latex-cv.sh --image "${IMAGE_REF}"
+
+  # Candidate mode only, and only once the run passed: every job CI Success
+  # aggregates ended in success or skipped, none failed or was cancelled. A
+  # record says "this tree passed CI", which a passing image job alone does
+  # not. Then each candidate digest gets the tag candidate-<first 12 of the
+  # head's tree>, and the run records what it tested in tested-digests.json
+  # (scripts/tested-digests.py), the record main's provenance job asks for and
+  # 2d publishes from. It is written when no image changed too, with no
+  # images, so main can prove its tree was tested either way.
+  candidate-tag:
+    name: Candidate tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    # CI Success's needs, but provenance (push to main only) and this job.
+    needs:
+      - changes
+      - lint
+      - powershell-lint
+      - test-playbooks
+      - devcontainer-state
+      - base
+      - candidate-base
+      - candidate-build
+      - image
+      - unit-tests
+      - ansible-test
+      - molecule
+      - scenario-tests
+    if: >-
+      !cancelled()
+      && needs.changes.outputs.mode == 'candidate'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # Skipped is no failure, but legs that were resolved and skipped
+      # tested nothing.
+      - name: Check every leg ran
+        env:
+          LEGS: ${{ needs.changes.outputs.legs }}
+          IMAGE_RESULT: ${{ needs.image.result }}
+        run: |
+          set -euo pipefail
+          if [ "${LEGS}" != "[]" ] && [ "${IMAGE_RESULT}" != "success" ]; then
+            echo "::error::The image legs ${IMAGE_RESULT:-did not run}; nothing is tagged or recorded."
+            exit 1
+          fi
+
+      - name: Download the candidate digests
+        if: needs.changes.outputs.base == 'true' || needs.changes.outputs.builds != '[]'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: candidate-digest-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/candidate-digest
+
+      # Fails unless the digests are exactly the images this run built.
+      - name: Write the record of what this run tested
+        env:
+          IMAGES: ${{ needs.changes.outputs.images }}
+          BASE: ${{ needs.changes.outputs.base }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
+          python3 scripts/tested-digests.py write --digests "${RUNNER_TEMP}/candidate-digest" \
+            --images "${IMAGES}" --base "${BASE}" --tree "${TREE}" --head "${HEAD_SHA}" \
+            --base-sha "${BASE_SHA}" --run-id "${GITHUB_RUN_ID}" > "${RUNNER_TEMP}/tested-digests.json"
+
+      - name: Login to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # build-containers.yml's planned-digest check, then the tag, then the
+      # read-back: see the script.
+      - name: Tag the tested digests
+        run: bash scripts/tag-candidates.sh "${RUNNER_TEMP}/tested-digests.json"
+
+      # Last, once every tag resolves: 90 days, longer than a promotion waits
+      # for its review.
+      - name: Upload the record
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: tested-digests
+          path: ${{ runner.temp }}/tested-digests.json
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: true
+
+  # On a push to main: the promotion pull request merged as this commit, and
+  # the candidate run that tested it, must have recorded this very tree. A
+  # port of malpanez/security's scripts/ci/provenance.sh, kept to the one
+  # question 2c asks. It fails CI Success on main, loudly, when it cannot
+  # prove the tree was tested, and 2d will publish only from its record.
+  provenance:
+    name: Provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      # The promotion run and its artifact.
+      actions: read
+      # The pull request merged as this commit.
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Find the run that tested this tree
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/tested-digests.py find-run --repository "${REPOSITORY}" --sha "${SHA}" \
+            | tee -a "$GITHUB_OUTPUT"
+
+      - name: Download its record
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: tested-digests
+          path: ${{ runner.temp }}/tested-digests
+          run-id: ${{ steps.run.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Check the record names this tree
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          TREE="$(git rev-parse 'HEAD^{tree}')"
+          python3 scripts/tested-digests.py verify --tree "${TREE}" --run-id "${RUN_ID}" \
+            < "${RUNNER_TEMP}/tested-digests/tested-digests.json"
 
   unit-tests:
     name: Python Unit Tests (Python ${{ matrix.python-version }})
@@ -1563,7 +2093,11 @@ jobs:
       - test-playbooks
       - devcontainer-state
       - base
+      - candidate-base
+      - candidate-build
       - image
+      - candidate-tag
+      - provenance
       - unit-tests
       - ansible-test
       - molecule
@@ -1640,14 +2174,16 @@ jobs:
   #
   # changes and lint are listed on purpose: when either fails, base and image
   # are skipped, and a skip passes, so without them this check stayed green
-  # with no image tested at all.
+  # with no image tested at all. The candidate jobs are listed for the same
+  # reason: in candidate mode they build what the image legs test, and
+  # candidate-tag tags and records it.
   test-summary:
     name: Test Summary
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
-    needs: [changes, lint, base, image]
+    needs: [changes, lint, base, candidate-base, candidate-build, image, candidate-tag]
     if: always()
     steps:
       - name: Check results
@@ -1658,6 +2194,7 @@ jobs:
           NEEDS_JSON: ${{ toJSON(needs) }}
           BASE_RESULT: ${{ needs.base.result }}
           IMAGE_RESULT: ${{ needs.image.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           echo "Checking image test results..."
@@ -1684,7 +2221,11 @@ jobs:
             if [ -n "${FAILED}" ]; then
               echo "❌ Jobs that did not pass: ${FAILED}"
             elif [ "${BASE_RESULT}" = "skipped" ] && [ "${IMAGE_RESULT}" = "skipped" ]; then
-              echo "No image changed, so no image was built or tested."
+              if [ "${EVENT_NAME}" = "push" ]; then
+                echo "A push tests no image: the pull request that brought each change tested them."
+              else
+                echo "No image changed, so no image was built or tested."
+              fi
             else
               echo "✅ All image tests passed"
             fi
@@ -1710,7 +2251,7 @@ jobs:
     permissions:
       contents: read
     # changes and lint are listed for the reason given at Test Summary.
-    needs: [changes, lint, base, image]
+    needs: [changes, lint, base, candidate-base, candidate-build, image, candidate-tag]
     if: always()
     steps:
       - name: Check results
@@ -1719,6 +2260,7 @@ jobs:
           NEEDS_JSON: ${{ toJSON(needs) }}
           BASE_RESULT: ${{ needs.base.result }}
           IMAGE_RESULT: ${{ needs.image.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           echo "Checking SBOM results..."
@@ -1738,9 +2280,13 @@ jobs:
             if [ -n "${FAILED}" ]; then
               echo "❌ Jobs that did not pass: ${FAILED}"
             elif [ "${BASE_RESULT}" = "skipped" ] && [ "${IMAGE_RESULT}" = "skipped" ]; then
-              echo "No image changed, so no SBOM was generated."
+              if [ "${EVENT_NAME}" = "push" ]; then
+                echo "A push tests no image, so no SBOM was generated."
+              else
+                echo "No image changed, so no SBOM was generated."
+              fi
             else
-              echo "✅ Every image built here has a usable SBOM (presubmit-sbom-* artifacts)"
+              echo "✅ Every image tested here has a usable SBOM (presubmit-sbom-* or candidate-sbom-* artifacts)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

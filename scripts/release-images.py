@@ -16,6 +16,21 @@ workflow's inline list cannot.
         images=      the records, each with its platforms
         smoke_legs=  one row per image and platform, with the runner to use
 
+  ci-matrix --mode <verification|candidate> --images <json> --base <true|false>
+      Prints, for $GITHUB_OUTPUT, the matrices of ci.yml's image jobs, from the
+      images the changes job resolved (a JSON list, base not in it) and whether
+      base is built:
+        legs=            one row per image and platform the image job tests,
+                         with the runner to use. Verification mode tests its
+                         amd64 build of each image, and base in a job of its
+                         own. Candidate mode tests every platform of every
+                         image it built, base among them, as release.yml's
+                         smoke does.
+        builds=          candidate mode: each image but base, with the
+                         platforms build-containers.yml publishes it for.
+                         Empty in verification mode.
+        base_platforms=  the platforms of base, for its candidate build.
+
   scan-targets --newest <tag> [--requested <tag>] --pytag <py3NN> --owner <owner>
       Prints, for $GITHUB_OUTPUT, targets= the matrix of the nightly scan. Every
       image of the release asked for, or of the newest one; and when no release
@@ -111,6 +126,45 @@ def gate_outputs(records: Any) -> tuple[list[dict[str, Any]], list[dict[str, str
     return images, legs
 
 
+MODES = ("verification", "candidate")
+
+
+def _ci_leg(name: str, platform: str) -> dict[str, str]:
+    return {
+        "image": name,
+        "platform": platform,
+        "arch": platform.split("/")[1],
+        "runner": RUNNERS[platform],
+    }
+
+
+def ci_matrix(
+    mode: str, images: Any, base: bool
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """List the image job's legs and, in candidate mode, the candidate builds."""
+    if mode not in MODES:
+        raise ValueError(f"mode {json.dumps(mode)} is not one of {', '.join(MODES)}")
+    if not isinstance(images, list) or not all(isinstance(i, str) for i in images):
+        raise ValueError(
+            f"expected a JSON list of image names, got {json.dumps(images)}"
+        )
+    for name in images:
+        if name not in IMAGES or name == BASE:
+            raise ValueError(f"{json.dumps(name)} is not an image in IMAGES but base")
+    if len(set(images)) != len(images):
+        raise ValueError(f"{json.dumps(images)} names an image twice")
+    if mode == "verification":
+        return [_ci_leg(name, AMD64) for name in images], []
+    names = ([BASE] if base else []) + images
+    legs = [
+        _ci_leg(name, platform)
+        for name in names
+        for platform in IMAGES[name].split(",")
+    ]
+    builds = [{"image": name, "platforms": IMAGES[name]} for name in images]
+    return legs, builds
+
+
 def read_pins(root: Path, owner: str) -> tuple[set[tuple[str, str]], list[str]]:
     """Return the (image name, tag) pairs the templates pin, and a warning per other."""
     parser = _load_pin_parser()
@@ -193,6 +247,26 @@ def _print_gate_outputs() -> int:
     return 0
 
 
+def _print_ci_matrix(args: argparse.Namespace) -> int:
+    if args.base not in ("true", "false"):
+        print(
+            f"::error::release-images: --base is '{args.base}', not true or false",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        legs, builds = ci_matrix(
+            args.mode, json.loads(args.images), args.base == "true"
+        )
+    except ValueError as exc:
+        print(f"::error::release-images: {exc}", file=sys.stderr)
+        return 1
+    print(_output("legs", legs))
+    print(_output("builds", builds))
+    print(f"base_platforms={IMAGES[BASE]}")
+    return 0
+
+
 def _print_scan_targets(args: argparse.Namespace) -> int:
     if not args.newest or not args.pytag or not args.owner:
         print(
@@ -216,6 +290,12 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("names", help="Every image, one per line.")
     commands.add_parser("gate-outputs", help="Matrices of release.yml, from stdin.")
+    ci = commands.add_parser("ci-matrix", help="Matrices of ci.yml's image jobs.")
+    ci.add_argument("--mode", required=True, help="verification or candidate.")
+    ci.add_argument(
+        "--images", required=True, help="JSON list of the images, base not in it."
+    )
+    ci.add_argument("--base", required=True, help="true when base is built.")
     scan = commands.add_parser("scan-targets", help="Matrix of the nightly scan.")
     scan.add_argument("--newest", required=True, help="The newest release.")
     scan.add_argument(
@@ -239,6 +319,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "gate-outputs":
         return _print_gate_outputs()
+    if args.command == "ci-matrix":
+        return _print_ci_matrix(args)
     return _print_scan_targets(args)
 
 

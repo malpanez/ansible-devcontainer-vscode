@@ -5,13 +5,16 @@ filter that covers its own workflow, a matrix that reaches the -aws stages.
 
 import fnmatch
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import subprocess
+import sys
 import tomllib
 from collections.abc import Iterator
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -56,7 +59,18 @@ REQUIRED_CHECK_ALIASES = {
 }
 # The aliases of the image jobs, and the jobs each one reports on.
 IMAGE_SUMMARIES = ("test-summary", "sbom-verification-success")
-IMAGE_SUMMARY_NEEDS = ["changes", "lint", "base", "image"]
+IMAGE_SUMMARY_NEEDS = [
+    "changes",
+    "lint",
+    "base",
+    "candidate-base",
+    "candidate-build",
+    "image",
+    "candidate-tag",
+]
+# The jobs that push to GHCR from a pull_request run, in candidate mode only.
+CANDIDATE_JOBS = ("candidate-base", "candidate-build", "candidate-tag")
+CANDIDATE_IF = "needs.changes.outputs.mode == 'candidate'"
 GHCR_JOBS_OK = {
     "resolve_tags": "success",
     "cleanup_untagged": "success",
@@ -133,16 +147,27 @@ def _matches(path: str, patterns: list[str]) -> bool:
 
 
 def _run_step(
-    workflow: str, job: str, step: str, env: dict[str, str]
+    workflow: str, job: str, step: str, env: dict[str, str], cwd: Path = REPO_ROOT
 ) -> subprocess.CompletedProcess[str]:
     script = _step(_workflow(workflow)["jobs"][job], step)["run"]
     return subprocess.run(
         ["bash", "-e", "-c", script],
-        env={**os.environ, **env},
+        env={**_clean_environ(), **env},
+        cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
     )
+
+
+def _clean_environ() -> dict[str, str]:
+    """os.environ without what would point git at another repository, as a git
+    hook running these tests would."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"}
+    }
 
 
 def _outputs(path: Path) -> dict[str, str]:
@@ -159,7 +184,7 @@ def _stub(bin_dir: Path, name: str, body: str) -> None:
 
 
 def _run_summary(
-    tmp_path: Path, job: str, results: dict[str, str]
+    tmp_path: Path, job: str, results: dict[str, str], event: str = "pull_request"
 ) -> tuple[int, str, str]:
     script = _step(_workflow("ci")["jobs"][job], "Check results")["run"]
     summary = tmp_path / "summary.md"
@@ -171,6 +196,7 @@ def _run_summary(
         "NEEDS_JSON": json.dumps(needs),
         "BASE_RESULT": results["base"],
         "IMAGE_RESULT": results["image"],
+        "EVENT_NAME": event,
         "GITHUB_STEP_SUMMARY": str(summary),
     }
     proc = subprocess.run(
@@ -245,6 +271,17 @@ def test_image_summaries_say_when_nothing_ran(tmp_path: Path, job: str) -> None:
 
 
 @pytest.mark.parametrize("job", IMAGE_SUMMARIES)
+def test_image_summaries_say_a_push_tests_no_image(tmp_path: Path, job: str) -> None:
+    returncode, _stdout, summary = _run_summary(
+        tmp_path, job, _results(base="skipped", image="skipped"), event="push"
+    )
+
+    assert returncode == 0
+    assert "A push tests no image" in summary
+    assert "No image changed" not in summary
+
+
+@pytest.mark.parametrize("job", IMAGE_SUMMARIES)
 def test_image_summaries_watch_the_filter_and_lint_and_always_run(job: str) -> None:
     summary = _workflow("ci")["jobs"][job]
 
@@ -269,9 +306,12 @@ def test_image_jobs_skip_on_an_empty_image_list() -> None:
 
     assert outputs["images"] == "${{ steps.images.outputs.images }}"
     assert outputs["base"] == "${{ steps.images.outputs.base }}"
-    assert jobs["base"]["if"] == "needs.changes.outputs.base == 'true'"
+    assert outputs["legs"] == "${{ steps.legs.outputs.legs }}"
+    assert jobs["base"]["if"] == (
+        "needs.changes.outputs.mode == 'verification' && needs.changes.outputs.base == 'true'"
+    )
     condition = jobs["image"]["if"]
-    assert "needs.changes.outputs.images != '[]'" in condition
+    assert "needs.changes.outputs.legs != '[]'" in condition
     assert "needs.changes.result == 'success'" in condition
     assert "needs.lint.result == 'success'" in condition
     # A base skipped because no image in the list takes it, or failed on a
@@ -279,9 +319,10 @@ def test_image_jobs_skip_on_an_empty_image_list() -> None:
     # (actions/runner#2205). An image built on base fails at its layout check.
     assert condition.startswith("!cancelled()")
     assert "needs.base" not in condition
-    assert "base" in jobs["image"]["needs"]
+    assert "needs.candidate" not in condition
+    assert {"base", "candidate-base", "candidate-build"} <= set(jobs["image"]["needs"])
     assert jobs["image"]["strategy"]["matrix"] == {
-        "image": "${{ fromJSON(needs.changes.outputs.images) }}"
+        "include": "${{ fromJSON(needs.changes.outputs.legs) }}"
     }
 
 
@@ -295,6 +336,16 @@ def _resolve_images(tmp_path: Path, event: str, changes: str) -> dict[str, str]:
     )
     assert proc.returncode == 0, proc.stderr
     return _outputs(output)
+
+
+@pytest.mark.parametrize(
+    "changes", ["[]", '["image-base","image-golang"]', '["images-all"]']
+)
+def test_a_push_tests_no_image(tmp_path: Path, changes: str) -> None:
+    resolved = _resolve_images(tmp_path, "push", changes)
+
+    assert resolved["images"] == "[]"
+    assert resolved["base"] == "false"
 
 
 def test_dispatch_tests_every_image_with_a_filter(tmp_path: Path) -> None:
@@ -377,12 +428,25 @@ def _scripts_run(step: dict[str, Any]) -> set[str]:
 def test_each_image_filter_covers_the_scripts_its_job_runs() -> None:
     jobs = _workflow("ci")["jobs"]
     filters = _image_filters()
-    for step in jobs["base"]["steps"]:
-        for script in _scripts_run(step):
-            assert _matches(script, filters["base"]), script
-    for step in jobs["image"]["steps"]:
+    everything = sorted(filters)
+    stacks = sorted(set(filters) - {"base"})
+    steps = [
+        *(
+            (step, ["base"])
+            for job in ("base", "candidate-base")
+            for step in jobs[job]["steps"]
+        ),
+        # The image job tests base too, in candidate mode.
+        *((step, everything) for step in jobs["image"]["steps"]),
+        *((step, stacks) for step in jobs["candidate-build"]["steps"]),
+        # Which legs run, and how a candidate is tagged. tested-digests.py runs
+        # in every candidate run, whatever changed, so it is no image input.
+        (_step(jobs["changes"], "Resolve the image legs"), everything),
+        (_step(jobs["candidate-tag"], "Tag the tested digests"), everything),
+    ]
+    for step, images in steps:
         only = re.findall(r"matrix\.image == '([\w-]+)'", step.get("if", ""))
-        for image in only or sorted(set(filters) - {"base"}):
+        for image in only or images:
             for script in _scripts_run(step):
                 assert _matches(script, filters[image]), (
                     step.get("name"),
@@ -424,6 +488,19 @@ def test_image_gets_the_base_only_if_its_dockerfile_takes_it(
     )
     if resolved["template"] == "true":
         assert (REPO_ROOT / f"devcontainers/{image}/devcontainer.json").is_file()
+
+
+def test_base_is_tested_with_its_own_structure_tests(tmp_path: Path) -> None:
+    resolved = _resolve_files(tmp_path, "base")
+
+    assert resolved == {
+        "dockerfile": "devcontainers/base/Dockerfile",
+        "target": "",
+        "configs": "base",
+        "base_from_run": "false",
+        "template": "false",
+        "cli": "false",
+    }
 
 
 @pytest.mark.parametrize("image", sorted(set(_image_filters()) - {"base"}))
@@ -567,7 +644,8 @@ def test_children_build_on_the_base_this_run_built() -> None:
     assert check["env"]["EXPECTED"] == "${{ needs.base.outputs.digest }}"
     gate = _step(image, "Check this run built the base")
     assert gate["if"] == (
-        "steps.files.outputs.base_from_run == 'true' && needs.base.result != 'success'"
+        "env.MODE == 'verification' && steps.files.outputs.base_from_run == 'true'"
+        " && needs.base.result != 'success'"
     )
     names = [step.get("name") for step in image["steps"]]
     assert names.index("Check this run built the base") < names.index(
@@ -706,15 +784,18 @@ REGISTRY_CACHE = "type=registry,ref=ghcr.io/malpanez/devcontainer-golang:buildca
         ("pull_request", REPOSITORY),
         ("pull_request", "someone/ansible-devcontainer-vscode"),
         ("workflow_dispatch", ""),
+        ("push", ""),
     ],
 )
-def test_only_a_push_writes_the_registry_cache(
+def test_verification_never_writes_the_registry_cache(
     tmp_path: Path, event: str, head_repo: str
 ) -> None:
+    # :buildcache has one writer, candidate mode. A push builds nothing now,
+    # and wrote it before 2c.
     cache = _cache_strategy(tmp_path, event, head_repo)
 
     assert "type=registry" not in cache["cache_to"]
-    assert cache["login"] == "false"
+    assert "login" not in cache
 
 
 def test_a_pull_request_from_this_repository_reads_the_registry_cache(
@@ -733,22 +814,65 @@ def test_a_fork_keeps_the_actions_cache(tmp_path: Path) -> None:
     assert cache["cache_to"] == "type=gha,scope=golang"
 
 
-def test_a_push_writes_the_registry_cache(tmp_path: Path) -> None:
-    cache = _cache_strategy(tmp_path, "push", "")
-
-    assert cache["cache_from"] == REGISTRY_CACHE
-    assert cache["cache_to"] == f"{REGISTRY_CACHE},mode=max"
-    assert cache["login"] == "true"
-
-
 def test_a_missing_registry_cache_is_not_read(tmp_path: Path) -> None:
-    cache = _cache_strategy(tmp_path, "push", "", cache_exists=False)
+    cache = _cache_strategy(tmp_path, "pull_request", REPOSITORY, cache_exists=False)
 
     assert cache["cache_from"] == ""
-    assert cache["cache_to"] == f"{REGISTRY_CACHE},mode=max"
+    assert cache["cache_to"] == ""
 
 
-def test_no_pull_request_build_writes_a_cache_the_strategy_did_not_choose() -> None:
+def _candidate_cache(tmp_path: Path, existing: str) -> dict[str, str]:
+    """resolve-candidate-cache.sh's outputs, with `existing` the tags GHCR has."""
+    _stub(
+        tmp_path / "bin",
+        "docker",
+        '#!/usr/bin/env bash\n[[ " ${FAKE_TAGS} " == *" ${4##*:} "* ]]\n',
+    )
+    proc = subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts/resolve-candidate-cache.sh"), "golang"],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_TAGS": existing,
+            "GITHUB_REPOSITORY_OWNER": "malpanez",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    lines = proc.stdout.splitlines()
+    delimiter = lines[0].removeprefix("from<<")
+    end = lines.index(delimiter)
+    return {"from": "\n".join(lines[1:end]), "to": lines[end + 1].removeprefix("to=")}
+
+
+@pytest.mark.parametrize(
+    ("existing", "read"),
+    [
+        ("buildcache buildcache-publish", ["buildcache-publish", "buildcache"]),
+        ("buildcache", ["buildcache"]),
+        ("buildcache-publish", ["buildcache-publish"]),
+        ("", []),
+    ],
+)
+def test_a_candidate_reads_both_caches_it_finds_and_writes_only_its_own(
+    tmp_path: Path, existing: str, read: list[str]
+) -> None:
+    cache = _candidate_cache(tmp_path, existing)
+
+    assert cache["from"].splitlines() == [
+        f"type=registry,ref=ghcr.io/malpanez/devcontainer-golang:{tag}" for tag in read
+    ]
+    # build-containers.yml is :buildcache-publish's one writer.
+    assert cache["to"] == f"{REGISTRY_CACHE},mode=max,ignore-error=true"
+
+
+def _candidate_job(job: dict[str, Any]) -> bool:
+    return CANDIDATE_IF in str(job.get("if", ""))
+
+
+def test_only_candidate_jobs_write_a_registry_cache_on_a_pull_request() -> None:
     for name, workflow in _all_workflows().items():
         if "pull_request" not in _triggers(workflow):
             continue
@@ -757,13 +881,26 @@ def test_no_pull_request_build_writes_a_cache_the_strategy_did_not_choose() -> N
                 if not step.get("uses", "").startswith(BUILD_PUSH_ACTION):
                     continue
                 cache_to = step["with"].get("cache-to", "").strip()
+                if (name, job_name) in (
+                    ("ci", "candidate-base"),
+                    ("ci", "candidate-build"),
+                ):
+                    assert _candidate_job(job), job_name
+                    assert cache_to == "${{ steps.rcache.outputs.to }}"
+                    rcache = _step(job, "Resolve the build cache")["run"]
+                    assert "scripts/resolve-candidate-cache.sh" in rcache
+                    continue
                 assert cache_to in ("", "${{ steps.cache.outputs.cache_to }}"), (
                     name,
                     job_name,
                     step.get("name"),
                 )
+    # The verification build's strategy logs in nowhere: it writes nothing.
     image = _workflow("ci")["jobs"]["image"]
-    assert _step(image, "Login to GHCR")["if"] == "steps.cache.outputs.login == 'true'"
+    assert _step(image, "Login to GHCR")["if"] == "env.MODE == 'candidate'"
+    assert (
+        _step(image, "Determine cache strategy")["if"] == "env.MODE == 'verification'"
+    )
 
 
 @pytest.mark.parametrize(
@@ -822,11 +959,15 @@ def test_every_check_of_an_image_asserts_the_image_first() -> None:
             assert step["env"]["IMAGE_ID"] == f"${{{{ steps.{recorded}.outputs.id }}}}"
 
 
-def test_the_scan_still_blocks_on_critical_and_reports_high() -> None:
+def test_the_scan_blocks_on_critical_in_verification_and_high_in_candidate() -> None:
     image = _workflow("ci")["jobs"]["image"]
     scan = _step(image, "Scan image with Grype")
 
-    assert scan["with"]["severity-cutoff"] == "critical"
+    assert image["env"]["MODE"] == "${{ needs.changes.outputs.mode }}"
+    assert (
+        scan["with"]["severity-cutoff"]
+        == "${{ env.MODE == 'candidate' && 'high' || 'critical' }}"
+    )
     assert scan["with"]["fail-build"] == "true"
     assert scan["with"]["only-fixed"] is True
     assert scan["with"]["output-format"] == "json"
@@ -870,6 +1011,7 @@ def test_fixable_high_findings_are_warnings_not_failures(
         {
             "REPORT": str(report),
             "IMAGE_REF": "devcontainer-golang:ci",
+            "MODE": "verification",
             "GITHUB_STEP_SUMMARY": str(summary),
         },
     )
@@ -887,6 +1029,7 @@ def test_an_unreadable_scan_report_only_warns(tmp_path: Path) -> None:
         {
             "REPORT": str(tmp_path / "missing.json"),
             "IMAGE_REF": "devcontainer-golang:ci",
+            "MODE": "verification",
         },
     )
 
@@ -981,6 +1124,7 @@ def test_ci_success_needs_every_job_but_the_aliases() -> None:
     needs = set(jobs["ci-success"]["needs"])
 
     assert {"devcontainer-state", "lint", "powershell-lint", "base", "image"} <= needs
+    assert {*CANDIDATE_JOBS, "provenance"} <= needs
     assert set(jobs) - needs - {"ci-success"} == REQUIRED_CHECK_ALIASES
 
 
@@ -1009,7 +1153,7 @@ def test_python_filter_patterns_all_match_a_file() -> None:
         assert next(REPO_ROOT.glob(pattern), None) is not None, pattern
 
 
-@pytest.mark.parametrize(("workflow", "expected"), [("ci", 1), ("build-containers", 3)])
+@pytest.mark.parametrize(("workflow", "expected"), [("ci", 3), ("build-containers", 3)])
 def test_every_image_label_versions_the_image_by_commit(
     workflow: str, expected: int
 ) -> None:
@@ -1351,3 +1495,854 @@ def test_jobs_only_test_for_events_their_workflow_declares() -> None:
         text = (WORKFLOWS / f"{name}.yml").read_text(encoding="utf-8")
         for event in re.findall(r"github\.event_name\s*[!=]=\s*'([a-z_]+)'", text):
             assert event in declared, (name, event)
+
+
+# Candidate mode (phase 2c): the develop -> main promotion pull request builds
+# each image as build-containers.yml publishes it, tests the pushed digest on
+# every platform, tags it and records it. A push builds no image, and main
+# proves its tree was tested.
+
+DIGEST = "sha256:" + "d" * 64
+TREE = "ab" * 20
+
+
+def _release_images() -> ModuleType:
+    path = REPO_ROOT / "scripts" / "release-images.py"
+    spec = importlib.util.spec_from_file_location("release_images_contract", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _mode(
+    tmp_path: Path, event: str, head_repo: str, head_ref: str, base_ref: str
+) -> str:
+    output = tmp_path / "mode"
+    proc = _run_step(
+        "ci",
+        "changes",
+        "Decide the image mode",
+        {
+            "EVENT_NAME": event,
+            "HEAD_REPO": head_repo,
+            "HEAD_REF": head_ref,
+            "BASE_REF": base_ref,
+            "REPOSITORY": REPOSITORY,
+            "GITHUB_OUTPUT": str(output),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    return _outputs(output)["mode"]
+
+
+@pytest.mark.parametrize(
+    ("event", "head_repo", "head_ref", "base_ref", "mode"),
+    [
+        ("pull_request", REPOSITORY, "develop", "main", "candidate"),
+        # A fork can name its branch develop: its run must never push.
+        (
+            "pull_request",
+            "someone/ansible-devcontainer-vscode",
+            "develop",
+            "main",
+            "verification",
+        ),
+        ("pull_request", "", "develop", "main", "verification"),
+        ("pull_request", REPOSITORY, "feature/develop", "main", "verification"),
+        ("pull_request", REPOSITORY, "renovate/uv", "develop", "verification"),
+        ("pull_request", REPOSITORY, "develop", "develop", "verification"),
+        ("pull_request_target", REPOSITORY, "develop", "main", "verification"),
+        ("push", "", "", "", "verification"),
+        ("workflow_dispatch", "", "", "", "verification"),
+    ],
+)
+def test_candidate_mode_is_only_this_repository_s_develop_into_main(
+    tmp_path: Path, event: str, head_repo: str, head_ref: str, base_ref: str, mode: str
+) -> None:
+    assert _mode(tmp_path, event, head_repo, head_ref, base_ref) == mode
+
+
+def test_the_mode_reads_the_event_not_the_branch_name_alone() -> None:
+    changes = _workflow("ci")["jobs"]["changes"]
+    env = _step(changes, "Decide the image mode")["env"]
+
+    assert changes["outputs"]["mode"] == "${{ steps.mode.outputs.mode }}"
+    assert env == {
+        "EVENT_NAME": "${{ github.event_name }}",
+        "HEAD_REPO": "${{ github.event.pull_request.head.repo.full_name || '' }}",
+        "HEAD_REF": "${{ github.head_ref }}",
+        "BASE_REF": "${{ github.base_ref }}",
+        "REPOSITORY": "${{ github.repository }}",
+    }
+
+
+def test_no_workflow_runs_on_pull_request_target() -> None:
+    for name, workflow in _all_workflows().items():
+        assert "pull_request_target" not in _triggers(workflow), name
+
+
+def _conjuncts(condition: str) -> list[str]:
+    assert "||" not in condition, condition
+    return [part.strip() for part in condition.split("&&")]
+
+
+def test_packages_write_on_a_pull_request_only_in_candidate_jobs() -> None:
+    ci = _workflow("ci")
+    assert ci["permissions"] == {"contents": "read"}
+    for name, workflow in _all_workflows().items():
+        if "pull_request" not in _triggers(workflow):
+            continue
+        assert workflow.get("permissions", {}).get("packages") != "write", name
+        for job_name, job in workflow["jobs"].items():
+            if job.get("permissions", {}).get("packages") != "write":
+                continue
+            assert (name, job_name) in {("ci", job) for job in CANDIDATE_JOBS}
+            # Required, not one way in among others.
+            assert CANDIDATE_IF in _conjuncts(job["if"]), job_name
+    for job_name in CANDIDATE_JOBS:
+        assert ci["jobs"][job_name]["permissions"]["packages"] == "write"
+
+
+def test_every_checkout_in_ci_drops_its_credentials() -> None:
+    for job_name, job in _workflow("ci")["jobs"].items():
+        for step in job.get("steps", []):
+            if step.get("uses", "").startswith("actions/checkout@"):
+                assert step["with"]["persist-credentials"] is False, job_name
+
+
+def test_candidates_build_and_test_the_pull_request_head() -> None:
+    jobs = _workflow("ci")["jobs"]
+    for job_name in CANDIDATE_JOBS:
+        checkout = jobs[job_name]["steps"][0]
+        assert checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha }}"
+    image_checkout = jobs["image"]["steps"][0]["with"]["ref"]
+    assert image_checkout == (
+        "${{ needs.changes.outputs.mode == 'candidate'"
+        " && github.event.pull_request.head.sha || '' }}"
+    )
+
+
+def _legs(tmp_path: Path, mode: str, images: list[str], base: str) -> dict[str, str]:
+    output = tmp_path / f"legs-{mode}"
+    proc = _run_step(
+        "ci",
+        "changes",
+        "Resolve the image legs",
+        {
+            "MODE": mode,
+            "IMAGES": json.dumps(images),
+            "BASE": base,
+            "GITHUB_OUTPUT": str(output),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    return _outputs(output)
+
+
+STACKS = sorted(set(_image_filters()) - {"base"})
+
+
+def test_candidate_legs_are_every_published_platform_on_its_runner(
+    tmp_path: Path,
+) -> None:
+    module = _release_images()
+    resolved = _legs(tmp_path, "candidate", STACKS, "true")
+    legs = json.loads(resolved["legs"])
+
+    assert {(leg["image"], leg["platform"]) for leg in legs} == {
+        (name, platform)
+        for name in [*STACKS, "base"]
+        for platform in module.IMAGES[name].split(",")
+    }
+    assert ("latex", "linux/arm64") not in {
+        (leg["image"], leg["platform"]) for leg in legs
+    }
+    for leg in legs:
+        assert leg["runner"] == module.RUNNERS[leg["platform"]]
+        assert leg["arch"] == leg["platform"].split("/")[1]
+    assert json.loads(resolved["builds"]) == [
+        {"image": name, "platforms": module.IMAGES[name]} for name in STACKS
+    ]
+    assert resolved["base_platforms"] == module.IMAGES["base"]
+
+
+def test_verification_legs_are_each_image_s_amd64_build(tmp_path: Path) -> None:
+    resolved = _legs(tmp_path, "verification", STACKS, "true")
+
+    assert [leg["image"] for leg in json.loads(resolved["legs"])] == STACKS
+    assert {leg["runner"] for leg in json.loads(resolved["legs"])} == {"ubuntu-24.04"}
+    assert resolved["builds"] == "[]"
+
+
+@pytest.mark.parametrize("mode", ["verification", "candidate"])
+def test_no_image_resolved_is_no_leg_and_no_build(tmp_path: Path, mode: str) -> None:
+    resolved = _legs(tmp_path, mode, [], "false")
+
+    assert resolved["legs"] == "[]"
+    assert resolved["builds"] == "[]"
+
+
+def test_the_image_jobs_take_their_matrices_from_the_legs() -> None:
+    jobs = _workflow("ci")["jobs"]
+
+    assert jobs["image"]["runs-on"] == "${{ matrix.runner }}"
+    assert jobs["candidate-build"]["strategy"]["matrix"] == {
+        "include": "${{ fromJSON(needs.changes.outputs.builds) }}"
+    }
+    assert "max-parallel" not in jobs["candidate-build"]["strategy"]
+    assert "needs.changes.outputs.builds != '[]'" in jobs["candidate-build"]["if"]
+    assert "needs.changes.outputs.base == 'true'" in jobs["candidate-base"]["if"]
+    build = _step(
+        jobs["candidate-build"], "Build and push ${{ matrix.image }} by digest"
+    )
+    assert build["with"]["platforms"] == "${{ matrix.platforms }}"
+    base = _step(jobs["candidate-base"], "Build and push base by digest")
+    assert base["with"]["platforms"] == "${{ needs.changes.outputs.base_platforms }}"
+    legs = _step(jobs["changes"], "Resolve the image legs")["run"]
+    assert "python3 scripts/release-images.py ci-matrix" in legs
+
+
+def test_the_size_gate_is_the_only_check_on_amd64_alone() -> None:
+    image = _workflow("ci")["jobs"]["image"]
+    on_amd64 = [
+        step["name"] for step in image["steps"] if "matrix.arch" in step.get("if", "")
+    ]
+
+    assert on_amd64 == ["Check ${{ matrix.image }} image size against its budget"]
+    size = _step(image, on_amd64[0])
+    assert "matrix.arch == 'amd64'" in size["if"]
+
+
+def test_every_candidate_leg_checks_the_pulled_platform_before_any_check() -> None:
+    image = _workflow("ci")["jobs"]["image"]
+    names = [step.get("name") for step in image["steps"]]
+    pull = _step(image, "Pull the candidate by digest")
+    record = _step(image, "Record the image under test")
+
+    assert pull["if"] == "env.MODE == 'candidate'"
+    assert pull["env"]["PLATFORM"] == "${{ matrix.platform }}"
+    assert names.index("Download the candidate digest") < names.index(
+        "Pull the candidate by digest"
+    )
+    assert names.index("Pull the candidate by digest") < names.index(
+        "Record the image under test"
+    )
+    # No if: it runs only when every step before it passed, the pull among
+    # them, and every check after it runs only when it did, or after a step
+    # that did.
+    assert "if" not in record
+    for step in image["steps"][names.index("Record the image under test") + 1 :]:
+        condition = step.get("if", "")
+        assert re.search(
+            r"steps\.(image|scan_image|sbom_image)\.outcome == 'success'"
+            r"|steps\.grype\.outputs\.json != ''",
+            condition,
+        ), step.get("name")
+
+
+FAKE_PULL = """#!/usr/bin/env bash
+echo "$*" >> "${FAKE_LOG}"
+if [ "$1" = image ]; then
+  echo "${FAKE_PLATFORM}"
+fi
+"""
+
+
+def _pull(
+    tmp_path: Path, digest: str, pulled: str
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    record = tmp_path / "golang.json"
+    record.write_text(json.dumps({"name": "golang", "digest": digest}))
+    log = tmp_path / "docker.log"
+    log.touch()
+    _stub(tmp_path / "bin", "docker", FAKE_PULL)
+    proc = _run_step(
+        "ci",
+        "image",
+        "Pull the candidate by digest",
+        {
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "RECORD": str(record),
+            "REPOSITORY": "ghcr.io/malpanez/devcontainer-golang",
+            "PLATFORM": "linux/arm64",
+            "IMAGE_REF": "devcontainer-golang:ci",
+            "FAKE_PLATFORM": pulled,
+            "FAKE_LOG": str(log),
+        },
+    )
+    return proc, log.read_text().splitlines()
+
+
+def test_a_leg_tags_the_digest_it_pulled_for_its_platform(tmp_path: Path) -> None:
+    proc, calls = _pull(tmp_path, DIGEST, "linux/arm64")
+    ref = f"ghcr.io/malpanez/devcontainer-golang@{DIGEST}"
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert calls[0] == f"pull {ref}"
+    assert calls[-1] == f"tag {ref} devcontainer-golang:ci"
+
+
+def test_a_leg_fails_when_the_pull_gives_another_platform(tmp_path: Path) -> None:
+    proc, calls = _pull(tmp_path, DIGEST, "linux/amd64")
+
+    assert proc.returncode == 1
+    assert "proves nothing about linux/arm64" in proc.stdout
+    assert not any(call.startswith("tag ") for call in calls)
+
+
+def test_a_leg_without_a_digest_pulls_nothing(tmp_path: Path) -> None:
+    proc, calls = _pull(tmp_path, "latest", "linux/arm64")
+
+    assert proc.returncode == 1
+    assert calls == []
+
+
+def test_the_verification_build_steps_skip_in_candidate_mode() -> None:
+    image = _workflow("ci")["jobs"]["image"]
+    names = [step.get("name") for step in image["steps"]]
+    first = names.index("Check this run built the base")
+    last = names.index("Build ${{ matrix.image }}")
+
+    for step in image["steps"][first : last + 1]:
+        assert step["if"].startswith("env.MODE == 'verification'"), step["name"]
+    for name in ("Login to GHCR", "Download the candidate digest"):
+        assert _step(image, name)["if"] == "env.MODE == 'candidate'"
+    assert names.index("Build ${{ matrix.image }}") < names.index("Login to GHCR")
+
+
+PUBLISH_ONLY = {"no-cache"}
+# build-all's expressions, in candidate-build's words.
+BUILD_ALL_TO_CANDIDATE = {
+    "${{ matrix.stack }}${{ matrix.variant }}": "${{ matrix.image }}",
+    "matrix.base_from_run": "steps.files.outputs.base_from_run == 'true'",
+    "needs.build-base.outputs.digest": "needs.candidate-base.outputs.digest",
+}
+
+
+def _build_step(workflow: str, job: str) -> dict[str, Any]:
+    steps = [
+        step
+        for step in _workflow(workflow)["jobs"][job]["steps"]
+        if step.get("uses", "").startswith(BUILD_PUSH_ACTION)
+    ]
+    assert len(steps) == 1, (workflow, job)
+    return steps[0]["with"]
+
+
+def test_candidate_base_is_built_as_build_base_publishes_it() -> None:
+    published = _build_step("build-containers", "build-base")
+    candidate = _build_step("ci", "candidate-base")
+
+    assert set(candidate) == set(published) - PUBLISH_ONLY
+    for key in ("context", "file", "outputs", "tags", "labels", "build-args"):
+        assert candidate[key] == published[key], key
+    assert candidate["provenance"] is published["provenance"] is True
+    assert candidate["sbom"] is published["sbom"] is True
+    platforms = _workflow("build-containers")["jobs"]["build-base"]["env"]["PLATFORMS"]
+    assert published["platforms"] == "${{ env.PLATFORMS }}"
+    assert platforms == _release_images().IMAGES["base"]
+    assert candidate["cache-from"] == "${{ steps.rcache.outputs.from }}"
+    assert candidate["cache-to"] == "${{ steps.rcache.outputs.to }}"
+
+
+def test_candidate_builds_are_built_as_build_all_publishes_them(tmp_path: Path) -> None:
+    published = _build_step("build-containers", "build-all")
+    candidate = _build_step("ci", "candidate-build")
+
+    assert set(candidate) == set(published) - PUBLISH_ONLY
+    for key in ("context", "outputs", "tags", "labels", "build-args"):
+        expected = published[key]
+        for words, ours in BUILD_ALL_TO_CANDIDATE.items():
+            expected = expected.replace(words, ours)
+        assert candidate[key] == expected, key
+    assert candidate["provenance"] is published["provenance"] is True
+    assert candidate["sbom"] is published["sbom"] is True
+    assert candidate["file"] == "${{ steps.files.outputs.dockerfile }}"
+    assert candidate["target"] == "${{ steps.files.outputs.target }}"
+    assert candidate["platforms"] == published["platforms"] == "${{ matrix.platforms }}"
+    # What those expressions resolve to, image by image.
+    builds = {
+        build["image"]: build
+        for build in json.loads(_legs(tmp_path, "candidate", STACKS, "true")["builds"])
+    }
+    matrix = _workflow("build-containers")["jobs"]["build-all"]["strategy"]["matrix"]
+    assert set(builds) == {e["stack"] + e["variant"] for e in matrix["include"]}
+    for entry in matrix["include"]:
+        name = entry["stack"] + entry["variant"]
+        resolved = _resolve_files(tmp_path, name)
+        assert (
+            resolved["dockerfile"]
+            == f"devcontainers/{entry['stack']}/{entry['dockerfile']}"
+        )
+        assert resolved["target"] == entry.get("target", ""), name
+        assert (
+            resolved["base_from_run"] == str(entry.get("base_from_run", False)).lower()
+        )
+        assert builds[name]["platforms"] == entry["platforms"], name
+
+
+@pytest.mark.parametrize(
+    ("candidate_job", "published_job"),
+    [("candidate-base", "build-base"), ("candidate-build", "build-all")],
+)
+def test_candidates_carry_the_published_labels_of_the_head(
+    candidate_job: str, published_job: str
+) -> None:
+    candidate = _workflow("ci")["jobs"][candidate_job]
+    published = _workflow("build-containers")["jobs"][published_job]
+    ours = _step(candidate, "Extract metadata")
+    theirs = _step(published, "Extract metadata")
+
+    assert ours["with"]["labels"] == theirs["with"]["labels"]
+    assert ours["with"]["images"] == theirs["with"]["images"].replace(
+        "${{ matrix.stack }}${{ matrix.variant }}", "${{ matrix.image }}"
+    )
+    # {{sha}}, type=sha and the revision label of the pull request's head, not
+    # of refs/pull/N/merge.
+    assert ours["env"] == {"DOCKER_METADATA_PR_HEAD_SHA": "true"}
+    for name in (
+        "Derive SOURCE_DATE_EPOCH from the commit",
+        "Keep the Dockerfile's description label",
+    ):
+        assert _step(candidate, name)["run"] == _step(published, name)["run"]
+
+
+def _git_env(tmp_path: Path) -> dict[str, str]:
+    return {
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CEILING_DIRECTORIES": str(tmp_path),
+        "GIT_AUTHOR_NAME": "test",
+        "GIT_AUTHOR_EMAIL": "test@example.invalid",
+        "GIT_COMMITTER_NAME": "test",
+        "GIT_COMMITTER_EMAIL": "test@example.invalid",
+    }
+
+
+def _git(repo: Path, tmp_path: Path, *args: str) -> str:
+    proc = subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", *args],
+        cwd=repo,
+        env={**_clean_environ(), **_git_env(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout.strip()
+
+
+def _commit(repo: Path, tmp_path: Path, name: str, content: str) -> str:
+    (repo / name).write_text(content)
+    _git(repo, tmp_path, "add", name)
+    _git(repo, tmp_path, "commit", "-q", "-m", name)
+    return _git(repo, tmp_path, "rev-parse", "HEAD")
+
+
+def _history(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    """main at A; develop at B, with A as an ancestor; other at C, off A."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, tmp_path, "init", "-q", "-b", "main")
+    shas = {"A": _commit(repo, tmp_path, "a", "1")}
+    shas["B"] = _commit(repo, tmp_path, "b", "2")
+    _git(repo, tmp_path, "checkout", "-q", "-b", "other", shas["A"])
+    shas["C"] = _commit(repo, tmp_path, "c", "3")
+    for name, ref in (("B tree", "B"), ("C tree", "C")):
+        shas[name] = _git(repo, tmp_path, "rev-parse", f"{shas[ref]}^{{tree}}")
+    # A merge commit with B's tree, as refs/pull/N/merge is when A is an ancestor.
+    shas["M"] = _git(
+        repo,
+        tmp_path,
+        "commit-tree",
+        shas["B tree"],
+        "-p",
+        shas["A"],
+        "-p",
+        shas["B"],
+        "-m",
+        "m",
+    )
+    return repo, shas
+
+
+def _ancestor_check(
+    tmp_path: Path, repo: Path, base: str, head: str, merge: str
+) -> subprocess.CompletedProcess[str]:
+    return _run_step(
+        "ci",
+        "changes",
+        "Check main is an ancestor of develop",
+        {**_git_env(tmp_path), "BASE_SHA": base, "HEAD_SHA": head, "MERGE_SHA": merge},
+        cwd=repo,
+    )
+
+
+def test_the_ancestor_check_passes_when_main_is_in_develop(tmp_path: Path) -> None:
+    repo, shas = _history(tmp_path)
+
+    proc = _ancestor_check(tmp_path, repo, shas["A"], shas["B"], shas["M"])
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_the_ancestor_check_says_to_merge_main_into_develop(tmp_path: Path) -> None:
+    repo, shas = _history(tmp_path)
+
+    proc = _ancestor_check(tmp_path, repo, shas["C"], shas["B"], shas["M"])
+
+    assert proc.returncode == 1
+    assert "merge main into develop first" in proc.stdout
+
+
+def test_the_ancestor_check_fails_when_the_merge_has_another_tree(
+    tmp_path: Path,
+) -> None:
+    repo, shas = _history(tmp_path)
+
+    proc = _ancestor_check(tmp_path, repo, shas["A"], shas["B"], shas["C"])
+
+    assert proc.returncode == 1
+    assert "merge main into develop first" in proc.stdout
+
+
+def test_the_ancestor_check_runs_before_any_candidate_build() -> None:
+    jobs = _workflow("ci")["jobs"]
+    changes = jobs["changes"]
+    check = _step(changes, "Check main is an ancestor of develop")
+
+    assert check["if"] == "steps.mode.outputs.mode == 'candidate'"
+    assert check["env"] == {
+        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        "MERGE_SHA": "${{ github.sha }}",
+    }
+    # Its history: the checkout fetches every commit.
+    assert changes["steps"][0]["with"]["fetch-depth"] == 0
+    # A failed check fails changes, and no candidate job runs after a failed
+    # changes: one that sets aside the implicit success() asks for it.
+    for job_name in CANDIDATE_JOBS:
+        assert "changes" in jobs[job_name]["needs"]
+        assert "!cancelled()" not in jobs[job_name]["if"] or (
+            "needs.changes.result == 'success'" in jobs[job_name]["if"]
+            or "!contains(needs.*.result, 'failure')" in jobs[job_name]["if"]
+        )
+
+
+def test_a_push_runs_no_image_job_and_main_checks_its_provenance() -> None:
+    jobs = _workflow("ci")["jobs"]
+
+    # A push resolves no image (test_a_push_tests_no_image), so no leg, build
+    # or base, and the mode is never candidate (the mode test above).
+    assert "needs.changes.outputs.legs != '[]'" in jobs["image"]["if"]
+    assert "needs.changes.outputs.base == 'true'" in jobs["base"]["if"]
+    provenance = jobs["provenance"]
+    assert (
+        provenance["if"]
+        == "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    )
+    assert provenance["permissions"] == {
+        "contents": "read",
+        "actions": "read",
+        "pull-requests": "read",
+    }
+    download = _step(provenance, "Download its record")["with"]
+    upload = _step(jobs["candidate-tag"], "Upload the record")["with"]
+    assert download["name"] == upload["name"] == "tested-digests"
+    assert download["run-id"] == "${{ steps.run.outputs.run_id }}"
+    assert download["github-token"] == "${{ github.token }}"
+    check = _step(provenance, "Check the record names this tree")["run"]
+    assert "git rev-parse 'HEAD^{tree}'" in check
+    assert "scripts/tested-digests.py verify" in check
+
+
+def _provenance_check(
+    tmp_path: Path, record_tree: str
+) -> subprocess.CompletedProcess[str]:
+    repo = tmp_path / "main"
+    repo.mkdir()
+    _git(repo, tmp_path, "init", "-q", "-b", "main")
+    _commit(repo, tmp_path, "file", "main\n")
+    # Untracked, so not in HEAD's tree: the step runs scripts/ from the checkout.
+    (repo / "scripts").symlink_to(REPO_ROOT / "scripts")
+    tree = record_tree or _git(repo, tmp_path, "rev-parse", "HEAD^{tree}")
+    temp = tmp_path / "runner-temp"
+    (temp / "tested-digests").mkdir(parents=True)
+    (temp / "tested-digests" / "tested-digests.json").write_text(
+        json.dumps(
+            {
+                "base": "1" * 40,
+                "head": "2" * 40,
+                "images": {"golang": DIGEST},
+                "run_id": 42,
+                "tree": tree,
+            }
+        )
+    )
+    return _run_step(
+        "ci",
+        "provenance",
+        "Check the record names this tree",
+        {**_git_env(tmp_path), "RUNNER_TEMP": str(temp), "RUN_ID": "42"},
+        cwd=repo,
+    )
+
+
+def test_provenance_passes_when_the_record_names_main_s_tree(tmp_path: Path) -> None:
+    proc = _provenance_check(tmp_path, "")
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "golang" in proc.stdout
+
+
+def test_provenance_fails_loudly_on_another_tree(tmp_path: Path) -> None:
+    proc = _provenance_check(tmp_path, TREE)
+
+    assert proc.returncode == 1
+    assert "::error" in proc.stderr
+    assert "main took a tree no candidate run tested" in proc.stderr
+
+
+def test_the_record_is_written_only_once_the_whole_run_passed() -> None:
+    jobs = _workflow("ci")["jobs"]
+    tag = jobs["candidate-tag"]
+    names = [step.get("name") for step in tag["steps"]]
+
+    assert set(tag["needs"]) == set(jobs["ci-success"]["needs"]) - {
+        "candidate-tag",
+        "provenance",
+    }
+    assert _conjuncts(tag["if"]) == [
+        "!cancelled()",
+        CANDIDATE_IF,
+        "!contains(needs.*.result, 'failure')",
+        "!contains(needs.*.result, 'cancelled')",
+    ]
+    assert (
+        names.index("Write the record of what this run tested")
+        < names.index("Tag the tested digests")
+        < names.index("Upload the record")
+    )
+    # Written when no image was built too: no if on the write or the upload.
+    assert "if" not in _step(tag, "Write the record of what this run tested")
+    upload = _step(tag, "Upload the record")
+    assert "if" not in upload
+    assert upload["with"]["retention-days"] == 90
+    assert upload["with"]["if-no-files-found"] == "error"
+
+
+@pytest.mark.parametrize(
+    ("legs", "result", "passes"),
+    [
+        ("[]", "skipped", True),
+        ('[{"image":"golang"}]', "success", True),
+        ('[{"image":"golang"}]', "skipped", False),
+    ],
+)
+def test_resolved_legs_that_did_not_run_record_nothing(
+    legs: str, result: str, passes: bool
+) -> None:
+    proc = _run_step(
+        "ci",
+        "candidate-tag",
+        "Check every leg ran",
+        {"LEGS": legs, "IMAGE_RESULT": result},
+    )
+
+    assert (proc.returncode == 0) is passes, proc.stdout
+
+
+FAKE_IMAGETOOLS = """#!/usr/bin/env bash
+echo "$*" >> "${FAKE_LOG}"
+case "$*" in
+  "buildx imagetools create --dry-run "*)
+    printf '%s\\n' "${FAKE_PLANNED}"
+    ;;
+  "buildx imagetools inspect --raw "*)
+    printf '%s' "${FAKE_RESOLVED}"
+    ;;
+  *)
+    ;;
+esac
+"""
+INDEX = '{"schemaVersion":2,"manifests":[]}'
+INDEX_DIGEST = "sha256:" + hashlib.sha256(INDEX.encode()).hexdigest()
+
+
+def _tag(
+    tmp_path: Path, images: dict[str, str], planned: str = INDEX, resolved: str = INDEX
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    record = tmp_path / "tested-digests.json"
+    record.write_text(json.dumps({"tree": TREE, "images": images}))
+    log = tmp_path / "docker.log"
+    log.touch()
+    _stub(tmp_path / "bin", "docker", FAKE_IMAGETOOLS)
+    proc = subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts/tag-candidates.sh"), str(record)],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "GITHUB_REPOSITORY_OWNER": "malpanez",
+            "FAKE_LOG": str(log),
+            "FAKE_PLANNED": planned,
+            "FAKE_RESOLVED": resolved,
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc, log.read_text().splitlines()
+
+
+def test_each_tested_digest_is_tagged_with_its_tree(tmp_path: Path) -> None:
+    proc, calls = _tag(tmp_path, {"base": INDEX_DIGEST, "golang": INDEX_DIGEST})
+    tag = f"candidate-{TREE[:12]}"
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert re.fullmatch(r"candidate-[0-9a-f]{12}", tag)
+    for name in ("base", "golang"):
+        image = f"ghcr.io/malpanez/devcontainer-{name}"
+        assert (
+            f"buildx imagetools create --tag {image}:{tag} {image}@{INDEX_DIGEST}"
+            in calls
+        )
+        assert f"buildx imagetools inspect --raw {image}:{tag}" in calls
+    # Every dry run before the first tag.
+    first_tag = next(
+        i
+        for i, call in enumerate(calls)
+        if " --tag " in call and "--dry-run" not in call
+    )
+    assert all("--dry-run" in call for call in calls[:first_tag])
+    assert len(calls[:first_tag]) == 2
+
+
+def test_no_tag_moves_when_imagetools_would_write_another_index(tmp_path: Path) -> None:
+    proc, calls = _tag(tmp_path, {"golang": INDEX_DIGEST}, planned=INDEX + " ")
+
+    assert proc.returncode == 1
+    assert "no tag was written" in proc.stdout
+    assert all("--dry-run" in call for call in calls)
+
+
+def test_a_tag_that_does_not_resolve_to_the_tested_digest_fails(tmp_path: Path) -> None:
+    proc, _calls = _tag(tmp_path, {"golang": INDEX_DIGEST}, resolved="{}")
+
+    assert proc.returncode == 1
+    assert "not the tested" in proc.stdout
+
+
+def test_a_run_that_built_nothing_tags_nothing(tmp_path: Path) -> None:
+    proc, calls = _tag(tmp_path, {})
+
+    assert proc.returncode == 0, proc.stderr
+    assert calls == []
+
+
+def test_the_candidate_tag_step_runs_the_script() -> None:
+    tag = _workflow("ci")["jobs"]["candidate-tag"]
+    script = (REPO_ROOT / "scripts/tag-candidates.sh").read_text()
+
+    assert "scripts/tag-candidates.sh" in _step(tag, "Tag the tested digests")["run"]
+    assert 'TAG="candidate-${TREE:0:12}"' in script
+    assert "imagetools create --dry-run" in script
+
+
+def test_the_promotion_fails_when_it_cannot_open_its_pull_request() -> None:
+    job = _workflow("promote-to-main")["jobs"]["create-promotion-pr"]
+    text = (WORKFLOWS / "promote-to-main.yml").read_text(encoding="utf-8")
+
+    for name in ("Check if PR already exists", "Create promotion PR"):
+        assert "continue-on-error" not in _step(job, name), name
+    check = _step(job, "Check if PR already exists")["run"]
+    assert check.lstrip().startswith("set -euo pipefail\n")
+    assert "It uses continue-on-error" not in text
+
+
+def _jq(expression: str, data: Any, env: dict[str, str] | None = None) -> str:
+    proc = subprocess.run(
+        ["jq", "-r", expression],
+        input=json.dumps(data),
+        env={**os.environ, **(env or {})},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout.strip()
+
+
+def _promotion_steps() -> list[dict[str, Any]]:
+    return _workflow("promote-to-main")["jobs"]["create-promotion-pr"]["steps"]
+
+
+# A fork's pull request first, as the API may list it: --head is a bare branch
+# name, so `<fork>:develop -> main` matches it too.
+PROMOTION_LOOKUP = [
+    {"number": 9, "isCrossRepository": True},
+    {"number": 633, "isCrossRepository": False},
+]
+
+
+def test_every_promotion_lookup_skips_a_fork_s_develop() -> None:
+    lookups = []
+    for step in _promotion_steps():
+        run = re.sub(r"\\\n\s*", " ", step.get("run", ""))
+        for command in re.findall(r"gh pr list .*?--jq '[^']*'", run):
+            lookups.append((step["name"], command))
+    assert len(lookups) == 4, lookups
+
+    for name, command in lookups:
+        assert re.search(r"--json number,isCrossRepository\s", command), name
+        expression = re.search(r"--jq '([^']*)'", command)
+        assert expression, name
+        found = _jq(expression.group(1), PROMOTION_LOOKUP)
+        only_fork = _jq(expression.group(1), PROMOTION_LOOKUP[:1])
+        if expression.group(1).endswith("| length"):
+            assert (found, only_fork) == ("1", "0"), name
+        else:
+            assert (found, only_fork) == ("633", ""), name
+
+
+def test_the_promotion_approves_only_this_repository_s_runs() -> None:
+    approve = _step(
+        _workflow("promote-to-main")["jobs"]["create-promotion-pr"],
+        "Approve parked workflow runs",
+    )
+    run = re.sub(r"\\\n\s*", " ", approve["run"])
+    expression = re.search(r"actions/runs\?\$\{QUERY\}\"\s+--jq '([^']*)'", run)
+    assert expression, "the parked-run lookup moved"
+    runs = {
+        "workflow_runs": [
+            {"id": 5, "head_repository": {"full_name": "someone/fork"}},
+            {"id": 6, "head_repository": {"full_name": REPOSITORY}},
+        ]
+    }
+
+    approved = _jq(expression.group(1), runs, {"GITHUB_REPOSITORY": REPOSITORY})
+
+    assert approved == "6"
+
+
+def test_a_promotion_whose_runs_stay_parked_fails_red() -> None:
+    job = _workflow("promote-to-main")["jobs"]["create-promotion-pr"]
+    approve = _step(job, "Approve parked workflow runs")
+    merge = _step(job, "Enable auto-merge on promotion PR")
+
+    assert "continue-on-error" not in approve
+    proc = _run_step(
+        "promote-to-main",
+        "create-promotion-pr",
+        "Approve parked workflow runs",
+        {"GH_TOKEN": ""},
+    )
+    assert proc.returncode == 1
+    assert "::error::BOT_TOKEN missing" in proc.stdout
+    assert "FAILED_ANY=true" in approve["run"]
+    assert (
+        approve["run"]
+        .rstrip()
+        .endswith('if [ "$FAILED_ANY" = "true" ]; then\n  exit 1\nfi')
+    )
+    # Auto-merge is still enabled when the approval failed.
+    assert merge["if"].startswith("${{ !cancelled() && ")

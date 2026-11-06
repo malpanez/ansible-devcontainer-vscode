@@ -2,13 +2,15 @@
 name: Promote develop to main
 
 # This workflow automatically creates a PR from develop to main when changes are pushed to develop.
-# It uses continue-on-error to handle cases where GitHub Actions doesn't have permission to create PRs.
-#
-# To enable full automation, go to:
+# That pull request is where ci.yml's candidate mode builds and tests every image main will take,
+# and main takes nothing else, so a run that could not create it fails red instead of passing green
+# with no promotion open. GitHub Actions needs:
 # Settings → Actions → General → Workflow permissions
 # Enable: "Allow GitHub Actions to create and approve pull requests"
 #
-# Without this setting, you can still manually create the PR and this workflow will attempt to enable auto-merge.
+# Without it, `gh pr create` fails with createPullRequest and so does this run. Approving the
+# promotion's parked runs fails the run too, since runs left parked test nothing. Enabling
+# auto-merge stays best effort: its fallback only warns (see that step).
 
 on:
   # No schedule. A 6-hourly sweep caught develop pushes that emitted no
@@ -94,7 +96,8 @@ jobs:
           if git diff --quiet "origin/${TARGET_BRANCH}" "origin/${SOURCE_BRANCH}"; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "No content differences between ${SOURCE_BRANCH} and ${TARGET_BRANCH}; nothing to promote."
-            EMPTY_PR=$(gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open --json number --jq '.[0].number // ""')
+            EMPTY_PR=$(gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open \
+              --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
             if [ -n "$EMPTY_PR" ]; then
               gh pr close "$EMPTY_PR" --comment "Closing: ${SOURCE_BRANCH} and ${TARGET_BRANCH} have identical content, nothing to promote."
             fi
@@ -108,13 +111,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_COUNT=$(gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open --json number --jq 'length')
+          set -euo pipefail
+          # An error here used to leave pr_count empty, skip the creation and
+          # pass the run with no promotion open.
+          #
+          # --head is a bare branch name (GraphQL headRefName), so it also
+          # matches a fork's develop. This repository is public: anyone could
+          # open <fork>:develop -> main, and counting it would stop the real
+          # promotion from ever being opened. Every lookup of the promotion
+          # keeps this repository's pull requests only.
+          PR_COUNT=$(gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open \
+            --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)] | length')
           echo "pr_count=$PR_COUNT" >> "$GITHUB_OUTPUT"
 
+      # No continue-on-error: a promotion that cannot be opened fails the run.
       - name: Create promotion PR
         id: create-pr
         if: steps.check-content.outputs.has_changes == 'true' && steps.check-pr.outputs.pr_count == '0'
-        continue-on-error: true
         env:
           # GITHUB_TOKEN, not BOT_TOKEN: the PR must be authored by the bot.
           # BOT_TOKEN acts as malpanez, who is the repository's only reviewer,
@@ -160,9 +173,11 @@ jobs:
         if: steps.check-pr.outputs.pr_count == '0' && steps.create-pr.outcome == 'success'
         run: sleep 5
 
+      # No continue-on-error: runs left parked test nothing, so main could
+      # never take develop. A failure here leaves the run red; auto-merge is
+      # still enabled below.
       - name: Approve parked workflow runs
         if: steps.check-content.outputs.has_changes == 'true'
-        continue-on-error: true
         env:
           # GitHub parks every pull_request run of a bot-authored PR as
           # action_required until a user with write access approves it
@@ -175,14 +190,15 @@ jobs:
           set -euo pipefail
 
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning::BOT_TOKEN missing; parked runs must be approved by hand"
-            exit 0
+            echo "::error::BOT_TOKEN missing: the promotion's runs stay parked until approved by hand."
+            exit 1
           fi
 
           # Same derivation as the auto-merge step: works whether this run
           # created the PR or reused an existing one.
           PR_NUMBER=$(GH_TOKEN="${FALLBACK_TOKEN}" gh pr list --base "${TARGET_BRANCH}" \
-            --head "${SOURCE_BRANCH}" --state open --json number --jq '.[0].number // ""')
+            --head "${SOURCE_BRANCH}" --state open --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
 
           if [ -z "$PR_NUMBER" ]; then
             echo "No open PR from ${SOURCE_BRANCH} to ${TARGET_BRANCH}; nothing to approve."
@@ -193,12 +209,16 @@ jobs:
           echo "Promotion PR #${PR_NUMBER}, head ${HEAD_SHA}"
 
           APPROVED_ANY=false
+          FAILED_ANY=false
           for i in $(seq 1 12); do
             QUERY="event=pull_request&head_sha=${HEAD_SHA}"
             QUERY="${QUERY}&status=action_required&per_page=100"
+            # This repository's runs only: a fork's pull request can have
+            # the same head SHA, and its parked runs are outside code that
+            # waits for a person to approve it, not BOT_TOKEN.
             RUN_IDS=$(gh api \
               "repos/${GITHUB_REPOSITORY}/actions/runs?${QUERY}" \
-              --jq '.workflow_runs[].id')
+              --jq '.workflow_runs[] | select(.head_repository.full_name == env.GITHUB_REPOSITORY) | .id')
 
             if [ -z "$RUN_IDS" ]; then
               if [ "$APPROVED_ANY" = "true" ]; then
@@ -211,7 +231,8 @@ jobs:
                   echo "Approved parked run ${RUN_ID}"
                   APPROVED_ANY=true
                 else
-                  echo "::warning::Could not approve parked run ${RUN_ID}"
+                  echo "::error::Could not approve parked run ${RUN_ID}"
+                  FAILED_ANY=true
                 fi
               done
             fi
@@ -225,9 +246,14 @@ jobs:
             echo "::warning::No parked runs found for ${HEAD_SHA} in 120s;"
             echo "::warning::nothing was approved (expected when GitHub parked nothing)."
           fi
+          if [ "$FAILED_ANY" = "true" ]; then
+            exit 1
+          fi
 
+      # Whatever the approval's result, so a failed approval still leaves
+      # auto-merge enabled, with the run red.
       - name: Enable auto-merge on promotion PR
-        if: steps.check-content.outputs.has_changes == 'true'
+        if: ${{ !cancelled() && steps.check-content.outputs.has_changes == 'true' }}
         continue-on-error: true
         env:
           # BOT_TOKEN (PAT) instead of GITHUB_TOKEN: merges performed by
@@ -238,7 +264,8 @@ jobs:
           FALLBACK_TOKEN: ${{ github.token }}
         run: |
           # Get the PR number (works whether we just created it or it already exists)
-          PR_NUMBER=$(GH_TOKEN="${FALLBACK_TOKEN}" gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open --json number --jq '.[0].number')
+          PR_NUMBER=$(GH_TOKEN="${FALLBACK_TOKEN}" gh pr list --base "${TARGET_BRANCH}" --head "${SOURCE_BRANCH}" --state open \
+            --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
 
           if [ -z "$PR_NUMBER" ]; then
             echo "No open PR found from ${SOURCE_BRANCH} to ${TARGET_BRANCH}"
