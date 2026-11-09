@@ -112,7 +112,7 @@ repos:
   # terraform image ships (devcontainers/terraform/Dockerfile, through
   # scripts/derive-toolchain-versions.sh), as that dev container has them.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: e0322737dccad136b751416f9e45d9980fe18435  # frozen: v1.96.2
+    rev: 443ffdff1cc1663b701ae73e7459029fe883455a  # frozen: v1.109.3
     hooks:
       - id: terraform_fmt
         name: Terraform Format
