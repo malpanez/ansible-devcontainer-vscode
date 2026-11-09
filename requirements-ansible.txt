@@ -4,26 +4,26 @@ ansible-builder==3.2.0 \
     --hash=sha256:8cd8639011127aaa5046fd60e56ae753eb599061bf493eca2c6b75c54cfc6212 \
     --hash=sha256:9cb948dbd221bdf6d0d48e80fa1575ca5f4336a569c05f510e2d406f01897673
     # via ansible-navigator
-ansible-compat==26.10.0 \
-    --hash=sha256:700f0778fbb348daf6ee58941871e8ca77a987702993e8bf7895761d036d6450 \
-    --hash=sha256:b0fcc0b9585611045b4b91268d3b4337c9159ae0dc550b69a553a33af48af826
+ansible-compat==26.11.0 \
+    --hash=sha256:35cbe829e0b5a9acb85d34b8d5da2eb45acaf767f6651f90e0ab2f3a96a060bb \
+    --hash=sha256:c06a486b39ced440f9f6fb9a99583c73d9239c94ece822a27ea2242173462dda
     # via ansible-lint
-ansible-core==2.21.5 \
-    --hash=sha256:08886f9f3e23d129aa98a01271c4a47833516e1cb7c737a246788cb474f41222 \
-    --hash=sha256:65bb3148c58ebb843cd5074004c805f404f152114d98476dd823324616c9c6cb
+ansible-core==2.21.6 \
+    --hash=sha256:3fa05b4b1af69f2fa19b49dde8edd5a23e693c2c1c3bda2d85fce73bd6cfc36d \
+    --hash=sha256:c1fc3cbe821176ba4227b1cae8c748e1d28d42dde605e807d23c58f71b6d1a74
     # via
     #   ansible-compat
     #   ansible-devcontainer
     #   ansible-lint
-ansible-lint==26.10.1 \
-    --hash=sha256:a746c6f3cb5719d1c202bc14e956ef3b0eca704025d1aa92707a27fc73ed73ea \
-    --hash=sha256:cc26d405ee38c3390e80ec18c4137b5685c36d03ce7d4d8233b0470d9a0e21e9
+ansible-lint==26.11.0 \
+    --hash=sha256:74813203aa5450d720c3d86b9d0d4ddc51d30e36ac69e1f0d9f7650f5a3b5dd3 \
+    --hash=sha256:b778ea87fa873384b373e8c3fe53a06b3acc7b72ac283e2d2070f76fdf9f8358
     # via
     #   ansible-devcontainer
     #   ansible-navigator
-ansible-navigator==26.10.0 \
-    --hash=sha256:ee26fab3923a56241c5a54c2350fa7a0f323c04a7480dca240cb4f705f1475cd \
-    --hash=sha256:f1623b8c7f3cbb3843a5f22d12198f542d770e2f1208206739056dd15164e7bf
+ansible-navigator==26.11.0 \
+    --hash=sha256:6ec0c123c247421b31d071c1c468875788f83b53137a1d13e96c239376911eac \
+    --hash=sha256:88143d74f2761f2eccf21005eb25463e1b8dce347b5a22143e967d2a01a2885f
     # via ansible-devcontainer
 ansible-runner==2.4.3 \
     --hash=sha256:5f3025529bb968fdc3b627457dd8d418dbf9d53bc73735d50e69c28544d53031 \
@@ -119,9 +119,9 @@ black==26.10.1 \
     --hash=sha256:f6dba8138cdc99061ef07b958ac082d2aa057b6961d1936f9717c350f02bab5f \
     --hash=sha256:fe85fc4019bee59bc495c0f2a8ee76c5cd02c7015508d94a967ba2376f39a52c
     # via ansible-lint
-bracex==3.2 \
-    --hash=sha256:0a3d40bfae4caae4d3bfd0ea715874799fab711c38fd4012cc35343e815405cd \
-    --hash=sha256:8f3e908a452f66707e1d6d91b3d7d7d4c649d248df18537c0dc710aeb9c30d87
+bracex==3.2.2 \
+    --hash=sha256:284d59c4656e5a0421ff691402074bd5847049d50410535764a2c522a47095bc \
+    --hash=sha256:d18976160b3ba01a57d5c53a5c8c3aa2506efa9e0a3a62467251f82b8f563fde
     # via wcmatch
 certifi==2026.10.23 \
     --hash=sha256:a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd \
@@ -338,9 +338,9 @@ charset-normalizer==3.5.2 \
     --hash=sha256:fcff63213e8e6e47770541a4607175404f47cbb3ebea7b6058cc82d524a0e424 \
     --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
     # via requests
-click==8.5.0 \
-    --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
-    --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
+click==8.5.1 \
+    --hash=sha256:8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37 \
+    --hash=sha256:9bbfada76703fd1d784b83eea012e3e8c6a001a876543ef104fa56aaaeb072b4
     # via black
 cryptography==50.0.2 \
     --hash=sha256:0ddc924c04591c2811ca024d62ecad4f7f6f08af8939c211438f48a16bd23602 \
@@ -414,17 +414,17 @@ distro==1.9.0 \
     # via
     #   ansible-lint
     #   bindep
-dnspython==2.9.1 \
-    --hash=sha256:7c81caf8de1ed57b8cfc7e0ad4f528a0b8ceace473c7eb946df195dc9def751f \
-    --hash=sha256:9a6d30e55f8dc63e6052597666112bff0586b95a2474a9deda03afbbf820d37a
+dnspython==2.9.2 \
+    --hash=sha256:8d4d39a513e649d634004ce4d39ade2352efcea472a0247535a5c2d18a9d7ba9 \
+    --hash=sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8
     # via ansible-devcontainer
 docker==7.2.0 \
     --hash=sha256:a3f45fdeb9165e2d25d9a1d02ddf3bc70fb572cf5ebbf9b58558c22caf29b71f \
     --hash=sha256:cebb93773d334f778e023a7ee352a8d6e13ab1bd3b863a4d4a59dec897df43ac
     # via ansible-devcontainer
-filelock==4.2.6 \
-    --hash=sha256:ee7af8ede36dcaf12e1016d9f7c3a63ecd5497d46f85dab21b8c779b8f944e97 \
-    --hash=sha256:fd7d4fca497bf3e3d0945a13261f8e684f2aef12ce7cf76aef26e13bf7388b88
+filelock==4.2.9 \
+    --hash=sha256:96530b7c538d4ea08493ab067247aab7948c54d8cd622cce711c97cccc5d9896 \
+    --hash=sha256:a379c50a729e5b68c8519a4d26489f755d9769960a236ecd838190e2a78db2e9
     # via
     #   ansible-lint
     #   python-discovery
@@ -575,9 +575,9 @@ markupsafe==3.0.4 \
     --hash=sha256:f68edfc67aabac33708941f26f22a7b8e9f81429bc0cf249fcf7d66b23af8d19 \
     --hash=sha256:fa95848c929b6a75f6848d3c9793e59db365ee436776e57db835cdbfa79ba977
     # via jinja2
-mypy-extensions==1.1.0 \
-    --hash=sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505 \
-    --hash=sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558
+mypy-extensions==1.2.0 \
+    --hash=sha256:993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768 \
+    --hash=sha256:c6e275a07f1c2fc096b62940452d0eaa3f3af7de45d704787866240a7c6d5a51
     # via black
 nodeenv==1.12.0 \
     --hash=sha256:4ea7f88339310afebc3253f2c7a91b94bacf97d73a36a5c108962abdfaca501e \
@@ -630,9 +630,9 @@ pexpect==4.9.0 \
     --hash=sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523 \
     --hash=sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f
     # via ansible-runner
-platformdirs==4.14.3 \
-    --hash=sha256:021add1ab113483edbcd4694f5fbb2d688b893ea30d35e1155bb371cf4be0be8 \
-    --hash=sha256:cba2d05fe5e18b26b1fa6f376b8e6234c012abe1f8696c486fface7d0054e931
+platformdirs==4.14.5 \
+    --hash=sha256:32e9921db7385aa8169bee4fe9501923e5715ba9fb7ea3b9c69b0d8e0639f7a1 \
+    --hash=sha256:8e778c6fa421516f4d3369449f8df3b0e1b72c0e0005fe88e3ec772d0a14e750
     # via
     #   black
     #   virtualenv
@@ -679,9 +679,9 @@ python-daemon==3.1.2 \
     --hash=sha256:b906833cef63502994ad48e2eab213259ed9bb18d54fa8774dcba2ff7864cec6 \
     --hash=sha256:f7b04335adc473de877f5117e26d5f1142f4c9f7cd765408f0877757be5afbf4
     # via ansible-runner
-python-discovery==1.9.0 \
-    --hash=sha256:88beb57e51b919c30f303b053ec41359298ca349192035b0a802c76347ae96d7 \
-    --hash=sha256:fb65edfff3541b7ceb3a39be334a0f69f4cb5148287a053e1874748742fda93b
+python-discovery==1.9.5 \
+    --hash=sha256:86279f5d2728bc067de28b7ddc571be2eacc2ae0e7048f8629d2481a0f8848a2 \
+    --hash=sha256:a1fae8fca11e4bc61e38491c2aafff29e430b3c5e272d51ae52fb895bc4c0fac
     # via virtualenv
 pytokens==0.4.1 \
     --hash=sha256:140709331e846b728475786df8aeb27d24f48cbcf7bcd449f8de75cae7a45083 \
@@ -925,13 +925,13 @@ urllib3==2.8.0 \
     #   ansible-devcontainer
     #   docker
     #   requests
-virtualenv==21.15.2 \
-    --hash=sha256:dbd886e6e5689eb4dde6a9bbc478ad14b4fc8ed0852690d8273ccfb8c467f635 \
-    --hash=sha256:fb8c62c7c328e0238061c721068f06b7bc6bd10f7a0f5987195cef1008837ee6
+virtualenv==21.15.6 \
+    --hash=sha256:4b99ab9b95ff11043939bb4cad2fa0449175fa5a478372864f62160cb6c1a7ed \
+    --hash=sha256:c8b65c7d206ca6ef18de9352c160b3f04f66fff9f6b0ec8fd31f14688eba52c4
     # via pre-commit
-wcmatch==11.2 \
-    --hash=sha256:1605bde546fbde4c063628c7d89eda486909fd4337e51d73a873987fbcb2554c \
-    --hash=sha256:952bab83c75c233836007a69550a3a8753cf06964c1eb3b84ff11ad5bff1c272
+wcmatch==12.0.1 \
+    --hash=sha256:0e11b0bf1700bc8222ad5e7dc79fb326d9e0304458c7e2c25419ab6d26d07d8e \
+    --hash=sha256:4ea6acef75b657bf71ac8fa9520165bf5ae55120c4e655895a5b7d4c69896c5e
     # via ansible-lint
 yamllint==1.38.0 \
     --hash=sha256:09e5f29531daab93366bb061e76019d5e91691ef0a40328f04c927387d1d364d \
