@@ -1,6 +1,6 @@
 {
   "name": "Terraform Dev Container (docker-socket)",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:v2.2.0@sha256:92fdb6b4963443a83e35ee9e72c0d11168582a8a9515a14d59ddc0fd125de253",
+  "image": "ghcr.io/malpanez/devcontainer-terraform:v2.2.2@sha256:c588309a411f533e37f39733a8fe9928b918101e983fdfba54bbfad09c0031b5",
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1.10.1": {
       "moby": false
