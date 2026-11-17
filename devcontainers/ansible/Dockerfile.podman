@@ -12,7 +12,7 @@
 FROM python:3.14-slim-trixie@sha256:930e1abba7c4e8f96ed93e8012c35d174d7732752731bbd5e8e757d7ec6f3966 AS uv-base
 
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION="0.13.6"
+ARG UV_VERSION="0.13.7"
 
 # LANG: the python base sets it on some digests only (3.14.8 did not, 3.14.10
 # does), so a digest bump could turn it off.

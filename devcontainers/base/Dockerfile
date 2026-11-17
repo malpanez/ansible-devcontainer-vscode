@@ -21,7 +21,7 @@ ENV UV_INSTALL_DIR=/usr/local/bin
 ENV UV_LINK_MODE=copy
 ENV UV_COMPILE_BYTECODE=1
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.6
+ARG UV_VERSION=0.13.7
 
 # Common system packages used across Python-based stacks.
 # sudo is deliberately absent: it has had no rules since 1a62ea6, so it was a
