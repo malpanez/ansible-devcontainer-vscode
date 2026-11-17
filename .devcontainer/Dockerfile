@@ -11,7 +11,7 @@ ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.6
+ARG UV_VERSION=0.13.7
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS fetch
 ARG TARGETARCH
