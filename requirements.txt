@@ -7,7 +7,7 @@ ansible-compat==26.11.0
     #   ansible-lint
     #   molecule
     #   pytest-ansible
-ansible-core==2.21.6
+ansible-core==2.22.0
     # via
     #   ansible-compat
     #   ansible-devcontainer
@@ -329,7 +329,6 @@ typing-extensions==4.16.0
     # via
     #   mypy
     #   pytest-ansible
-    #   referencing
 tzdata==2026.6
     # via ansible-navigator
 uritools==7.0.0
