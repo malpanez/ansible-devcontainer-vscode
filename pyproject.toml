@@ -3,7 +3,7 @@ name = "ansible-devcontainer"
 version = "0.1.0"
 description = "Ansible DevContainer tooling and automation stack."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 # Runtime toolchain shipped in the devcontainer images. Development and
 # test tooling lives in [dependency-groups]; 'uv sync' installs dev by
 # default in a workspace, the images stay lean.
