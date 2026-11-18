@@ -41,8 +41,8 @@ black==26.10.1
     # via ansible-lint
 boolean-py==5.0
     # via license-expression
-boto3==1.44.4
-botocore==1.44.4
+boto3==1.44.5
+botocore==1.44.5
     # via
     #   boto3
     #   s3transfer
@@ -100,7 +100,7 @@ execnet==2.1.2
     # via pytest-xdist
 executing==2.3.0
     # via stack-data
-filelock==4.2.11
+filelock==4.2.12
     # via
     #   ansible-lint
     #   python-discovery
@@ -199,7 +199,7 @@ pexpect==4.9.0
     # via
     #   ansible-runner
     #   ipython
-platformdirs==4.14.5
+platformdirs==4.14.7
     # via
     #   black
     #   virtualenv
@@ -247,7 +247,7 @@ python-daemon==3.1.2
     # via ansible-runner
 python-dateutil==2.9.0.post0
     # via botocore
-python-discovery==1.9.5
+python-discovery==1.9.6
     # via virtualenv
 pytokens==0.4.1
     # via black
