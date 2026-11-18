@@ -1,6 +1,6 @@
 {
   "name": "Ansible Dev Container (Podman + Execution Environments)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v2.2.2@sha256:08a6d347e0d28ee7fd58f1e3950887be07ae3536c2ebfdd5ae1fa4f70c874664",
+  "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v2.2.3@sha256:5db5b2f4ce91ed77fc6dc5c8a4d5fab06f785927eeaa2fa81a899817815858b3",
   "runArgs": [
     "--init",
     "--security-opt=seccomp=unconfined",
