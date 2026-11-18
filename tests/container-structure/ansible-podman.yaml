@@ -116,10 +116,6 @@ fileContentTests:
     path: '/etc/subgid'
     expectedContents: ['(?m)^vscode:100000:65536$']
 
-  - name: 'gh comes from cli.github.com'
-    path: '/etc/apt/sources.list.d/github-cli.list'
-    expectedContents: ['https://cli\.github\.com/packages stable main']
-
 commandTests:
   - name: 'newuidmap has its file capability'
     command: 'getcap'
@@ -130,14 +126,6 @@ commandTests:
     command: 'getcap'
     args: ['/usr/bin/newgidmap']
     expectedOutput: ['cap_setgid=ep']
-
-  # Debian's package is 2.46.0, which cli.github.com's documentation says is
-  # broken by deprecated GitHub APIs. Its version line names Debian.
-  - name: 'gh is not the Debian build'
-    command: 'gh'
-    args: ['--version']
-    expectedOutput: ['gh version [0-9]']
-    excludedOutput: ['Debian']
 
   - name: 'gh package is GitHub''s'
     command: 'dpkg-query'

@@ -57,24 +57,25 @@ RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},shar
          /var/log/apt/history.log /var/log/apt/term.log \
          /var/cache/ldconfig/aux-cache
 
-# Install GitHub CLI (gh) to avoid DevContainer features rebuild
-# https://github.com/cli/cli/blob/trunk/docs/install_linux.md, which publishes the
-# keyring's SHA256 checked below.
+# GitHub CLI (gh) from the release .deb, not from cli.github.com's apt
+# repository: that repository's index lists only the newest build, so
+# `gh=<version>` cannot pin it, and with its source left in sources.list.d
+# the `apt-get full-upgrade` in devcontainers/ansible pulled the newest gh
+# into a layer of its own whenever the base came from an older build cache
+# (+40 MiB, over the ansible budget in #661). The .deb is checked against
+# the release's checksums file and depends only on git, installed above.
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION=2.103.3
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-# hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/lib/apt/lists,id=apt-lists-${TARGETARCH},sharing=locked \
-    --mount=type=cache,target=/var/cache/apt,id=apt-cache-${TARGETARCH},sharing=locked \
-    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      > /etc/apt/sources.list.d/github-cli.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends gh \
-    && apt-get autoremove -y --purge \
-    && apt-get clean \
+RUN GH_ARCH="$(dpkg --print-architecture)" \
+    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+      -o "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt" \
+      -o /tmp/gh_checksums.txt \
+    && echo "$(grep -E " gh_${GH_VERSION}_linux_${GH_ARCH}\.deb\$" /tmp/gh_checksums.txt | cut -d' ' -f1)  /tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" | sha256sum -c - \
+    && dpkg -i "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+    && rm -f "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" /tmp/gh_checksums.txt \
     && rm -f /var/log/dpkg.log /var/log/alternatives.log \
-         /var/log/apt/history.log /var/log/apt/term.log \
          /var/cache/ldconfig/aux-cache
 
 # Configure non-root workspace user.
