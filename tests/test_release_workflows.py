@@ -83,3 +83,65 @@ def test_renovate_manager_matches_the_syft_pin() -> None:
     assert job["env"]["SYFT_VERSION"] == matches[0]["currentValue"]
     syft = next(step for step in job["steps"] if step.get("id") == "install_syft")
     assert syft["with"]["syft-version"] == "${{ env.SYFT_VERSION }}"
+
+
+def _gh_dockerfiles() -> dict[str, str]:
+    return {
+        path.relative_to(REPO_ROOT).as_posix(): path.read_text()
+        for path in sorted(REPO_ROOT.glob("devcontainers/*/Dockerfile*"))
+        if "cli/cli/releases" in path.read_text()
+    }
+
+
+def test_gh_is_pinned_once_per_dockerfile_at_one_version() -> None:
+    dockerfiles = _gh_dockerfiles()
+    assert set(dockerfiles) == {
+        "devcontainers/ansible/Dockerfile.podman",
+        "devcontainers/base/Dockerfile",
+        "devcontainers/terraform/Dockerfile",
+    }
+
+    versions = set()
+    for path, text in dockerfiles.items():
+        pins = re.findall(
+            r"# renovate: datasource=github-releases depName=cli/cli\n"
+            r"ARG GH_VERSION=([0-9]+\.[0-9]+\.[0-9]+)\n",
+            text,
+        )
+        assert len(pins) == 1, path
+        versions.add(pins[0])
+    assert len(versions) == 1
+
+
+def test_no_image_installs_gh_from_the_apt_repository() -> None:
+    for path in [
+        *REPO_ROOT.glob("devcontainers/*/Dockerfile*"),
+        *REPO_ROOT.glob(".devcontainer/Dockerfile*"),
+    ]:
+        assert "cli.github.com/packages" not in path.read_text(), path
+
+
+def test_renovate_manager_matches_every_gh_pin() -> None:
+    renovate = json.loads((REPO_ROOT / "renovate.json").read_text())
+    managers = [
+        manager
+        for manager in renovate["customManagers"]
+        if manager.get("depNameTemplate") == "cli/cli"
+    ]
+    assert len(managers) == 1
+    manager = managers[0]
+    assert manager["datasourceTemplate"] == "github-releases"
+    # Renovate writes named groups the JavaScript way.
+    pattern = re.compile(manager["matchStrings"][0].replace("(?<", "(?P<"))
+    file_patterns = [
+        re.compile(file_pattern.strip("/"))
+        for file_pattern in manager["managerFilePatterns"]
+    ]
+    tag = re.compile(manager["extractVersionTemplate"].replace("(?<", "(?P<"))
+
+    for path, text in _gh_dockerfiles().items():
+        assert any(file_pattern.search(path) for file_pattern in file_patterns), path
+        matches = list(pattern.finditer(text))
+        assert len(matches) == 1, path
+        assert tag.fullmatch(f"v{matches[0]['currentValue']}")
+        assert "releases/download/v${GH_VERSION}/" in text, path

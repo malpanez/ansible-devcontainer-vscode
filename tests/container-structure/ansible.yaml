@@ -2,6 +2,13 @@
 schemaVersion: 2.0.0
 
 fileExistenceTests:
+  # gh is installed from its pinned release .deb. With cli.github.com's apt
+  # source in the image, the full-upgrade in devcontainers/ansible installed
+  # the newest gh over the base's, in a layer of its own (#661).
+  - name: 'No cli.github.com apt source'
+    path: '/etc/apt/sources.list.d/github-cli.list'
+    shouldExist: false
+
   # Python toolchain
   - name: 'Python binary exists'
     path: '/usr/local/bin/python3'
@@ -50,6 +57,15 @@ fileExistenceTests:
     uid: 1000
 
 commandTests:
+  # Major only, like the other tools: GH_VERSION in the Dockerfiles owns the
+  # exact version. Debian's 2.46.0 is broken by deprecated GitHub APIs, and
+  # its version line names Debian.
+  - name: 'gh is GitHub''s build'
+    command: 'gh'
+    args: ['--version']
+    expectedOutput: ['gh version 2\.[0-9]+\.[0-9]+']
+    excludedOutput: ['Debian']
+
   # Python version: any 3.x, as the other tests match names, not versions
   - name: 'Python 3 available'
     command: 'python3'
