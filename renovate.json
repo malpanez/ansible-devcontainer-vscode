@@ -260,6 +260,20 @@
     },
     {
       "customType": "regex",
+      "description": "gh CLI pinned as an ARG in every image that installs it, from the release .deb checked against the release's checksums file. cli.github.com's apt repository lists only the newest build, so it cannot pin gh.",
+      "managerFilePatterns": [
+        "/^devcontainers/(base|terraform)/Dockerfile$/",
+        "/^devcontainers/ansible/Dockerfile\\.podman$/"
+      ],
+      "matchStrings": [
+        "ARG GH_VERSION=(?<currentValue>[0-9.]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "cli/cli",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
       "description": "age (hash recomputed by a postUpgradeTask)",
       "managerFilePatterns": [
         "/devcontainers/terraform/Dockerfile/"

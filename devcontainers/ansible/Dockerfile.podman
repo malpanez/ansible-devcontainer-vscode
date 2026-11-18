@@ -114,20 +114,17 @@ ENV WORKSPACE=/workspace \
 # libonig5 is the runtime library behind the source-built onigurumacffi
 # on arm64. Note: git is installed via apt (no feature git:1); NOT
 # installing tini since we use --init in runArgs.
-# gh comes from cli.github.com, as in devcontainers/base. Debian's package is
-# 2.46.0, and https://github.com/cli/cli/blob/trunk/docs/install_linux.md says
-# of it: "community-distributed 2.45.x / 2.46.x version is broken due to
-# deprecated GitHub APIs". apt takes the newer of the two versions it then has.
-# The same page publishes the keyring's SHA256 checked below.
+# gh comes from its release .deb, as in devcontainers/base (which says why
+# not from cli.github.com's apt repository). Debian's package is 2.46.0, and
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md says of it:
+# "community-distributed 2.45.x / 2.46.x version is broken due to deprecated
+# GitHub APIs". It depends only on git, installed in the list below.
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION=2.103.3
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      > /etc/apt/sources.list.d/github-cli.list \
-    && apt-get update \
+    apt-get update \
     && apt-get install -y --no-install-recommends \
       # Base tools plus podman (Debian build, ABI-coherent) and its
       # rootless dependencies: conmon, crun, dbus-user-session,
@@ -139,7 +136,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       crun \
       dbus-user-session \
       fuse-overlayfs \
-      gh \
       git \
       iptables \
       libcap2-bin \
@@ -151,6 +147,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       slirp4netns \
       uidmap \
       unzip \
+    && GH_ARCH="$(dpkg --print-architecture)" \
+    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+      -o "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt" \
+      -o /tmp/gh_checksums.txt \
+    && echo "$(grep -E " gh_${GH_VERSION}_linux_${GH_ARCH}\.deb\$" /tmp/gh_checksums.txt | cut -d' ' -f1)  /tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" | sha256sum -c - \
+    && dpkg -i "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+    && rm -f "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" /tmp/gh_checksums.txt \
     # Upgrade AFTER the install, never before: the packages that go stale
     # here are mostly ones apt pulls in as dependencies of the list above
     # (perl via debconf, libc6, libglib2.0-0t64), so an upgrade placed

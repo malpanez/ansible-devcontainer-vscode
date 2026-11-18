@@ -80,7 +80,7 @@ ignore:
       name: github.com/sigstore/rekor
       location: "/usr/local/bin/tflint"
 
-  # --- gh CLI (apt package from cli.github.com in every image that has it,
+  # --- gh CLI (release .deb pinned by GH_VERSION in every image that has it,
   # Go stdlib + grpc, pre-compiled)
   - package:
       name: stdlib
