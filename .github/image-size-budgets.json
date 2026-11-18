@@ -7,9 +7,9 @@
       "reason": "v2.0.0 amd64 320.4 MiB unpacked, 91.0 MiB zstd, +10% rounded up to 10 MiB. Gated in ci.yml's base job since base is loaded there; its growth also counts in the ansible and ansible-aws gates, which are built on it."
     },
     "ansible": {
-      "max_uncompressed_mib": 470,
-      "max_compressed_mib": 130,
-      "reason": "v2.0.0 amd64 426.3 MiB unpacked, 116.1 MiB zstd, +10% rounded up to 10 MiB."
+      "max_uncompressed_mib": 610,
+      "max_compressed_mib": 170,
+      "reason": "Raised from 470/130 for the side-by-side ansible-core 2.16 env (/opt/ansible-core-2.16: CPython 3.12, ansible-core 2.16 and its dependencies, ansible.posix and community.general 11.x), one layer of 107.1 MiB of files and about 33.3 MiB zstd. amd64 with it 549.4 MiB unpacked (442.3 without; regular-file bytes of docker save, measured on a containerd store, 2026-11-18), compressed estimated as v2.0.0's 116.1 MiB zstd plus that layer; +10% rounded up to 10 MiB. v2.0.0 was 426.3 MiB unpacked, 116.1 MiB zstd."
     },
     "ansible-podman": {
       "max_uncompressed_mib": 580,
@@ -17,9 +17,9 @@
       "reason": "v2.0.0 amd64 519.0 MiB unpacked, 144.8 MiB zstd, +10% rounded up to 10 MiB."
     },
     "ansible-aws": {
-      "max_uncompressed_mib": 790,
-      "max_compressed_mib": 220,
-      "reason": "v2.0.0 amd64 709.2 MiB unpacked, 192.5 MiB zstd, +10% rounded up to 10 MiB."
+      "max_uncompressed_mib": 920,
+      "max_compressed_mib": 250,
+      "reason": "Raised from 790/220 for the ansible-core 2.16 env it inherits from the ansible stage (see ansible): 107.1 MiB of files, about 33.3 MiB zstd. amd64 with it 833.9 MiB unpacked (726.8 without; regular-file bytes of docker save, measured on a containerd store, 2026-11-18), compressed estimated as v2.0.0's 192.5 MiB zstd plus that layer; +10% rounded up to 10 MiB. v2.0.0 was 709.2 MiB unpacked, 192.5 MiB zstd."
     },
     "terraform": {
       "max_uncompressed_mib": 730,

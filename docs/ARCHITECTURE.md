@@ -252,6 +252,7 @@ Versions are not restated here: a copy rots. Read them at the source.
 | Terraform, Terragrunt, TFLint, SOPS, age | `ARG *_VERSION` in `devcontainers/terraform/Dockerfile`, each download checksum-verified | Renovate |
 | Tectonic | `ARG TECTONIC_VERSION` and the per-architecture sha256 in `devcontainers/latex/Dockerfile` | Renovate |
 | ansible-core and the rest of the Python stack | `uv.lock` (exported to `requirements-ansible.txt`) | Renovate lock maintenance |
+| ansible-core 2.16 (legacy targets, `devcontainer-ansible` and `-aws`) | `devcontainers/ansible/legacy/ansible-core-2.16/uv.lock` (exported to its `requirements.txt`), `ARG LEGACY_ANSIBLE_PYTHON_VERSION` and `collections-legacy-2.16.txt` | Renovate, held at 2.16, CPython 3.12 patches and collection majors that admit 2.16 |
 | uv | `ARG UV_VERSION` in the Dockerfiles | Renovate |
 | AWS CLI | v2, `-aws` images only; pinned with its sha256 in `devcontainers/scripts/install-aws-cli.sh` | Renovate |
 | GitHub CLI (`gh`) | Not pinned: the latest from GitHub's apt repository at build time | Rebuilt daily |

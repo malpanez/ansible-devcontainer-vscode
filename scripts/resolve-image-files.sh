@@ -9,7 +9,10 @@
 # (user, workdir, tools, the bytecode check), so they run it and
 # <variant>.yaml for the layer, instead of a copy. terraform and ansible, built
 # without a target (their Dockerfile's last stage), also run no-aws.yaml: it
-# fails if that last stage ever became an -aws image.
+# fails if that last stage ever became an -aws image. ansible and ansible-aws
+# also run ansible-legacy.yaml, for the ansible-core 2.16 env that only
+# devcontainers/ansible/Dockerfile installs: ansible-podman runs ansible.yaml
+# too, so those checks cannot go there.
 #
 # base_from_run marks the images whose Dockerfile consumes BASE_IMAGE: only
 # devcontainers/ansible/Dockerfile does. Dockerfile.podman starts from
@@ -41,12 +44,21 @@ main() {
       DOCKERFILE=devcontainers/ansible/Dockerfile.podman
       CONFIGS="ansible ansible-podman"
       ;;
-    terraform-aws|ansible-aws)
+    ansible-aws)
+      DOCKERFILE=devcontainers/ansible/Dockerfile
+      TARGET="${IMAGE}"
+      CONFIGS="ansible ansible-legacy ansible-aws"
+      ;;
+    terraform-aws)
       DOCKERFILE="devcontainers/${IMAGE%-aws}/Dockerfile"
       TARGET="${IMAGE}"
       CONFIGS="${IMAGE%-aws} ${IMAGE}"
       ;;
-    terraform|ansible)
+    ansible)
+      DOCKERFILE=devcontainers/ansible/Dockerfile
+      CONFIGS="ansible ansible-legacy no-aws"
+      ;;
+    terraform)
       DOCKERFILE="devcontainers/${IMAGE}/Dockerfile"
       CONFIGS="${IMAGE} no-aws"
       ;;
