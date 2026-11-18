@@ -122,6 +122,12 @@ jobs:
             uv export --format requirements-txt --frozen --only-group ci-quality -o requirements-ci-quality.txt
             uv export --format requirements-txt --frozen --only-group devcontainer-tools -o requirements-devcontainer-tools.txt
           fi
+          # The ansible-core 2.16 env's own lock: its hashed export is what
+          # devcontainers/ansible/Dockerfile installs.
+          legacy=devcontainers/ansible/legacy/ansible-core-2.16
+          if echo "${changed}" | grep -qE "^${legacy}/(uv\.lock|pyproject\.toml)$"; then
+            uv export --project "${legacy}" --format requirements-txt --frozen -o "${legacy}/requirements.txt"
+          fi
 
       - name: Commit and push if anything changed
         env:

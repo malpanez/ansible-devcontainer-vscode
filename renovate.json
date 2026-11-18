@@ -95,6 +95,20 @@
       "groupName": "python"
     },
     {
+      "description": "The CPython the side-by-side ansible-core 2.16 env runs on (ARG LEGACY_ANSIBLE_PYTHON_VERSION in devcontainers/ansible/Dockerfile) stays on 3.12 patches: 2.16 predates 3.13 and 3.14 and does not support them as a controller. The ansible Dockerfile has no other python dependency. This rule comes after the python rule so its allowedVersions and groupName win (later rules win). A bump stays red until the pinned uv knows that Python build; bump uv first. tests/test_ansible_legacy.py pins it.",
+      "matchFileNames": [
+        "devcontainers/ansible/Dockerfile"
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "python"
+      ],
+      "allowedVersions": "/^3\\.12\\./",
+      "groupName": "ansible-core 2.16 python"
+    },
+    {
       "description": "Hold ansible-core on 2.21 while Python 3.12 hosts are supported. ansible_environment installs requirements-ansible.txt with `uv pip install --system` on the host, and Ubuntu 24.04 (the ubuntu2404 Molecule distro) ships Python 3.12; ansible-core 2.22 requires Python >= 3.13, so #659 broke develop's Molecule run (2026-11-17). The owner prefers compatibility over the newest stack. Lift this together with requires-python and the ubuntu2404 matrix entry (tests/test_python_support.py pins all three).",
       "matchDatasources": [
         "pypi"
@@ -103,6 +117,19 @@
         "ansible-core"
       ],
       "allowedVersions": "<2.22"
+    },
+    {
+      "description": "Hold the side-by-side ansible-core env of devcontainer-ansible (devcontainers/ansible/legacy/ansible-core-2.16) on 2.16: it exists because 2.16 is the last core that manages Python 2.7 and 3.6 targets (RHEL 7 and 8), which ansible-core 2.17 removed. Renovate still moves its lock (2.16 patches and the dependencies). This rule comes after the root hold above so its allowedVersions wins for that project. tests/test_ansible_legacy.py pins it.",
+      "matchFileNames": [
+        "devcontainers/ansible/legacy/ansible-core-2.16/**"
+      ],
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchPackageNames": [
+        "ansible-core"
+      ],
+      "allowedVersions": "<2.17"
     },
     {
       "description": "Group the AWS Python SDK: boto3/botocore/s3transfer ship as one lockstep release train, so separate PRs each rewrite uv.lock and the second one always lands in conflict (2026-07-24 and 2026-07-27, both times)",
@@ -122,6 +149,32 @@
         "devcontainers/ansible/**"
       ],
       "groupName": "ansible image collections"
+    },
+    {
+      "description": "The collections of the ansible-core 2.16 env (devcontainers/ansible/collections-legacy-2.16.txt) stay on majors whose requires_ansible admits 2.16: community.general 12.x needs >=2.17, so it is held to 11.x; ansible.posix to 2.x (>=2.16.0) until a 3.x is checked. Widen a hold only after reading the new major's requires_ansible on Galaxy. After the group rule above, which still groups these bumps. tests/test_ansible_legacy.py pins these holds.",
+      "matchFileNames": [
+        "devcontainers/ansible/collections-legacy-2.16.txt"
+      ],
+      "matchDatasources": [
+        "galaxy-collection"
+      ],
+      "matchPackageNames": [
+        "community.general"
+      ],
+      "allowedVersions": "<12.0.0"
+    },
+    {
+      "description": "ansible.posix in the ansible-core 2.16 env: see the community.general rule above.",
+      "matchFileNames": [
+        "devcontainers/ansible/collections-legacy-2.16.txt"
+      ],
+      "matchDatasources": [
+        "galaxy-collection"
+      ],
+      "matchPackageNames": [
+        "ansible.posix"
+      ],
+      "allowedVersions": "<3.0.0"
     },
     {
       "description": "One PR per release for the published images that the templates, the examples and the docs pin. A release adds the same version tag to every image, so the group moves every template together; without it each image gets its own PR and the stacks sit on different releases until the last one merges.",
@@ -152,6 +205,7 @@
         "requirements-aws.txt",
         "requirements-ci-quality.txt",
         "requirements-devcontainer-tools.txt",
+        "devcontainers/ansible/legacy/ansible-core-2.16/requirements.txt",
         ".devcontainer/**"
       ],
       "enabled": false
@@ -199,6 +253,19 @@
       ],
       "matchStrings": [
         "ARG TOOLS_PYTHON_VERSION=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "python",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The CPython that uv installs for the side-by-side ansible-core 2.16 env of devcontainer-ansible. Same datasource and depName as TOOLS_PYTHON_VERSION; a packageRule holds it to 3.12 patches.",
+      "managerFilePatterns": [
+        "/^devcontainers/ansible/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG LEGACY_ANSIBLE_PYTHON_VERSION=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
       "datasourceTemplate": "docker",
       "depNameTemplate": "python",

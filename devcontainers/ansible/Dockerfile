@@ -21,7 +21,7 @@
 # (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
 # ignores sonar.issue.ignore.*), so it must be deactivated in the
 # project's quality profile instead.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:358994a5ac06d05caa63c4b0b0fae9da7a168be3943879ed80494e4949a5a381
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:1807684191ea61fccf82197b1df2f84298d5837185498b22a3a9bab1c16b48af
 
 # Stage 1: install the locked Python stack. Build tools live only in this
 # stage: arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
@@ -103,6 +103,60 @@ RUN SITE="$(python3 -c 'import sysconfig; print(sysconfig.get_path("purelib"))')
          -x '/site-packages/(pip|ansible_collections)/' "${SITE}" \
     && find "$(dirname "${SITE}")" -type d -exec touch {} +
 
+# Stage 1c: ansible-core 2.16 side by side with the default core, for
+# targets on Python 2.7 and 3.6 (RHEL 7 and 8), which ansible-core 2.17
+# removed. The ansible stage copies /opt/ansible-core-2.16 whole and links
+# the <tool>-2.16 commands; plain ansible* stays the default core.
+#
+# 2.16 needs Python >= 3.10 and the base runs 3.14, which 2.16 predates, so
+# it runs on its own CPython 3.12, installed and verified by the pinned uv
+# exactly as devcontainers/terraform installs TOOLS_PYTHON_VERSION, trimmed
+# the same way and further: the interpreter's own pip and the C headers
+# (13 MiB), since the venv has no pip and nothing is compiled against it,
+# and nobody runs that interpreter but the venv. The hashed export of its own lock
+# (devcontainers/ansible/legacy/ansible-core-2.16), not the root uv.lock,
+# which pins the default core. Its collections go into the venv's
+# site-packages through the 2.16 ansible-galaxy (PATH), so they are checked
+# against 2.16 and the default core never sees them. Bytecode as in
+# devcontainers/terraform, stdlib included (vscode cannot write under /opt),
+# none for ansible_collections (stage 1).
+# hadolint ignore=DL3006
+FROM ${BASE_IMAGE} AS python-builder-legacy
+
+# hadolint ignore=DL3002
+USER 0
+
+# renovate: datasource=docker depName=python versioning=docker
+ARG LEGACY_ANSIBLE_PYTHON_VERSION=3.12.16
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    --mount=type=bind,source=devcontainers/ansible/legacy/ansible-core-2.16/requirements.txt,target=/tmp/requirements-legacy.txt \
+    --mount=type=bind,source=devcontainers/ansible/collections-legacy-2.16.txt,target=/tmp/collections-legacy.txt \
+    --mount=type=bind,source=devcontainers/ansible/install-collections.sh,target=/tmp/install-collections.sh \
+    UV_PYTHON_INSTALL_DIR=/opt/ansible-core-2.16/python \
+      uv python install --no-bin "${LEGACY_ANSIBLE_PYTHON_VERSION}" \
+    && UV_PYTHON_INSTALL_DIR=/opt/ansible-core-2.16/python \
+      uv venv --managed-python --no-python-downloads --python "${LEGACY_ANSIBLE_PYTHON_VERSION}" \
+        /opt/ansible-core-2.16/venv \
+    && CFLAGS=-g0 UV_COMPILE_BYTECODE=0 uv pip install --python /opt/ansible-core-2.16/venv/bin/python \
+         --require-hashes --only-binary :all: -r /tmp/requirements-legacy.txt \
+    && PY_PREFIX="$(/opt/ansible-core-2.16/venv/bin/python -c 'import sys; print(sys.base_prefix)')" \
+    && PY_STDLIB="$(/opt/ansible-core-2.16/venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
+    && SITE="$(/opt/ansible-core-2.16/venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && rm -rf "${PY_PREFIX}"/lib/libpython3*.so* \
+         "${PY_PREFIX}"/lib/libtcl* "${PY_PREFIX}"/lib/libtk* "${PY_PREFIX}"/lib/tcl* "${PY_PREFIX}"/lib/tk* \
+         "${PY_PREFIX}"/lib/itcl* "${PY_PREFIX}"/lib/tdbc* "${PY_PREFIX}"/lib/thread* "${PY_PREFIX}"/bin/idle3* \
+         "${PY_STDLIB}"/lib-dynload/_tkinter.* "${PY_STDLIB}"/tkinter "${PY_STDLIB}"/idlelib \
+         "${PY_STDLIB}"/turtledemo "${PY_STDLIB}"/turtle.py \
+         "${PY_STDLIB}"/__pycache__/turtle.* \
+         "${PY_PREFIX}"/include "${PY_PREFIX}"/bin/pip* \
+         "${PY_STDLIB}"/site-packages/pip "${PY_STDLIB}"/site-packages/pip-*.dist-info \
+    && PATH="/opt/ansible-core-2.16/venv/bin:${PATH}" \
+      bash /tmp/install-collections.sh "${SITE}" /tmp/collections-legacy.txt \
+    && /opt/ansible-core-2.16/venv/bin/python -m compileall -q -f -j 0 --invalidation-mode checked-hash \
+         -x '/site-packages/(pip|ansible_collections)/' /opt/ansible-core-2.16 \
+    && chmod -R go-w /opt/ansible-core-2.16 \
+    && find /opt/ansible-core-2.16 -type d -exec touch {} +
+
 # Stage 2: runtime image without any build toolchain. devcontainer-ansible,
 # but not the last stage: the empty one at the end of this file, which
 # repeats it, is.
@@ -161,6 +215,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN --mount=type=bind,from=python-builder,source=/usr/local,target=/mnt/python-builder \
     rsync -rlpgoD --checksum --delete /mnt/python-builder/lib/ /usr/local/lib/ \
     && rsync -rlpgoD --checksum --delete /mnt/python-builder/bin/ /usr/local/bin/
+
+# ansible-core 2.16 (stage 1c). The commands go through wrapper.sh, which
+# gives 2.16 its own ANSIBLE_HOME: see the script. After the rsync above,
+# whose --delete would remove the links.
+COPY --from=python-builder-legacy --link /opt/ansible-core-2.16 /opt/ansible-core-2.16
+COPY --link --chmod=0555 devcontainers/ansible/legacy/ansible-core-2.16/wrapper.sh /opt/ansible-core-2.16/bin/wrapper
+RUN for TOOL in ansible ansible-config ansible-console ansible-doc ansible-galaxy \
+      ansible-inventory ansible-playbook ansible-pull ansible-vault; do \
+      ln -s /opt/ansible-core-2.16/bin/wrapper "/usr/local/bin/${TOOL}-2.16"; \
+    done
 
 # DL3064 fires on the *name* containing USERNAME, not on any secret: the
 # value is the fixed, public account the Dev Containers specification

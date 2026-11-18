@@ -37,6 +37,8 @@ def test_renovate_holds_ansible_core_below_2_22() -> None:
         rule
         for rule in renovate["packageRules"]
         if rule.get("matchPackageNames") == ["ansible-core"]
+        # The legacy 2.16 env's hold (tests/test_ansible_legacy.py).
+        and "matchFileNames" not in rule
     ]
 
     assert len(rules) == 1

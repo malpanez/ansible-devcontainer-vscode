@@ -1,0 +1,21 @@
+[project]
+name = "ansible-core-2-16-legacy"
+version = "0.1.0"
+description = "Side-by-side ansible-core 2.16 in devcontainer-ansible, for targets on Python 2.7 and 3.6."
+# ansible-core 2.17 removed Python 2.7 and 3.6 as target versions, so 2.16
+# is the last core that manages RHEL 7 and 8 with their default Pythons.
+# 2.16 needs Python >= 3.10 on the controller; the image runs it on a
+# uv-managed CPython 3.12 (LEGACY_ANSIBLE_PYTHON_VERSION in
+# devcontainers/ansible/Dockerfile), so the lock resolves for 3.12 only.
+#
+# ansible-core alone: the env manages hosts over SSH, and the collections it
+# ships (devcontainers/ansible/collections-legacy-2.16.txt) declare no
+# Python requirements. community.docker and its docker/requests/paramiko
+# stack stay in the default env, where they are current.
+requires-python = "==3.12.*"
+dependencies = [
+  "ansible-core>=2.16.20,<2.17",
+]
+
+[tool.uv]
+package = false
