@@ -1,0 +1,14 @@
+# Ansible collections for the side-by-side ansible-core 2.16 env of
+# devcontainer-ansible (ansible-playbook-2.16 and friends), installed by
+# install-collections.sh into that env's site-packages only, so the default
+# ansible-core never sees them and 2.16 never sees the default env's.
+# Same format, Renovate manager and Renovate Post-Process hash refresh as
+# collections.txt.
+#
+# Every version here must declare requires_ansible that admits 2.16:
+# community.general 12.x needs >=2.17, so it stays on 11.x, and renovate.json
+# holds each name to the major listed here.
+# community.general 11.x declares no dependencies (13.x pulls in
+# community.library_inventory_filtering_v1; 11.x does not).
+ansible.posix 2.2.2 00a58c5d804c9adc99c3c3dc1b9f2246f4bb5f7337941440e0956f0e31c3b82b
+community.general 11.4.10 62760f5ec2f788ff4dcbecc5b77de2606132cf233e9fa564c9f2cb91db6ac955

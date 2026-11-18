@@ -395,6 +395,55 @@ It is the `ansible-aws` stage of this directory's `Dockerfile`
 published from v2.0.0 on as `ghcr.io/malpanez/devcontainer-ansible-aws`.
 The `aws` profile below opens it.
 
+### Legacy targets: ansible-core 2.16
+
+ansible-core 2.17 removed Python 2.7 and 3.6 as target versions, so the
+default core (2.21) cannot manage RHEL 7 (Python 2.7) or a RHEL 8 host left
+on its platform Python 3.6. `devcontainer-ansible` and
+`devcontainer-ansible-aws` (not `devcontainer-ansible-podman`) carry
+ansible-core 2.16, the last core that can, side by side with the default:
+
+| Command | Runs |
+|---------|------|
+| `ansible`, `ansible-playbook`, ... | the default ansible-core 2.21, unchanged |
+| `ansible-2.16`, `ansible-playbook-2.16`, `ansible-galaxy-2.16`, `ansible-inventory-2.16`, `ansible-config-2.16`, `ansible-doc-2.16`, `ansible-vault-2.16`, `ansible-console-2.16`, `ansible-pull-2.16` | ansible-core 2.16 |
+
+```bash
+ansible-playbook-2.16 -i inventory/rhel7.ini site.yml
+```
+
+It is a virtual environment of its own under `/opt/ansible-core-2.16`, on a
+CPython 3.12 (2.16 does not run on the image's 3.14), installed from the
+hashed export of its own lock
+([`legacy/ansible-core-2.16/`](legacy/ansible-core-2.16/)). Renovate keeps it
+on 2.16 patches. Upstream, 2.16 is a maintenance line: it gets only what its
+remaining patch stream ships, and no newer ansible-core will manage Python
+2.7 or 3.6 targets again. Use it for those hosts only, and the default
+commands for everything else.
+
+Collections: `ansible.posix` and `community.general` 11.x, pinned with
+their sha256 in [`collections-legacy-2.16.txt`](collections-legacy-2.16.txt)
+at versions whose `requires_ansible` admits 2.16 (`community.general` 12 and
+later need 2.17), in the env's own `site-packages`. The default commands
+never see them, and 2.16 never sees the default env's collections.
+
+The `-2.16` commands set `ANSIBLE_HOME` to `~/.ansible/core-2.16` unless it
+is already set, so 2.16 has its own user collections path,
+`~/.ansible/core-2.16/collections`: a collection that `ansible-galaxy`
+installs for 2.21 into `~/.ansible/collections` would otherwise take
+precedence over the pinned ones and may not load on 2.16. To add your own,
+install them with the 2.16 command, at a version whose `requires_ansible`
+admits 2.16:
+
+```bash
+ansible-galaxy-2.16 collection install -r requirements-2.16.yml
+```
+
+The workspace's `ansible.cfg` (`ANSIBLE_CONFIG` in the profiles) applies to
+both cores; a `collections_path` set there replaces these paths for both.
+The env belongs to root, so Python libraries a collection needs on the
+controller cannot be added to it from inside the container.
+
 ### VS Code Extensions
 - `redhat.ansible` - Ansible language support
 - `redhat.vscode-yaml` - YAML support

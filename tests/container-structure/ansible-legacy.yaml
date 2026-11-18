@@ -1,0 +1,169 @@
+---
+# The side-by-side ansible-core 2.16 env of devcontainer-ansible and
+# devcontainer-ansible-aws (stage python-builder-legacy in
+# devcontainers/ansible/Dockerfile), for targets on Python 2.7 and 3.6.
+# Its own file because ansible-podman runs ansible.yaml and has no such env
+# (scripts/resolve-image-files.sh). No shell variables in the scripts below:
+# container-structure-test expands them itself before the shell sees them.
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+  - name: 'ansible-playbook-2.16 on PATH'
+    path: '/usr/local/bin/ansible-playbook-2.16'
+    shouldExist: true
+
+  - name: 'Legacy env owned by root'
+    path: '/opt/ansible-core-2.16/venv'
+    shouldExist: true
+    uid: 0
+
+commandTests:
+  - name: 'ansible-playbook-2.16 is ansible-core 2.16 on Python 3.12'
+    command: 'ansible-playbook-2.16'
+    args: ['--version']
+    expectedOutput:
+      - 'ansible-playbook \[core 2\.16\.[0-9]+\]'
+      - 'python version = 3\.12\.[0-9]+'
+      - 'ansible collection location = /home/vscode/\.ansible/core-2\.16/collections'
+    exitCode: 0
+
+  # The default commands are not touched by the legacy env.
+  - name: 'ansible-playbook is still the default core'
+    command: 'ansible-playbook'
+    args: ['--version']
+    expectedOutput: ['ansible-playbook \[core 2\.21\.[0-9]+\]']
+    excludedOutput: ['core-2\.16']
+    exitCode: 0
+
+  - name: 'Legacy interpreter is CPython 3.12'
+    command: '/opt/ansible-core-2.16/venv/bin/python'
+    args: ['-I', '-c', 'import platform, sys; print(platform.python_implementation(), platform.python_version()); sys.exit(sys.version_info[:2] != (3, 12))']
+    expectedOutput: ['CPython 3\.12\.[0-9]+']
+    exitCode: 0
+
+  - name: 'Every <tool>-2.16 command runs 2.16'
+    command: 'python3'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import subprocess, sys
+        tools = ["ansible", "ansible-config", "ansible-console", "ansible-doc",
+                 "ansible-galaxy", "ansible-inventory", "ansible-playbook",
+                 "ansible-pull", "ansible-vault"]
+        bad = []
+        for tool in tools:
+            out = subprocess.run([f"{tool}-2.16", "--version"], capture_output=True,
+                                 text=True).stdout
+            if "[core 2.16." not in out:
+                bad.append(tool)
+        print("not 2.16:", bad)
+        sys.exit(1 if bad else 0)
+    expectedOutput: ['not 2\.16: \[\]']
+    exitCode: 0
+
+  # Exactly collections-legacy-2.16.txt, by name, from the env's own
+  # site-packages; none of the default env's. Listing reads only the disk.
+  - name: 'Exactly the legacy collections'
+    command: '/opt/ansible-core-2.16/venv/bin/python'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import json, os, subprocess, sys, sysconfig
+        expected = {"ansible.posix", "community.general"}
+        listed = json.loads(subprocess.run(
+            ["ansible-galaxy-2.16", "collection", "list", "--format", "json"],
+            capture_output=True, text=True, check=True).stdout)
+        found = {name for cols in listed.values() for name in cols}
+        root = os.path.join(sysconfig.get_path("purelib"), "ansible_collections")
+        on_disk = {f"{ns}.{name}" for ns in os.listdir(root)
+                   for name in os.listdir(os.path.join(root, ns))}
+        print("listed:", sorted(found), "in", sorted(listed))
+        print("on disk:", sorted(on_disk))
+        sys.exit(0 if found == expected == on_disk else 1)
+    exitCode: 0
+
+  - name: 'ansible-2.16 runs a module on the legacy interpreter'
+    command: 'ansible-2.16'
+    args:
+      - 'localhost'
+      - '-m'
+      - 'ansible.builtin.ping'
+      - '-e'
+      - 'ansible_python_interpreter=/opt/ansible-core-2.16/venv/bin/python'
+    expectedOutput: ['"ping": "pong"']
+    exitCode: 0
+
+  # One module from each legacy collection loads and runs under 2.16, with
+  # no requires_ansible warning.
+  - name: 'Legacy collections load and run'
+    command: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        rm -rf /tmp/legacy-smoke
+        mkdir /tmp/legacy-smoke
+        cat > /tmp/legacy-smoke/smoke.yml <<'PLAY'
+        ---
+        - name: Legacy collection smoke test
+          hosts: localhost
+          connection: local
+          gather_facts: false
+          vars:
+            smoke_dir: /tmp/legacy-smoke
+          tasks:
+            - name: ansible.posix
+              ansible.posix.authorized_key:
+                user: "{{ lookup('ansible.builtin.pipe', 'id -un') }}"
+                key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBFsDH6V1x6TcfcXXc6l2Ylkg0EnzOFJl9Fy7oR5yScZ smoke"
+                path: "{{ smoke_dir }}/authorized_keys"
+                manage_dir: false
+            - name: community.general
+              community.general.ini_file:
+                path: "{{ smoke_dir }}/smoke.ini"
+                section: smoke
+                option: collections
+                value: "{{ {'baked': 'in'} | community.general.dict_kv('state') | to_json }}"
+                mode: "0600"
+        PLAY
+        ansible-playbook-2.16 /tmp/legacy-smoke/smoke.yml 2>&1
+        grep -q 'ssh-ed25519' /tmp/legacy-smoke/authorized_keys
+        grep -q 'baked' /tmp/legacy-smoke/smoke.ini
+    expectedOutput: ['ok=2\s+changed=2\s+unreachable=0\s+failed=0']
+    excludedOutput: ['does not support Ansible version']
+    exitCode: 0
+
+  # As in ansible.yaml: checked-hash bytecode only (vscode cannot rewrite
+  # /opt), stdlib included, and none under ansible_collections.
+  - name: 'Legacy env bytecode is checked-hash'
+    command: '/opt/ansible-core-2.16/venv/bin/python'
+    args:
+      - '-I'
+      - '-c'
+      - |
+        import os, sys
+        timestamp, collections, total = [], [], 0
+        for folder, _, files in os.walk("/opt/ansible-core-2.16"):
+            for name in files:
+                if not name.endswith(".pyc"):
+                    continue
+                pyc = os.path.join(folder, name)
+                total += 1
+                if "/ansible_collections/" in pyc:
+                    collections.append(pyc)
+                with open(pyc, "rb") as fh:
+                    if int.from_bytes(fh.read(8)[4:8], "little") == 0:
+                        timestamp.append(pyc)
+        print(f"pyc: {total}, timestamp: {len(timestamp)}, under ansible_collections: {len(collections)}",
+              *(timestamp + collections)[:10], sep="\n")
+        sys.exit(1 if timestamp or collections or total == 0 else 0)
+    expectedOutput: ['timestamp: 0, under ansible_collections: 0']
+    exitCode: 0
+
+  - name: 'Legacy env read-only to vscode'
+    command: 'bash'
+    args: ['-c', 'test ! -w /opt/ansible-core-2.16/venv/bin && test ! -w /opt/ansible-core-2.16/python && echo read-only']
+    expectedOutput: ['read-only']
+    exitCode: 0
