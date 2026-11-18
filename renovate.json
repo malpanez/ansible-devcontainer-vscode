@@ -95,6 +95,16 @@
       "groupName": "python"
     },
     {
+      "description": "Hold ansible-core on 2.21 while Python 3.12 hosts are supported. ansible_environment installs requirements-ansible.txt with `uv pip install --system` on the host, and Ubuntu 24.04 (the ubuntu2404 Molecule distro) ships Python 3.12; ansible-core 2.22 requires Python >= 3.13, so #659 broke develop's Molecule run (2026-11-17). The owner prefers compatibility over the newest stack. Lift this together with requires-python and the ubuntu2404 matrix entry (tests/test_python_support.py pins all three).",
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchPackageNames": [
+        "ansible-core"
+      ],
+      "allowedVersions": "<2.22"
+    },
+    {
       "description": "Group the AWS Python SDK: boto3/botocore/s3transfer ship as one lockstep release train, so separate PRs each rewrite uv.lock and the second one always lands in conflict (2026-07-24 and 2026-07-27, both times)",
       "matchPackageNames": [
         "boto3",
