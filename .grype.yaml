@@ -80,7 +80,7 @@ ignore:
       name: github.com/sigstore/rekor
       location: "/usr/local/bin/tflint"
 
-  # --- gh CLI (apt package from cli.github.com in every image that has it,
+  # --- gh CLI (release .deb pinned by GH_VERSION in every image that has it,
   # Go stdlib + grpc, pre-compiled)
   - package:
       name: stdlib
@@ -238,3 +238,27 @@ ignore:
       name: github.com/klauspost/compress
       version: v1.19.2
       location: "/usr/local/bin/terragrunt"
+
+  # CPython 3.14.10, CVE-2026-119170 (GHSA-vq78-g94j-3ppp, high, published
+  # 2026-11-06): a regression in how hashlib enforces FIPS algorithms. NVD and
+  # the CNA: "Only users that are using OpenSSL in FIPS mode are affected. Only
+  # Python 3.14.10 is affected". Grype says fixed in 3.14.11, which did not
+  # exist on 2026-11-17 (no python.org directory, no 3.14.11-slim-trixie tag),
+  # so there is nothing to bump to. These images never run OpenSSL in FIPS
+  # mode: ACCEPTED, not unreachable. Scoped to this one CVE, to version 3.14.10
+  # (grype compares it for equality, so the rules lapse on the first CPython
+  # bump) and to the two places the interpreter lives: the python base image
+  # and the uv-managed tools interpreter of the golang, latex and terraform
+  # images. aws-cli's bundled 3.14.8 is unaffected and stays uncovered. Remove
+  # these rules when TOOLS_PYTHON_VERSION and the FROM python: pins reach
+  # 3.14.11.
+  - vulnerability: CVE-2026-119170
+    package:
+      name: python
+      version: 3.14.10
+      location: "/usr/local/bin/python3.14"
+  - vulnerability: CVE-2026-119170
+    package:
+      name: python
+      version: 3.14.10
+      location: "/opt/devcontainer-tools/python/cpython-3.14.10-*/bin/python3.14"

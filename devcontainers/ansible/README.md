@@ -316,7 +316,7 @@ cp devcontainers/ansible/devcontainer.aws.json .devcontainer/aws/devcontainer.js
 ## What Gets Installed
 
 ### System Packages
-- `git`, `gh` (via apt from cli.github.com, not features - simpler and faster)
+- `git` (via apt) and `gh` (release .deb pinned by `GH_VERSION` and checked against the release checksums; not features - simpler and faster)
 - `openssh-client`, `rsync` (for Ansible connectivity)
 - `curl`, `ca-certificates`, `unzip` (for downloads)
 - `jq`, `vim-tiny` (from the shared devcontainer-base); `yamllint` is a Python package, see below

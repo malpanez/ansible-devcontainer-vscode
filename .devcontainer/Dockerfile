@@ -11,7 +11,9 @@ ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
 ARG AGE_VERSION=1.3.2
 # renovate: datasource=github-releases depName=astral-sh/uv
-ARG UV_VERSION=0.13.6
+ARG UV_VERSION=0.13.7
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION=2.103.3
 
 FROM --platform=$BUILDPLATFORM debian:${DEBIAN_VERSION}@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS fetch
 ARG TARGETARCH
@@ -90,11 +92,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER_STACK=terraform \
     DEVCONTAINER_TEMPLATE_ROOT=/usr/local/share/devcontainer-skel
 
-# Install system dependencies + GitHub CLI (gh) to avoid DevContainer features rebuild
-# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+# Install system dependencies + GitHub CLI (gh) to avoid DevContainer features rebuild.
+# gh comes from its release .deb, checked against the release's checksums
+# file: see devcontainers/base for why not from cli.github.com's apt repository.
 # openssh-client: without it `git ls-remote git@...` stopped at "error: cannot
 # run ssh" and `terraform init` could not fetch a git::ssh:// module.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ARG GH_VERSION
 # hadolint ignore=DL3008,DL3015
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update \
@@ -105,13 +109,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       git \
       openssh-client \
       unzip \
-    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      > /etc/apt/sources.list.d/github-cli.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends gh \
+    && GH_ARCH="$(dpkg --print-architecture)" \
+    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+      -o "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+    && curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-max-time 120 "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt" \
+      -o /tmp/gh_checksums.txt \
+    && echo "$(grep -E " gh_${GH_VERSION}_linux_${GH_ARCH}\.deb\$" /tmp/gh_checksums.txt | cut -d' ' -f1)  /tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" | sha256sum -c - \
+    && dpkg -i "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" \
+    && rm -f "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}.deb" /tmp/gh_checksums.txt \
     # Upgrade AFTER the installs, never before: the stale packages here
     # arrive as dependencies of the list above (libpcre2-8-0 comes in with
     # git and grep), so an upgrade placed first never reaches them. On

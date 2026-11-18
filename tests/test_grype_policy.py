@@ -33,3 +33,22 @@ def test_the_compress_exception_lapses_when_either_binary_changes() -> None:
         assert set(rule) == {"vulnerability", "package"}
         assert set(rule["package"]) == {"name", "version", "location"}
         assert rule["package"]["name"] == "github.com/klauspost/compress"
+
+
+def test_the_cpython_fips_exception_covers_only_3_14_10() -> None:
+    # CVE-2026-119170 affects only CPython 3.14.10, and grype compares the
+    # rule's version for equality, so these rules lapse on the first bump.
+    # The locations are the ones the scans of 2026-11-16 reported.
+    rules = _rules("CVE-2026-119170")
+
+    assert {rule["package"]["location"] for rule in rules} == {
+        "/usr/local/bin/python3.14",
+        "/opt/devcontainer-tools/python/cpython-3.14.10-*/bin/python3.14",
+    }
+    for rule in rules:
+        assert set(rule) == {"vulnerability", "package"}
+        assert rule["package"] == {
+            "name": "python",
+            "version": "3.14.10",
+            "location": rule["package"]["location"],
+        }

@@ -1,6 +1,6 @@
 {
   "name": "Ansible Dev Container",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.2.0@sha256:8930ae0631da894d22960921823a26e9c69d132b72b0fcc50ae77f664e77c199",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.2.2@sha256:b375a428b36f3df84920c4704569dda7c7e0e2a8884da2869ec75f0cdccffc1d",
   "runArgs": [
     "--init"
   ],

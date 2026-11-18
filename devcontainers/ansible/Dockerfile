@@ -21,7 +21,7 @@
 # (Dockerfiles allow no trailing NOSONAR comment, and automatic analysis
 # ignores sonar.issue.ignore.*), so it must be deactivated in the
 # project's quality profile instead.
-ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:c479d7f24383ea8244e3137228f44872bb41ad4894b44e9f258e694d693cc0bf
+ARG BASE_IMAGE=ghcr.io/malpanez/devcontainer-base:main@sha256:358994a5ac06d05caa63c4b0b0fae9da7a168be3943879ed80494e4949a5a381
 
 # Stage 1: install the locked Python stack. Build tools live only in this
 # stage: arm64 needs gcc + libonig-dev because onigurumacffi (pulled in by
