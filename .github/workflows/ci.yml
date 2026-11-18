@@ -287,7 +287,9 @@ jobs:
             image-ansible-podman:
               - *images-all
               - 'devcontainers/ansible/Dockerfile.podman'
-              - 'devcontainers/ansible/collections*.txt'
+              # collections.txt only: collections-legacy-2.16.txt is the ansible
+              # image's (#667) and never reaches this one.
+              - 'devcontainers/ansible/collections.txt'
               - 'devcontainers/ansible/install-collections.sh'
               # The profile brought up on this image.
               - 'devcontainers/ansible/devcontainer.podman.json'
