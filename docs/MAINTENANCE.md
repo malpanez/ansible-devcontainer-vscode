@@ -301,7 +301,7 @@ gh run list --workflow token-health.yml --limit 1
 ```bash
 # Get latest digests
 docker manifest inspect python:3.14.10-slim-trixie | jq -r '.config.digest'
-docker manifest inspect golang:1.27.3-alpine3.23 | jq -r '.config.digest'
+docker manifest inspect golang:1.27.4-alpine3.23 | jq -r '.config.digest'
 ```
 
 #### 4. Documentation Review

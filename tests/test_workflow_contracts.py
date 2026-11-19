@@ -3330,3 +3330,16 @@ def test_an_old_release_finds_its_signer_however_far_main_has_moved(
     assert shas["M"] in json.loads(signers)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert calls[-1] == _cosign_call(shas["M"])
+
+
+def test_podman_image_ignores_the_legacy_collection_list() -> None:
+    # Dockerfile.podman installs collections.txt only; the ansible-core 2.16
+    # list (#667) belongs to the ansible image, so a bump of it must not
+    # rebuild ansible-podman.
+    podman = _image_filters()["ansible-podman"]
+
+    assert _matches("devcontainers/ansible/collections.txt", podman)
+    assert not _matches("devcontainers/ansible/collections-legacy-2.16.txt", podman)
+    assert _matches(
+        "devcontainers/ansible/collections-legacy-2.16.txt", _image_filters()["ansible"]
+    )
