@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1.28
-FROM golang:1.27.3-alpine3.23@sha256:8a5046497cda39860b832ffdbe8dd66018a0f05bb01352f533a36e7e2ced66a0
+# 1.27.4 taken at 3 days old, an owner-approved exception to the 14-day
+# release age (2026-11-19): it fixes eight high cgo build-time code
+# execution CVEs (CVE-2026-97033..97039, 97043) in 1.27.3, reachable in a
+# Go dev image whenever a third-party package is built.
+FROM golang:1.27.4-alpine3.23@sha256:f70850ef6ce341e8b6427f677049145d63c0b7ce002d4d7e3d464828b1b96dcd
 
 # Upgrade every package the pinned base ships, not a named list. The FROM
 # digest freezes the Alpine package set at the moment it was cut, so every
