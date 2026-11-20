@@ -3,10 +3,10 @@ revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'linux2'",
-    "python_full_version == '3.14.*' and sys_platform == 'linux2'",
     "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "python_full_version == '3.14.*' and sys_platform == 'linux'",
     "python_full_version >= '3.15' and sys_platform != 'linux' and sys_platform != 'linux2'",
+    "python_full_version == '3.14.*' and sys_platform == 'linux2'",
+    "python_full_version == '3.14.*' and sys_platform == 'linux'",
     "python_full_version == '3.14.*' and sys_platform != 'linux' and sys_platform != 'linux2'",
     "python_full_version < '3.14' and sys_platform == 'linux2'",
     "python_full_version < '3.14' and sys_platform == 'linux'",
@@ -143,7 +143,7 @@ dev = [
     { name = "molecule-plugins", extras = ["docker"], specifier = ">=26.7.8,<27.0.0" },
     { name = "mypy", specifier = ">=2.3.0" },
     { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-ansible", specifier = ">=26.10.0,<26.11.0" },
+    { name = "pytest-ansible", specifier = ">=26.11.0,<26.12.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-testinfra", specifier = ">=10.1.0" },
     { name = "ruff", specifier = ">=0.15.21" },
@@ -1815,7 +1815,7 @@ wheels = [
 
 [[package]]
 name = "pytest-ansible"
-version = "26.10.0"
+version = "26.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ansible-compat" },
@@ -1826,9 +1826,9 @@ dependencies = [
     { name = "pytest-xdist" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/28/02280109fd9991e5cab7b5b59ddce6273d9a17ca782af654f559d5b92c22/pytest_ansible-26.10.0.tar.gz", hash = "sha256:17c00517ed8e94e49883de52353a5d01878abb4c6f2f07fb253abe7972bd8d06", size = 246033, upload-time = "2026-10-12T12:06:05.661Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/4e/b76c14714459f2b979eafa77a1ec73ecf6fa7d46de183faf8c90f7586ee9/pytest_ansible-26.11.0.tar.gz", hash = "sha256:f3102076d207dce1d3441bee84862f4a470716a213a1d796ce38a169097bc554", size = 246126, upload-time = "2026-11-05T08:53:30.936Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/21/3ea6ce898e38d51296c76d7103008b5b6ee35409ce60b9597b022f7452cb/pytest_ansible-26.10.0-py3-none-any.whl", hash = "sha256:42ea8542e46632421040ef5bc86daf258ef488d665c7f14d83ea56468570dbb6", size = 33745, upload-time = "2026-10-12T12:06:04.375Z" },
+    { url = "https://files.pythonhosted.org/packages/81/03/fb04f02f58d211c62b1f11d58e438a454b9109bdb63060f33d08a72ee37b/pytest_ansible-26.11.0-py3-none-any.whl", hash = "sha256:9875c449aa21dec9be1e977e98140c6bc8b61824dd827b54de2272f0050fc3fc", size = 33770, upload-time = "2026-11-05T08:53:29.28Z" },
 ]
 
 [[package]]
