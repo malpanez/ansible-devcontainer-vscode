@@ -12,7 +12,7 @@ description = "Side-by-side ansible-core 2.16 in devcontainer-ansible, for targe
 # ships (devcontainers/ansible/collections-legacy-2.16.txt) declare no
 # Python requirements. community.docker and its docker/requests/paramiko
 # stack stay in the default env, where they are current.
-requires-python = "==3.12.*"
+requires-python = "==3.15.*"
 dependencies = [
   "ansible-core>=2.16.20,<2.17",
 ]
