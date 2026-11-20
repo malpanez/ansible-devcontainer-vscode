@@ -7,4 +7,4 @@
 # install-collections.sh installs offline, so every collection dependency
 # must be listed too: amazon.aws declares none. Its Python requirements,
 # boto3 and botocore, come from requirements-aws.txt.
-amazon.aws 12.0.0 521982d74fa6a5268887fc1b9aff5477b89fb8889a1428a05737ff5615f26685
+amazon.aws 12.1.0 521982d74fa6a5268887fc1b9aff5477b89fb8889a1428a05737ff5615f26685
