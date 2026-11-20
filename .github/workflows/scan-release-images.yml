@@ -143,7 +143,7 @@ jobs:
           persist-credentials: false
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -215,7 +215,7 @@ jobs:
         if: >-
           always() && steps.sarif_amd64.outputs.exists == 'true'
           && matrix.tag == needs.resolve.outputs.latest
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4
         with:
           sarif_file: ${{ steps.grype_amd64.outputs.sarif }}
           category: grype-release-${{ matrix.name }}
@@ -269,7 +269,7 @@ jobs:
         if: >-
           always() && steps.sarif_arm64.outputs.exists == 'true'
           && matrix.tag == needs.resolve.outputs.latest
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4
         with:
           sarif_file: ${{ steps.grype_arm64.outputs.sarif }}
           category: grype-release-${{ matrix.name }}-arm64
