@@ -211,6 +211,16 @@
       "enabled": false
     },
     {
+      "description": "The ansible-core 2.16 env runs on CPython 3.12 (LEGACY_ANSIBLE_PYTHON_VERSION in devcontainers/ansible/Dockerfile, held to 3.12.x by its own rule). Its pyproject's requires-python \"==3.12.*\" is that constraint, not a dependency: Renovate's pep621 manager proposed ==3.15.* (#679), which 2.16 does not support and the image does not ship.",
+      "matchFileNames": [
+        "devcontainers/ansible/legacy/ansible-core-2.16/pyproject.toml"
+      ],
+      "matchDepTypes": [
+        "requires-python"
+      ],
+      "enabled": false
+    },
+    {
       "description": "syft runs only in release.yml's publish job, and no pull request runs that job: a bad version would first fail during a real release. So its updates wait for a review and are not merged on green.",
       "matchPackageNames": [
         "anchore/syft"

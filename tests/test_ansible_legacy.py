@@ -237,3 +237,17 @@ def test_structure_tests_cover_the_legacy_env_where_it_ships(
 
     assert ("ansible-legacy" in configs) is legacy
     assert configs[0] == "ansible"
+
+
+def test_renovate_never_moves_the_legacy_requires_python() -> None:
+    # ansible-core 2.16 runs on CPython 3.12; Renovate's pep621 manager read
+    # requires-python "==3.12.*" as a dependency and opened #679 for 3.15.
+    rules = [
+        rule
+        for rule in _renovate()["packageRules"]
+        if rule.get("matchDepTypes") == ["requires-python"]
+        and rule.get("matchFileNames") == [f"{LEGACY}/pyproject.toml"]
+    ]
+
+    assert len(rules) == 1
+    assert rules[0]["enabled"] is False
