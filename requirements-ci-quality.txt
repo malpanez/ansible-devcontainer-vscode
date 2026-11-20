@@ -126,9 +126,9 @@ stevedore==5.10.0 \
     --hash=sha256:47c48dc09e75933106c1bba0a7690eef3b5acecdb807df6d47cc40b2532fa927 \
     --hash=sha256:6005f32c09dc3159802a61c04862770e439e32db22f6da78ba56e8a735466882
     # via bandit
-uritools==7.0.0 \
-    --hash=sha256:110b773e3f8fbaebcdcbe1377d04e418b1985adf69deeca4ed569f3e328cbf48 \
-    --hash=sha256:41a5d1c0ff82d73fc3c59a34e8103f699791d41fff9e3bd272a055249641b889
+uritools==7.0.1 \
+    --hash=sha256:68ef533cebb6b5b6a79cc94c9e8c06d7521e3fe60a11f6689ec51795f25b4617 \
+    --hash=sha256:abf09f899b925fad05407d7f39061318c6be62cce065db727a024daadf96eebf
     # via spdx-tools
 vulture==2.16 \
     --hash=sha256:6e0f1c312cef1c87856957e5c2ca9608834a7c794c2180477f30bf0e4cc58eee \

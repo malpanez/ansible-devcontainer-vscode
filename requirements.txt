@@ -41,8 +41,8 @@ black==26.10.1
     # via ansible-lint
 boolean-py==5.0
     # via license-expression
-boto3==1.44.5
-botocore==1.44.5
+boto3==1.44.7
+botocore==1.44.7
     # via
     #   boto3
     #   s3transfer
@@ -137,7 +137,7 @@ jsonschema==4.26.0
     #   molecule
 jsonschema-specifications==2025.9.1
     # via jsonschema
-librt==0.16.0 ; platform_python_implementation != 'PyPy'
+librt==0.17.0 ; platform_python_implementation != 'PyPy'
     # via mypy
 license-expression==30.4.4
     # via spdx-tools
@@ -160,6 +160,7 @@ mypy==2.4.1
 mypy-extensions==1.2.0
     # via
     #   black
+    #   librt
     #   mypy
 nodeenv==1.12.0
     # via pre-commit
@@ -294,7 +295,7 @@ rpds-py==2026.9.1
     #   referencing
 ruamel-yaml==0.19.1
     # via ansible-lint
-ruff==0.17.5
+ruff==0.17.6
 s3transfer==0.19.3
     # via boto3
 selinux==0.3.0 ; sys_platform == 'linux' or sys_platform == 'linux2'
@@ -332,7 +333,7 @@ typing-extensions==4.16.0
     #   referencing
 tzdata==2026.6
     # via ansible-navigator
-uritools==7.0.0
+uritools==7.0.1
     # via spdx-tools
 urllib3==2.8.0
     # via
@@ -340,7 +341,7 @@ urllib3==2.8.0
     #   botocore
     #   docker
     #   requests
-virtualenv==21.15.8
+virtualenv==21.15.9
     # via pre-commit
 vulture==2.16
 wcmatch==12.0.3
