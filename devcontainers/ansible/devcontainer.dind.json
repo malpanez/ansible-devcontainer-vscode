@@ -1,6 +1,6 @@
 {
   "name": "Ansible Dev Container (docker-in-docker)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.2.3@sha256:30cd981466c283a975d77a33573137908c8131fd61fd5b96487f77bda4df3bd1",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.3.1@sha256:7564b4ec111603df359785098213552529bb42e3b7a43f69bfd231f98d181086",
   "runArgs": [
     "--init",
     "--privileged"

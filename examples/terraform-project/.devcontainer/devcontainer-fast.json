@@ -1,6 +1,6 @@
 {
   "name": "Terraform Project Development (Fast - No Build)",
-  "image": "ghcr.io/malpanez/devcontainer-terraform-aws:v2.2.3@sha256:e40a6914544194d75ec5808bb28ffa41408fbcc263521fbfc8e56202aac7a1d4",
+  "image": "ghcr.io/malpanez/devcontainer-terraform-aws:v2.3.1@sha256:acfc4c4999bc6b574f1f85f7af8b27b5f9d181b5d12b6a41a8b45bc854146b8d",
 
   "containerEnv": {
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit"
