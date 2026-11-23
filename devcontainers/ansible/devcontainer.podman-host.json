@@ -1,6 +1,6 @@
 {
   "name": "Ansible Dev Container (Podman host + Execution Environments)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v2.3.1@sha256:2646918d0c8735320fa4589769f214ec85d751b5be202cc7eb22cd47b31ea443",
+  "image": "ghcr.io/malpanez/devcontainer-ansible-podman:v2.3.2@sha256:02afa8f8df51292b1662c222c6dcf06768023a3f1936ff817ce6b54fe25f78b1",
   "runArgs": [
     "--systemd=false",
     "--userns=host",

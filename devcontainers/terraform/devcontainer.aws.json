@@ -1,6 +1,6 @@
 {
   "name": "Terraform Dev Container (AWS)",
-  "image": "ghcr.io/malpanez/devcontainer-terraform-aws:v2.3.1@sha256:acfc4c4999bc6b574f1f85f7af8b27b5f9d181b5d12b6a41a8b45bc854146b8d",
+  "image": "ghcr.io/malpanez/devcontainer-terraform-aws:v2.3.2@sha256:029350d64089916ccb546a4d320822f2c99769871754c28266d1ed44a2b9b433",
   // This template starts with no AWS credentials. It does not mount the host's
   // ~/.aws, so it starts on a machine that has none and the container cannot
   // read or change the host's credentials. Log in inside the container with

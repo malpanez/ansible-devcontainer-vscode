@@ -1,6 +1,6 @@
 {
   "name": "Ansible Collection Development",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.3.1@sha256:7564b4ec111603df359785098213552529bb42e3b7a43f69bfd231f98d181086",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.3.2@sha256:1b65ffa152c2c628bb97f03886e01495f40758f7e31a193d39c6fe609ac66994",
   "remoteUser": "vscode",
 
   "customizations": {
