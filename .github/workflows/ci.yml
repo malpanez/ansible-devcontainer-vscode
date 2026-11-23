@@ -2113,10 +2113,13 @@ jobs:
     name: Molecule (${{ matrix.distro }})
     runs-on: ubuntu-24.04
     needs: [changes, test-playbooks]
+    # Pull requests too: #659 (ansible-core 2.22) broke the ubuntu2404
+    # converge, and while this job ran only on main and develop no pull
+    # request check caught it. Hosted minutes are free while the
+    # repository is public.
     if: |
       needs.changes.outputs.mode != 'nightly' &&
-      needs.changes.outputs.ansible == 'true' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
+      needs.changes.outputs.ansible == 'true'
     timeout-minutes: 45
     permissions:
       contents: read

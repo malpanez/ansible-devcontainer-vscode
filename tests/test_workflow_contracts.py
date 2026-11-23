@@ -3343,3 +3343,14 @@ def test_podman_image_ignores_the_legacy_collection_list() -> None:
     assert _matches(
         "devcontainers/ansible/collections-legacy-2.16.txt", _image_filters()["ansible"]
     )
+
+
+def test_molecule_runs_on_pull_requests_that_touch_ansible() -> None:
+    # #659 (ansible-core 2.22) broke the ubuntu2404 converge, and no pull
+    # request check ran Molecule: the job was limited to main and develop.
+    # It now runs wherever the ansible filter matches, pull requests included.
+    condition = _workflow("ci")["jobs"]["molecule"]["if"]
+
+    assert "needs.changes.outputs.ansible == 'true'" in condition
+    assert "github.ref" not in condition
+    assert "requirements-ansible.txt" in _patterns(_filters("ci")["ansible"])
