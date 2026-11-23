@@ -5,7 +5,7 @@ ARG TERRAFORM_VERSION=1.17.1
 # renovate: datasource=github-releases depName=gruntwork-io/terragrunt
 ARG TERRAGRUNT_VERSION=1.2.1
 # renovate: datasource=github-releases depName=terraform-linters/tflint
-ARG TFLINT_VERSION=0.65.0
+ARG TFLINT_VERSION=0.66.0
 # renovate: datasource=github-releases depName=getsops/sops
 ARG SOPS_VERSION=3.13.3
 # renovate: datasource=github-releases depName=FiloSottile/age
