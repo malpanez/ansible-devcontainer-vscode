@@ -176,7 +176,7 @@ and take its `Digest:` line.
 ```json
 {
   "name": "Ansible Development",
-  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.3.1@sha256:7564b4ec111603df359785098213552529bb42e3b7a43f69bfd231f98d181086",
+  "image": "ghcr.io/malpanez/devcontainer-ansible:v2.3.2@sha256:1b65ffa152c2c628bb97f03886e01495f40758f7e31a193d39c6fe609ac66994",
   "remoteUser": "vscode",
 
   "customizations": {
@@ -263,7 +263,7 @@ gh pr create
 ```json
 {
   "name": "Terraform AWS Security Module",
-  "image": "ghcr.io/malpanez/devcontainer-terraform:v2.3.1@sha256:2a86b907c10818dc5bf550f6503a4bba08d9cb80d60ea690571d0f8ec5454432",
+  "image": "ghcr.io/malpanez/devcontainer-terraform:v2.3.2@sha256:c77c2084362f4e7486058feefc926141ec8f66610f39f658777e6cf6c8bc3812",
 
   "customizations": {
     "vscode": {

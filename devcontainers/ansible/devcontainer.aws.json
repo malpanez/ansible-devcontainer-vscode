@@ -1,6 +1,6 @@
 {
   "name": "Ansible Dev Container (AWS)",
-  "image": "ghcr.io/malpanez/devcontainer-ansible-aws:v2.3.1@sha256:f3f877d2630da1330bd0de9d4b7a628237bfb0cafe1ad6b59dc433ae169f24e8",
+  "image": "ghcr.io/malpanez/devcontainer-ansible-aws:v2.3.2@sha256:39575b552003c23d2669e909d39d1c34729b06f48cf65264aeade44c54d1a481",
   // This template starts with no AWS credentials. It does not mount the host's
   // ~/.aws, so it starts on a machine that has none and the container cannot
   // read or change the host's credentials. Log in inside the container with
